@@ -16,7 +16,7 @@ Mike decide con esa tabla si shape101 va o no.
 |---|---|---|
 | Motor | Python + OpenCascade vía **build123d** | Geometría exacta (B-rep), booleanas, redondeos, STEP; vistas 2D con ocultas y secciones salen del kernel. Mismo patrón que el motor de draw101. |
 | Documento | Árbol de operaciones regenerable, con caché por operación | Historial editable; empujar cara se registra como operación. |
-| Bocetos | **draw101** (`.t101x` sobre un plano o una cara) | Snap, cotas, comandos y pruebas ya existen. |
+| Bocetos | **draw101** (`.t101d` sobre un plano o una cara) | Snap, cotas, comandos y pruebas ya existen. |
 | Vista 3D | Three.js (como nest101) | Malla teselada + aristas por cara; selección y arrastre. |
 | Cascarón | El de draw101: Electron, línea de comandos, instalador, actualizador, publicación | Cero trabajo nuevo. |
 
@@ -31,3 +31,15 @@ medidas, capturas; glTF para peek101). Sin renders fotorrealistas.
 - Quien publica shape101 es su chat, con el mismo flujo que draw101
   (`armar-y-publicar.yml` en Windows → `descargas`).
 - CONTEXTO.md de la suite manda; el muro de `suite101-api` es donde se avisa.
+
+## Cómo se corre la medición
+
+```bash
+python3.11 -m venv .venv && .venv/bin/pip install build123d playwright && npm install
+DRAW101=../draw101 .venv/bin/python poc/verificar.py --resultados
+```
+
+Cada paso es una prueba `poc/pN_*.py` al patrón de draw101; deja sus números en
+`poc/salida/medidas.json` y `--resultados` reescribe `poc/RESULTADOS.md` con ellos y
+con los veredictos de `poc/veredictos.json`. Detalle en [`poc/README.md`](poc/README.md).
+Cómo opera un chat en este repositorio: [`OPERAR.md`](OPERAR.md).

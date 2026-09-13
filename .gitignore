@@ -7,3 +7,12 @@ __pycache__/
 *.stl
 *.gltf
 *.glb
+
+# El entorno de Python con build123d + OpenCascade (780 MB) se rehace con
+# `python3.11 -m venv .venv && .venv/bin/pip install build123d`.
+.venv/
+# Lo que deja cada corrida de poc/verificar.py
+poc/salida/
+poc/cascaron/node_modules/
+poc/cascaron/runtime/
+poc/cascaron/dist/

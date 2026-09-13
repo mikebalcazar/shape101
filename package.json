@@ -1,0 +1,10 @@
+{
+  "name": "shape101",
+  "version": "0.0.1",
+  "private": true,
+  "description": "shape101 · prueba de concepto de modelado 3D de sólidos para Taller 101",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "three": "0.186.0"
+  }
+}
