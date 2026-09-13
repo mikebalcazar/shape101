@@ -1,8 +1,9 @@
 {
  "P1": {
   "titulo": "Windows y peso empotrado",
-  "veredicto": "sin medir todavía",
-  "notas": "No se puede medir en la sesión de Claude Code (Linux). Está listo como flujo de Actions en un Windows de GitHub (`.github/workflows/p1-peso-windows.yml`, con el cascarón vacío de Electron en `poc/cascaron/`): mide MB de site-packages antes/después, versión de cadquery-ocp, MB del instalador NSIS con el Python empotrado (umbral 400 MB) y el arranque del motor en frío y en caliente (umbral < 3 s). Corre en cuanto exista el repositorio en GitHub. Referencia en Linux, medida aquí: OCP pesa 159 MB en disco (site-packages completo 780 MB con build123d y sus dependencias); `import build123d` 3,75 s en frío y 2,35–2,43 s en caliente."
+  "veredicto": "sí, con dos avisos",
+  "notas": "Medido en un Windows de GitHub (windows-2025, Python 3.11.9) por el flujo `.github/workflows/p1-peso-windows.yml` (run 3, commit 6fe9854); el instalador quedó como artefacto del run 14 días por si Mike quiere instalarlo. **Aviso 1:** el arranque en frío del motor es de 10 s (en caliente 2,89 s, justo dentro del umbral): la primera apertura del día va a tardar y hay que esconderlo con una pantalla de arranque, como hace draw101. **Aviso 2:** build123d arrastra 607 MB de site-packages (IPython, sympy, ezdxf, fontTools…) que el instalador comprime a 236 MB; hay poda posible (el paquete OpenCascade en sí, `OCP`, son 84 MB en Windows) y no hizo falta para cumplir el umbral. El paquete de OpenCascade se llama `cadquery-ocp-novtk` (7.9.3.1.1), no `cadquery-ocp`.",
+  "tabla": "| Qué | Valor | Umbral | Cumple |\n|---|---:|---|---|\n| P1 site-packages antes / después de `pip install build123d` | 25 MB / 607 MB |  |  |\n| P1 carpeta `OCP` en Windows | 84 MB |  |  |\n| P1 versión de OpenCascade para Python | cadquery-ocp-novtk 7.9.3.1.1 (+ cadquery-ocp-proxy) |  |  |\n| P1 Python empotrado (embed 3.11.9 + site-packages), sin comprimir | 627 MB |  |  |\n| P1 instalador NSIS con Electron vacío y ese Python | 236 MB | < 400 MB | sí |\n| P1 `import build123d` en frío | 10,00 s |  |  |\n| P1 `import build123d` en caliente | 2,89 s | < 3 s | sí |\n| P1 el Python empotrado importa build123d | sí | sí/no | sí |\n| P1 modelado + STEP del tablero en Windows (incluye el import en caliente) | 2 920 ms |  |  |\n"
  },
  "P2": {
   "titulo": "Boceto de draw101 → sólido",
