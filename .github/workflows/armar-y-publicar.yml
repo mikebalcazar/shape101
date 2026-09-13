@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           venv/Scripts/python app/verificar.py | tee /tmp/app.txt
-          venv/Scripts/python poc/verificar.py p2 p3 | tee /tmp/poc.txt
+          venv/Scripts/python poc/verificar.py p3 | tee /tmp/poc.txt     # p2 necesita draw101, que el corredor no tiene
           grep -q "Todo bien" /tmp/app.txt
           grep -q "Todo bien" /tmp/poc.txt
 

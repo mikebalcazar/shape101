@@ -43,6 +43,8 @@ def _espera_estado(pag, texto, r=None):
             timeout=120000)
     except Exception:
         estado = pag.evaluate("document.getElementById('estado').textContent")
+        if r is not None:
+            r.cierto(False, f"esperando «{texto}», la pantalla se quedó en: «{estado}»")
         raise comun.Fallo(f"esperando «{texto}», la pantalla se quedó en: «{estado}»")
     estado = pag.evaluate("document.getElementById('estado').textContent")
     if texto != "No se pudo" and estado.startswith("No se pudo"):
