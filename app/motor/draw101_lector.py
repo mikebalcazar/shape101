@@ -17,7 +17,7 @@ import os
 import pathlib
 import sys
 
-_RAIZ_DRAW101 = pathlib.Path(os.environ.get("DRAW101", pathlib.Path(__file__).resolve().parents[2] / "draw101"))
+_RAIZ_DRAW101 = pathlib.Path(os.environ.get("DRAW101", pathlib.Path(__file__).resolve().parents[3] / "draw101"))
 
 
 def _cargar():

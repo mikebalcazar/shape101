@@ -16,14 +16,12 @@ from __future__ import annotations
 
 import json
 import pathlib
-import tempfile
 import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-from build123d import export_gltf
 
-from poc import historial
+from app.motor import historial, malla as malla_mod, nombres
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 
@@ -55,7 +53,7 @@ class Motor:
 
     def cargar_forma(self, forma, nombres_caras: dict):
         """Una forma cualquiera con sus caras ya nombradas (sin historial)."""
-        nom = historial.nombres.Nombrador()
+        nom = nombres.Nombrador()
         nom.caras = dict(nombres_caras)
         self.reg = historial.Regenerado(forma, nom, [])
         self.ops = []
@@ -65,39 +63,13 @@ class Motor:
     reteseladas = 0
 
     def malla(self, tolerancia=0.5, angular=0.3) -> dict:
-        """Una cara que no cambió (misma superficie, misma área, mismo centro)
-        no se vuelve a teselar: es lo que haría la app, y lo que la medición
-        de P4 quiere saber es cuánto cuesta lo que SÍ cambió."""
-        from poc import nombres as _n
-        t = time.perf_counter()
-        caras = []
-        self.reteseladas = 0
-        nueva_cache = {}
-        for nombre, f in self.reg.nombrador.caras.items():
-            c = f.center()
-            clave = (nombre, tuple(round(x, 6) if isinstance(x, float) else x for x in _n.superficie(f)),
-                     round(f.area, 4), round(c.X, 4), round(c.Y, 4), round(c.Z, 4))
-            malla = self._cache_malla.get(clave)
-            if malla is None:
-                vs, tris = f.tessellate(tolerancia, angular)
-                malla = {"nombre": nombre, "v": [k for v in vs for k in (v.X, v.Y, v.Z)], "i": [k for t3 in tris for k in t3]}
-                self.reteseladas += 1
-            nueva_cache[clave] = malla
-            caras.append(malla)
-        self._cache_malla = nueva_cache
-        aristas = []
-        for e in self.reg.solido.edges():
-            n = 2 if e.geom_type.name == "LINE" else 24
-            aristas.append([[p.X, p.Y, p.Z] for p in (e.position_at(k / n) for k in range(n + 1))])
-        return {"caras": caras, "aristas": aristas, "ms_regenerar": round(self.ms_ultima, 1), "reteseladas": self.reteseladas,
-                "ms_teselar": round((time.perf_counter() - t) * 1000, 1),
-                "n_caras": len(caras), "n_triangulos": sum(len(c["i"]) // 3 for c in caras)}
+        "Una cara que no cambió no se vuelve a teselar (app/motor/malla.py)."
+        m, self._cache_malla = malla_mod.malla_de(self.reg, self._cache_malla, tolerancia, angular, self.ms_ultima)
+        self.reteseladas = m["reteseladas"]
+        return m
 
     def gltf(self) -> bytes:
-        ruta = pathlib.Path(tempfile.mkdtemp()) / "modelo.glb"
-        export_gltf(self.reg.solido, str(ruta), binary=True, linear_deflection=0.5, angular_deflection=0.3)
-        return ruta.read_bytes()
-
+        return malla_mod.gltf_de(self.reg.solido)
 
 def _manejador(motor: Motor):
     class H(SimpleHTTPRequestHandler):
