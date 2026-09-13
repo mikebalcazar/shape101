@@ -1,0 +1,9 @@
+runtime/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+*.step
+*.stl
+*.gltf
+*.glb
