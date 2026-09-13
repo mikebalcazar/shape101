@@ -17,7 +17,7 @@
 
 ## P1 · Windows y peso empotrado
 
-**Veredicto: sí, con dos avisos.** Medido en un Windows de GitHub (windows-2025, Python 3.11.9) por el flujo `.github/workflows/p1-peso-windows.yml` (run 3, commit 6fe9854); el instalador quedó como artefacto del run 14 días por si Mike quiere instalarlo. **Aviso 1:** el arranque en frío del motor es de 10 s (en caliente 2,89 s, justo dentro del umbral): la primera apertura del día va a tardar y hay que esconderlo con una pantalla de arranque, como hace draw101. **Aviso 2:** build123d arrastra 607 MB de site-packages (IPython, sympy, ezdxf, fontTools…) que el instalador comprime a 236 MB; hay poda posible (el paquete OpenCascade en sí, `OCP`, son 84 MB en Windows) y no hizo falta para cumplir el umbral. El paquete de OpenCascade se llama `cadquery-ocp-novtk` (7.9.3.1.1), no `cadquery-ocp`.
+**Veredicto: sí en peso; el arranque en caliente queda en el límite del umbral.** Medido en un Windows de GitHub (windows-2025, Python 3.11.9) por el flujo `.github/workflows/p1-peso-windows.yml` (runs 3 y 4, commits 6fe9854 y 68901fc); el instalador quedó como artefacto del run 14 días por si Mike quiere instalarlo. **Aviso 1:** el arranque en frío del motor es de 10 s, y en caliente dio 2,89 s en una corrida y 3,31 s en la siguiente, en el mismo tipo de corredor: el umbral de 3 s no se cumple con margen, depende de la máquina. La primera apertura del día va a tardar y hay que esconderlo con una pantalla de arranque, como hace draw101; y si el arranque importa, la poda de lo que build123d arrastra (aviso 2) también acorta el import. **Aviso 2:** build123d arrastra 607 MB de site-packages (IPython, sympy, ezdxf, fontTools…) que el instalador comprime a 236 MB; hay poda posible (el paquete OpenCascade en sí, `OCP`, son 84 MB en Windows) y no hizo falta para cumplir el umbral. El paquete de OpenCascade se llama `cadquery-ocp-novtk` (7.9.3.1.1), no `cadquery-ocp`.
 
 | Qué | Valor | Umbral | Cumple |
 |---|---:|---|---|
@@ -26,8 +26,8 @@
 | P1 versión de OpenCascade para Python | cadquery-ocp-novtk 7.9.3.1.1 (+ cadquery-ocp-proxy) |  |  |
 | P1 Python empotrado (embed 3.11.9 + site-packages), sin comprimir | 627 MB |  |  |
 | P1 instalador NSIS con Electron vacío y ese Python | 236 MB | < 400 MB | sí |
-| P1 `import build123d` en frío | 10,00 s |  |  |
-| P1 `import build123d` en caliente | 2,89 s | < 3 s | sí |
+| P1 `import build123d` en frío (runs 3 y 4) | 10,00 s / 10,23 s |  |  |
+| P1 `import build123d` en caliente (runs 3 y 4) | 2,89 s / 3,31 s | < 3 s | en el límite: sí / NO |
 | P1 el Python empotrado importa build123d | sí | sí/no | sí |
 | P1 modelado + STEP del tablero en Windows (incluye el import en caliente) | 2 920 ms |  |  |
 
