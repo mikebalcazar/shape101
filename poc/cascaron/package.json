@@ -1,0 +1,23 @@
+{
+  "name": "shape101-cascaron",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Cascarón vacío de Electron para medir el peso del instalador con Python + build123d empotrado (P1)",
+  "main": "main.js",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "mx.taller101.shape101.poc",
+    "productName": "shape101-poc",
+    "artifactName": "shape101-poc-setup.${ext}",
+    "asar": true,
+    "directories": { "output": "dist" },
+    "files": ["main.js"],
+    "extraResources": [{ "from": "runtime/python", "to": "python" }],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "signAndEditExecutable": false },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true }
+  }
+}

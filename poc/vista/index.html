@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>shape101 · vista 3D (prueba de concepto)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1d1f22; color: #ddd; font: 13px system-ui; overflow: hidden }
+  #lienzo { width: 100%; height: 100% }
+  #estado { position: fixed; left: 10px; top: 8px; pointer-events: none; white-space: pre }
+</style>
+<div id="estado">cargando…</div>
+<canvas id="lienzo"></canvas>
+<script type="importmap">
+{ "imports": { "three": "/node_modules/three/build/three.module.js",
+               "three/addons/": "/node_modules/three/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+// Una geometría por cara: así el raycast dice QUÉ cara, por su nombre.
+const lienzo = document.getElementById("lienzo");
+const estado = document.getElementById("estado");
+const renderer = new THREE.WebGLRenderer({ canvas: lienzo, antialias: true });
+renderer.setPixelRatio(1);
+const escena = new THREE.Scene();
+const camara = new THREE.PerspectiveCamera(45, 1, 1, 100000);
+const controles = new OrbitControls(camara, lienzo);
+escena.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+const luz = new THREE.DirectionalLight(0xffffff, 1.5); luz.position.set(1, 2, 3); escena.add(luz);
+const grupo = new THREE.Group(); escena.add(grupo);
+const normalMat = new THREE.MeshStandardMaterial({ color: 0xc8a165, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1 });
+const marcadoMat = new THREE.MeshStandardMaterial({ color: 0xffd35a, emissive: 0x553300, side: THREE.DoubleSide });
+const lineaMat = new THREE.LineBasicMaterial({ color: 0x111111 });
+let mallas = [], marcada = null, frames = 0;
+
+function ajustar() {
+  const w = lienzo.clientWidth || window.innerWidth, h = lienzo.clientHeight || window.innerHeight;
+  renderer.setSize(w, h, false); camara.aspect = w / h; camara.updateProjectionMatrix();
+}
+window.addEventListener("resize", ajustar); ajustar();
+
+function pintar(modelo) {
+  grupo.clear(); mallas = []; marcada = null;
+  for (const c of modelo.caras) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(c.v, 3));
+    g.setIndex(c.i); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, normalMat); m.name = c.nombre; grupo.add(m); mallas.push(m);
+  }
+  for (const a of modelo.aristas) {
+    const g = new THREE.BufferGeometry().setFromPoints(a.map(p => new THREE.Vector3(...p)));
+    grupo.add(new THREE.Line(g, lineaMat));
+  }
+  encuadrar();
+  estado.textContent = `${modelo.n_caras} caras · ${modelo.n_triangulos} triángulos · regenerar ${modelo.ms_regenerar} ms · teselar ${modelo.ms_teselar} ms`;
+}
+function encuadrar() {
+  const caja = new THREE.Box3().setFromObject(grupo); const c = new THREE.Vector3(); caja.getCenter(c);
+  const r = caja.getSize(new THREE.Vector3()).length() / 2 || 100;
+  camara.position.set(c.x + r * 1.2, c.y - r * 1.6, c.z + r * 1.2); camara.up.set(0, 0, 1);
+  controles.target.copy(c); controles.update();
+}
+const ray = new THREE.Raycaster();
+function elegir(px, py) {
+  const w = lienzo.clientWidth, h = lienzo.clientHeight;
+  ray.setFromCamera(new THREE.Vector2((px / w) * 2 - 1, -(py / h) * 2 + 1), camara);
+  const hit = ray.intersectObjects(mallas, false)[0];
+  if (marcada) marcada.material = normalMat;
+  marcada = hit ? hit.object : null;
+  if (marcada) marcada.material = marcadoMat;
+  return hit ? { nombre: hit.object.name, punto: hit.point.toArray(), normal: hit.face.normal.toArray() } : null;
+}
+async function api(ruta, cuerpo) {
+  const r = await fetch(ruta, cuerpo ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) } : undefined);
+  const j = await r.json(); if (j.error) throw new Error(j.error); return j;
+}
+async function cargar() { pintar(await api("/api/modelo")); }
+async function empujar(nombre, mm) {
+  const t0 = performance.now();
+  const modelo = await api("/api/empujar", { cara: nombre, mm });
+  const t1 = performance.now(); pintar(modelo); renderer.render(escena, camara);
+  return { ms_total: performance.now() - t0, ms_motor_y_red: t1 - t0, ms_regenerar: modelo.ms_regenerar, ms_teselar: modelo.ms_teselar, n_caras: modelo.n_caras, reteseladas: modelo.reteseladas };
+}
+// Arrastre en la normal: clic en cara + arrastrar = empujar. El desplazamiento
+// del ratón se proyecta sobre la normal de la cara vista en pantalla.
+let arrastre = null;
+lienzo.addEventListener("pointerdown", (e) => {
+  const hit = elegir(e.clientX, e.clientY); if (!hit) return;
+  const n = new THREE.Vector3(...hit.normal).project(camara); const o = new THREE.Vector3(...hit.punto).project(camara);
+  arrastre = { nombre: hit.nombre, x: e.clientX, y: e.clientY, dir: new THREE.Vector2(n.x - o.x, -(n.y - o.y)).normalize(), escala: 1 };
+  controles.enabled = false;
+});
+lienzo.addEventListener("pointerup", async (e) => {
+  controles.enabled = true; if (!arrastre) return;
+  const d = new THREE.Vector2(e.clientX - arrastre.x, e.clientY - arrastre.y).dot(arrastre.dir);
+  const mm = Math.round(d); arrastre = null;
+  if (Math.abs(mm) >= 1) window.__ultimo_empuje = await empujar(marcada ? marcada.name : "", mm);
+});
+function fps(ms) {
+  return new Promise((listo) => {
+    let n = 0; const t0 = performance.now();
+    const paso = () => { controles.target && (camara.position.applyAxisAngle(new THREE.Vector3(0, 0, 1), 0.02)); controles.update(); renderer.render(escena, camara); n++;
+      if (performance.now() - t0 < ms) requestAnimationFrame(paso); else listo(n / ((performance.now() - t0) / 1000)); };
+    requestAnimationFrame(paso);
+  });
+}
+async function gltf() {
+  const t0 = performance.now(); const loader = new GLTFLoader();
+  const g = await loader.loadAsync("/api/gltf"); grupo.clear(); mallas = []; grupo.add(g.scene);
+  let mallasN = 0, tri = 0; g.scene.traverse((o) => { if (o.isMesh) { mallasN++; tri += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } });
+  encuadrar(); renderer.render(escena, camara);
+  return { ms: performance.now() - t0, mallas: mallasN, triangulos: tri };
+}
+renderer.setAnimationLoop(() => { controles.update(); renderer.render(escena, camara); frames++; });
+window.shape101 = { vaciar: () => { grupo.clear(); mallas = []; }, cargar, elegir, empujar, fps, gltf, caras: () => mallas.map(m => m.name), marcada: () => marcada && marcada.name,
+  puntoEnPantalla: (nombre) => { const m = mallas.find(x => x.name === nombre); if (!m) return null;
+    const pos = m.geometry.attributes.position, ix = m.geometry.index; const c = new THREE.Vector3();
+    for (let k = 0; k < 3; k++) c.add(new THREE.Vector3().fromBufferAttribute(pos, ix.getX(k)));
+    c.multiplyScalar(1 / 3).project(camara); const w = lienzo.clientWidth, h = lienzo.clientHeight;
+    return [(c.x + 1) / 2 * w, (1 - c.y) / 2 * h]; },
+  centroEnPantalla: (nombre) => { const m = mallas.find(x => x.name === nombre); if (!m) return null; m.geometry.computeBoundingBox();
+    const c = m.geometry.boundingBox.getCenter(new THREE.Vector3()).project(camara); const w = lienzo.clientWidth, h = lienzo.clientHeight;
+    return [(c.x + 1) / 2 * w, (1 - c.y) / 2 * h]; } };
+await cargar(); window.__lista = true;
+</script>

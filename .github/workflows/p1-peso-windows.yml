@@ -1,0 +1,133 @@
+# P1 · Windows y peso empotrado.
+#
+# La única parte de la prueba de concepto que no se puede medir en la sesión
+# de Claude Code (Linux). Aquí, en un Windows de GitHub:
+#   1. pip install build123d en un Python 3.11 limpio: MB de site-packages
+#      antes/después y versión de cadquery-ocp.
+#   2. Ese Python, empotrado al patrón runtime/python de draw101, dentro de un
+#      instalador NSIS con un Electron de una ventana en blanco: MB del .exe.
+#      Umbral: 400 MB.
+#   3. Arranque del motor (import build123d) en frío y en caliente. Umbral:
+#      < 3 s en caliente.
+# Lo medido se deja como comentario del commit (OPERAR.md §6) y en el resumen
+# del run; el instalador queda como artefacto 14 días por si Mike lo quiere
+# instalar y pesarlo él.
+name: P1 · peso en Windows
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/p1-peso-windows.yml', 'poc/cascaron/**']
+
+permissions:
+  contents: write
+
+jobs:
+  p1:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 1 · pip install build123d en un Python limpio
+        id: pip
+        run: |
+          set -euo pipefail
+          python -m venv venv
+          SP=$(venv/Scripts/python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
+          ANTES=$(du -sm "$SP" | cut -f1)
+          venv/Scripts/python -m pip install -q --upgrade pip
+          venv/Scripts/python -m pip install -q build123d
+          DESPUES=$(du -sm "$SP" | cut -f1)
+          OCP=$(du -sm "$SP/OCP" | cut -f1)
+          VER=$(venv/Scripts/python -m pip show cadquery-ocp | awk '/^Version/{print $2}')
+          B3D=$(venv/Scripts/python -m pip show build123d | awk '/^Version/{print $2}')
+          echo "antes=$ANTES" >> "$GITHUB_OUTPUT"; echo "despues=$DESPUES" >> "$GITHUB_OUTPUT"
+          echo "ocp=$OCP" >> "$GITHUB_OUTPUT"; echo "ver=$VER" >> "$GITHUB_OUTPUT"; echo "b3d=$B3D" >> "$GITHUB_OUTPUT"
+          echo "site-packages: $ANTES MB → $DESPUES MB (OCP $OCP MB) · cadquery-ocp $VER · build123d $B3D"
+
+      - name: 3 · arranque del motor, frío y caliente
+        id: arranque
+        run: |
+          set -euo pipefail
+          medir() { venv/Scripts/python -c "import time;t=time.perf_counter();import build123d;print(f'{(time.perf_counter()-t):.2f}')"; }
+          FRIO=$(medir); C1=$(medir); C2=$(medir)
+          echo "frio=$FRIO" >> "$GITHUB_OUTPUT"; echo "caliente=$C2" >> "$GITHUB_OUTPUT"
+          echo "import build123d: frío $FRIO s · caliente $C1 s, $C2 s"
+          # y que el motor haga algo de verdad en Windows (mismo caso que P2/P3)
+          venv/Scripts/python -c "
+          import time; t=time.perf_counter()
+          from build123d import *
+          b = Box(900,600,18) - Cylinder(80, 18)
+          b = fillet(b.edges().filter_by(Axis.Z), 20)
+          export_step(b, 'p1.step')
+          print(f'modelado + STEP en Windows: {(time.perf_counter()-t)*1000:.0f} ms · volumen {b.volume:.1f}')
+          "
+
+      - name: 2 · empotrar el Python y armar el instalador vacío
+        id: instalador
+        run: |
+          set -euo pipefail
+          cd poc/cascaron
+          # Python embebido oficial (el mismo patrón que draw101: runtime/python)
+          PYVER=$(python -c "import sys;print('%d.%d.%d'%sys.version_info[:3])")
+          curl -sSL -o py.zip "https://www.python.org/ftp/python/$PYVER/python-$PYVER-embed-amd64.zip"
+          mkdir -p runtime/python && (cd runtime/python && unzip -q ../../py.zip)
+          SP=$(../../venv/Scripts/python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
+          cp -r "$SP" runtime/python/site-packages
+          # que el embebido vea site-packages
+          PTH=$(ls runtime/python/python*._pth); echo "site-packages" >> "$PTH"
+          echo "runtime/python: $(du -sm runtime/python | cut -f1) MB"
+          runtime/python/python.exe -c "import build123d; print('el Python empotrado importa build123d')"
+          npm install --no-audit --no-fund
+          npx electron-builder --win nsis
+          EXE=$(ls dist/*.exe)
+          MB=$(( ($(stat -c %s "$EXE") + 500000) / 1000000 ))
+          echo "mb=$MB" >> "$GITHUB_OUTPUT"
+          echo "exe=$EXE" >> "$GITHUB_OUTPUT"
+          echo "instalador: $EXE · $MB MB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shape101-poc-setup
+          path: poc/cascaron/dist/*.exe
+          retention-days: 14
+
+      - name: Dejar lo medido en el commit y en el resumen
+        if: always()
+        env:
+          ANTES: ${{ steps.pip.outputs.antes }}
+          DESPUES: ${{ steps.pip.outputs.despues }}
+          OCP: ${{ steps.pip.outputs.ocp }}
+          VER: ${{ steps.pip.outputs.ver }}
+          B3D: ${{ steps.pip.outputs.b3d }}
+          FRIO: ${{ steps.arranque.outputs.frio }}
+          CALIENTE: ${{ steps.arranque.outputs.caliente }}
+          MB: ${{ steps.instalador.outputs.mb }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          {
+            echo "P1 · peso en Windows (${{ runner.os }})"
+            echo "site-packages antes/después: ${ANTES:-?} MB → ${DESPUES:-?} MB · OCP ${OCP:-?} MB"
+            echo "cadquery-ocp ${VER:-?} · build123d ${B3D:-?}"
+            echo "import build123d: frío ${FRIO:-?} s · caliente ${CALIENTE:-?} s  (umbral < 3 s caliente)"
+            echo "instalador NSIS con Python empotrado: ${MB:-NO SE ARMÓ} MB  (umbral 400 MB)"
+          } > medido.txt
+          cat medido.txt
+          { echo '## P1 · peso en Windows'; echo; echo '```'; cat medido.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          python - <<'EOF2'
+          import json, os, urllib.request
+          cuerpo = "**P1 · medición**\n\n```\n" + open("medido.txt", encoding="utf-8").read() + "```\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_\n"
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/commits/{os.environ['GITHUB_SHA']}/comments",
+              data=json.dumps({"body": cuerpo}).encode(), method="POST",
+              headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
+          print(urllib.request.urlopen(req).status)
+          EOF2
