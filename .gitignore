@@ -16,3 +16,7 @@ poc/salida/
 poc/cascaron/node_modules/
 poc/cascaron/runtime/
 poc/cascaron/dist/
+app/ui/lib/
+app/electron/node_modules/
+app/electron/runtime/
+app/electron/dist/

@@ -1,0 +1,185 @@
+# Arma el instalador de shape101 en un Windows de GitHub, corre las pruebas de
+# aceptación y las de la PoC, y deja el .exe como artefacto. Con el secreto
+# TOKEN_DESCARGAS, además lo manda a `descargas` por la rama de carga que
+# espera publicar-instalador.yml (desde main, no huérfana) y deja el
+# manifiesto y el README de descargas diciendo la versión nueva.
+#
+# Se dispara con un tag `v<versión>`, una rama `claude/publicar-<versión>` o a
+# mano. La versión de app/motor/version.py, la de app/electron/package.json y
+# la del tag tienen que coincidir o el flujo se niega.
+name: Armar y publicar
+
+on:
+  push:
+    tags: ['v*']
+    branches: ['claude/publicar-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: armar-y-publicar
+  cancel-in-progress: false
+
+jobs:
+  armar:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Versión y tag deben coincidir
+        id: version
+        run: |
+          set -euo pipefail
+          VER=$(python -c "import ast,re;print(re.search(r'VERSION = \"([^\"]+)\"', open('app/motor/version.py',encoding='utf-8').read()).group(1))")
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "app/motor/version.py dice $VER"
+          grep -q "\"version\": \"$VER\"" app/electron/package.json || { echo "app/electron/package.json no dice $VER"; exit 1; }
+          grep -q "shape101-$VER-setup" app/electron/package.json || { echo "artifactName no dice $VER"; exit 1; }
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/v}"; [ "$TAG" = "$VER" ] || { echo "el tag v$TAG no coincide con version.py ($VER)"; exit 1; }
+          elif [[ "$GITHUB_REF" == refs/heads/claude/publicar-* ]]; then
+            PED="${GITHUB_REF#refs/heads/claude/publicar-}"; [ "$PED" = "$VER" ] || { echo "la rama pide $PED pero version.py dice $VER"; exit 1; }
+          fi
+
+      - name: El motor en un Python limpio
+        run: |
+          set -euo pipefail
+          python -m venv venv
+          venv/Scripts/python -m pip install -q --upgrade pip
+          venv/Scripts/python -m pip install -q build123d playwright
+          venv/Scripts/python -m playwright install chromium
+          npm ci --no-audit --no-fund
+          venv/Scripts/python app/armar_ui.py
+
+      - name: Pruebas de aceptación (app/verificar.py) y de la PoC (poc/verificar.py)
+        run: |
+          set -euo pipefail
+          venv/Scripts/python app/verificar.py | tee /tmp/app.txt
+          venv/Scripts/python poc/verificar.py p2 p3 | tee /tmp/poc.txt
+          grep -q "Todo bien" /tmp/app.txt
+          grep -q "Todo bien" /tmp/poc.txt
+
+      - name: Empotrar el Python y armar el instalador
+        id: armar
+        run: |
+          set -euo pipefail
+          cd app/electron
+          PYVER=$(python -c "import sys;print('%d.%d.%d'%sys.version_info[:3])")
+          curl -sSL -o py.zip "https://www.python.org/ftp/python/$PYVER/python-$PYVER-embed-amd64.zip"
+          mkdir -p runtime/python && (cd runtime/python && unzip -q ../../py.zip)
+          SP=$(../../venv/Scripts/python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
+          cp -r "$SP" runtime/python/site-packages
+          # playwright y el navegador NO van en el instalador
+          rm -rf runtime/python/site-packages/playwright* runtime/python/site-packages/greenlet* runtime/python/site-packages/pyee*
+          PTH=$(ls runtime/python/python*._pth); echo "site-packages" >> "$PTH"
+          echo "runtime/python: $(du -sm runtime/python | cut -f1) MB"
+          # que el Python empotrado arranque el motor de verdad, con la app copiada como la empaqueta electron-builder
+          mkdir -p prueba/app101 && cp -r ../../app prueba/app101/app && rm -rf prueba/app101/app/electron prueba/app101/app/pruebas
+          (cd prueba/app101 && ../../runtime/python/python.exe -c "import app.motor.servidor as s; print('el Python empotrado importa el motor', s.VERSION)")
+          rm -rf prueba
+          npm install --no-audit --no-fund
+          npx electron-builder --win nsis
+          EXE=$(ls dist/shape101-*-setup.exe)
+          MB=$(( ($(stat -c %s "$EXE") + 500000) / 1000000 ))
+          echo "mb=$MB" >> "$GITHUB_OUTPUT"; echo "exe=$EXE" >> "$GITHUB_OUTPUT"
+          echo "instalador: $EXE · $MB MB"
+
+      - name: Preparar la carga y el manifiesto
+        id: carga
+        run: |
+          set -euo pipefail
+          VER=${{ steps.version.outputs.version }}
+          venv/Scripts/python app/cargar.py "app/electron/dist/shape101-$VER-setup.exe" salida
+          SHA=$(python -c "import json;print(json.load(open('salida/carga/meta.json'))['sha256'])")
+          B=$(python -c "import json;print(json.load(open('salida/carga/meta.json'))['bytes'])")
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"; echo "bytes=$B" >> "$GITHUB_OUTPUT"
+          { echo "## shape101 $VER armada"; echo; echo "- \`shape101-$VER-setup.exe\` · $B bytes · sha256 \`$SHA\`"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shape101-${{ steps.version.outputs.version }}-setup
+          path: app/electron/dist/shape101-${{ steps.version.outputs.version }}-setup.exe
+          retention-days: 14
+
+      - name: Cargar a descargas (rama claude/carga-…, desde main)
+        id: cargar
+        env:
+          TOKEN: ${{ secrets.TOKEN_DESCARGAS }}
+        run: |
+          set -euo pipefail
+          VER=${{ steps.version.outputs.version }}
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::warning::Falta el secreto TOKEN_DESCARGAS: el instalador quedó como artefacto del run, pero no se cargó a descargas."
+            echo "- **No se cargó a descargas**: falta el secreto \`TOKEN_DESCARGAS\`. Jr. puede cargarlo desde el artefacto." >> "$GITHUB_STEP_SUMMARY"
+            echo "cargado=no" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git clone -q --depth 1 "https://x-access-token:${TOKEN}@github.com/mikebalcazar/descargas" descargas
+          cd descargas
+          git config user.name "shape101 (Armar y publicar)"; git config user.email "mike@forespot.com"
+          RAMA="claude/carga-shape101-$VER"
+          git checkout -q -b "$RAMA"            # desde main: una rama huérfana no dispara publicar-instalador.yml
+          rm -rf carga && cp -r ../salida/carga carga
+          git add carga && git commit -qm "carga: shape101 $VER (armada por Actions de shape101)" && git push -q origin "$RAMA"
+          echo "cargado=si" >> "$GITHUB_OUTPUT"
+
+      - name: Esperar la release y dejar el manifiesto en main
+        if: steps.cargar.outputs.cargado == 'si'
+        env:
+          TOKEN: ${{ secrets.TOKEN_DESCARGAS }}
+        run: |
+          set -euo pipefail
+          VER=${{ steps.version.outputs.version }}; SHA=${{ steps.carga.outputs.sha256 }}; B=${{ steps.carga.outputs.bytes }}
+          URL="https://github.com/mikebalcazar/descargas/releases/download/shape101-$VER/shape101-$VER-setup.exe"
+          ok=0
+          for i in $(seq 1 40); do
+            code=$(curl -s -L --max-time 300 -o bajado.exe -w '%{http_code}' "$URL" || true)
+            if [ "$code" = "200" ] && [ "$(sha256sum bajado.exe | cut -d' ' -f1)" = "$SHA" ] && [ "$(stat -c '%s' bajado.exe)" = "$B" ]; then ok=1; break; fi
+            rm -f bajado.exe; sleep 30
+          done
+          [ $ok = 1 ] || { echo "la release shape101-$VER no apareció con la huella esperada"; exit 1; }
+          cd descargas && git checkout -q main && git pull -q
+          cp ../salida/shape101.json shape101.json
+          python - <<'EOF2'
+          import re, pathlib
+          renglon = pathlib.Path("../salida/readme-renglon.md").read_text(encoding="utf-8").strip()
+          p = pathlib.Path("README.md"); s = p.read_text(encoding="utf-8")
+          nuevo, n = re.subn(r"^\| \*\*shape101\*\* \|.*$", renglon, s, count=1, flags=re.M)
+          if n != 1: raise SystemExit("no encontré el renglón de shape101 en README.md")
+          p.write_text(nuevo, encoding="utf-8")
+          EOF2
+          git add shape101.json README.md && git commit -qm "shape101 $VER: manifiesto y README (armada y publicada por Actions de shape101)" && git push -q origin main
+          echo "- Release \`shape101-$VER\` publicada · \`shape101-ultima\` movida · manifiesto y README en main." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dejar lo medido en el commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MB: ${{ steps.armar.outputs.mb }}
+          SHA: ${{ steps.carga.outputs.sha256 }}
+          B: ${{ steps.carga.outputs.bytes }}
+          CARGADO: ${{ steps.cargar.outputs.cargado }}
+        run: |
+          set -euo pipefail
+          { echo "shape101 ${{ steps.version.outputs.version }} · armar y publicar"; echo "pruebas app:"; grep -h "Todo bien\|fallo" /tmp/app.txt /tmp/poc.txt 2>/dev/null || echo "(sin salida de pruebas)"
+            echo "instalador: ${MB:-NO SE ARMÓ} MB · ${B:-?} bytes · sha256 ${SHA:-?}"; echo "cargado a descargas: ${CARGADO:-no}"; } > medido.txt
+          cat medido.txt
+          python - <<'EOF2'
+          import json, os, urllib.request
+          cuerpo = "**Armar y publicar · medición**\n\n```\n" + open("medido.txt", encoding="utf-8").read() + "```\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_\n"
+          req = urllib.request.Request(f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/commits/{os.environ['GITHUB_SHA']}/comments",
+              data=json.dumps({"body": cuerpo}).encode(), method="POST",
+              headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
+          print(urllib.request.urlopen(req).status)
+          EOF2
