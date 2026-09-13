@@ -38,6 +38,9 @@ def escribir(filas=None) -> pathlib.Path:
         out.append("")
         out.append(f"**Veredicto: {v.get('veredicto', 'sin medir')}.** {v.get('notas', '')}".rstrip())
         out.append("")
+        if v.get("tabla"):                      # lo medido fuera de verificar.py (P1 en Windows)
+            out.append(v["tabla"].rstrip())
+            out.append("")
         filas_p = [m for m in medidas if str(m['que']).startswith(p + " ") or str(m['que']).startswith(p + ":")]
         if filas_p:
             out.append("| Qué | Valor | Umbral | Cumple |")

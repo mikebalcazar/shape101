@@ -46,8 +46,12 @@ jobs:
           venv/Scripts/python -m pip install -q build123d
           DESPUES=$(du -sm "$SP" | cut -f1)
           OCP=$(du -sm "$SP/OCP" | cut -f1)
-          VER=$(venv/Scripts/python -m pip show cadquery-ocp | awk '/^Version/{print $2}')
-          B3D=$(venv/Scripts/python -m pip show build123d | awk '/^Version/{print $2}')
+          # El paquete de OpenCascade no siempre se llama cadquery-ocp (en el
+          # primer run de Windows `pip show cadquery-ocp` no lo encontró): se
+          # busca en el registro de lo instalado el que tenga «ocp» en el nombre.
+          VER=$(venv/Scripts/python -c "import importlib.metadata as m; print(' '.join(d.metadata['Name']+' '+d.version for d in m.distributions() if 'ocp' in d.metadata['Name'].lower()))")
+          B3D=$(venv/Scripts/python -c "import importlib.metadata as m; print(m.version('build123d'))")
+          ls "$SP" | head -40
           echo "antes=$ANTES" >> "$GITHUB_OUTPUT"; echo "despues=$DESPUES" >> "$GITHUB_OUTPUT"
           echo "ocp=$OCP" >> "$GITHUB_OUTPUT"; echo "ver=$VER" >> "$GITHUB_OUTPUT"; echo "b3d=$B3D" >> "$GITHUB_OUTPUT"
           echo "site-packages: $ANTES MB → $DESPUES MB (OCP $OCP MB) · cadquery-ocp $VER · build123d $B3D"
