@@ -16,7 +16,8 @@ import pathlib
 
 from build123d import import_step, export_step
 
-from poc import comun, draw101_lector as d1, boceto
+from poc import comun
+from app.motor import draw101_lector as d1, boceto
 
 DESCRIPCION = "boceto .t101d (draw101) → cara → extruir 18 → STEP → reabrir"
 AQUI = pathlib.Path(__file__).resolve().parent

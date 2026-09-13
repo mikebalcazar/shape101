@@ -15,7 +15,8 @@ import pathlib
 
 from build123d import Plane
 
-from poc import comun, draw101_lector as d1, historial, p3_historial, vistas2d
+from poc import comun, p3_historial
+from app.motor import draw101_lector as d1, historial, vistas2d
 
 DESCRIPCION = "planta/alzado/lateral/corte con ocultas → .t101d → acotar en draw101"
 AQUI = pathlib.Path(__file__).resolve().parent

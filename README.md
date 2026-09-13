@@ -32,6 +32,15 @@ medidas, capturas; glTF para peek101). Sin renders fotorrealistas.
   (`armar-y-publicar.yml` en Windows → `descargas`).
 - CONTEXTO.md de la suite manda; el muro de `suite101-api` es donde se avisa.
 
+## La app (fase 1, por bloques)
+
+`app/motor/` es el motor: el documento `.s101` (una pieza con material y
+espesor más su historial de operaciones, con los bocetos embebidos y caché por
+operación), el historial y los nombres estables que salieron de la prueba de
+concepto, y la API local (`servidor.py`, el mismo patrón que draw101).
+`app/pruebas/` son las pruebas de aceptación que el chat de shape101 escribe
+ANTES de cada bloque; `python app/verificar.py` dice si el bloque está hecho.
+
 ## Cómo se corre la medición
 
 ```bash

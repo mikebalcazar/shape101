@@ -18,7 +18,7 @@ from OCP.gp import gp_Ax2
 from OCP.HLRAlgo import HLRAlgo_Projector
 from OCP.HLRBRep import HLRBRep_Algo, HLRBRep_HLRToShape
 
-from poc import draw101_lector as d1
+from app.motor import draw101_lector as d1
 
 CAPA_VISIBLES = "0"
 CAPA_OCULTAS = "T101-OCULTO"

@@ -19,7 +19,8 @@ from __future__ import annotations
 
 from build123d import Box, Compound, Location
 
-from poc import comun, historial, motor_http, p3_historial
+from poc import comun, motor_http, p3_historial
+from app.motor import historial
 
 DESCRIPCION = "Three.js: elegir cara, arrastrar = empujar, y 500 caras orbitando"
 VIEWPORT = {"width": 1200, "height": 800}

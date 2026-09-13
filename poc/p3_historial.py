@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import math
 
-from poc import comun, historial, nombres
+from poc import comun
+from app.motor import historial, nombres
 
 DESCRIPCION = "historial JSON, regenerar tras cambiar una cota, nombres estables"
 W, H, T, RB, RE, EMPUJE = 900.0, 600.0, 18.0, 80.0, 20.0, 10.0

@@ -12,9 +12,11 @@ DRAW101=../draw101 .venv/bin/python poc/verificar.py             # todas
 .venv/bin/python poc/verificar.py --resultados                      # y reescribe RESULTADOS.md
 ```
 
-- `comun.py` — el reporte, con `r.numero(...)` para lo medido.
-- `draw101_lector.py` — lee y escribe `.t101d` **con el motor de draw101**, sin
-  tocarlo (variable `DRAW101` o carpeta hermana).
-- `boceto.py` — entidades de draw101 → cara → sólido (build123d / OpenCascade).
-- `muestras/` — bocetos de muestra hechos con draw101 y los STEP que salen.
+- `comun.py` — el reporte, con `r.numero(...)` para lo medido. Lo usa también
+  `app/verificar.py`: por eso vive aquí y no se mueve.
+- El kernel que la PoC escribió (`historial`, `nombres`, `boceto`,
+  `draw101_lector`, `vistas2d`, `malla`) **vive en `app/motor/`** desde el
+  bloque 1: una sola copia, y las pruebas de aquí importan de ahí.
+- `motor_http.py` y `vista/` — el motor y la página de la PoC (P4, P6).
+- `muestras/` — bocetos de muestra hechos con draw101 (`.t101d`).
 - `salida/` — lo que deja cada corrida (no se versiona).

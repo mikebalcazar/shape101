@@ -16,7 +16,7 @@ import tempfile
 
 os.environ.setdefault("HOME", tempfile.mkdtemp())
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-from poc import draw101_lector as d1  # noqa: E402
+from app.motor import draw101_lector as d1  # noqa: E402
 
 AQUI = pathlib.Path(__file__).resolve().parent
 ANCHO, ALTO, RADIO_BARRENO, RADIO_ESQUINA = 900.0, 600.0, 80.0, 20.0
