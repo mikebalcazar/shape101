@@ -32,7 +32,12 @@ const escena = new THREE.Scene();
 escena.background = new THREE.Color(0x1d1f22);
 const camara = new THREE.PerspectiveCamera(45, 1, 1, 100000);
 const controles = new OrbitControls(camara, lienzo);
-controles.enableDamping = true;
+// Se pinta sólo cuando algo cambia (orbitar, un modelo nuevo, la ventana). Un
+// bucle de animación sin fin con el renderizador por software de un corredor
+// de dos núcleos dejó al motor sin procesador: un redondeo de 200 ms tardó
+// 118 s. Medido el 13-sep en windows-latest.
+const pintar3d = () => renderer.render(escena, camara);
+controles.addEventListener("change", pintar3d);
 escena.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
 const luz = new THREE.DirectionalLight(0xffffff, 1.4); luz.position.set(1, 2, 3); escena.add(luz);
 const grupo = new THREE.Group(); escena.add(grupo);
@@ -44,6 +49,7 @@ let mallas = [], elegida = null, encuadrado = false;
 function ajustar() {
   const w = lienzo.clientWidth || 800, h = lienzo.clientHeight || 600;
   renderer.setSize(w, h, false); camara.aspect = w / h; camara.updateProjectionMatrix();
+  pintar3d();
 }
 window.addEventListener("resize", ajustar); ajustar();
 
@@ -61,6 +67,7 @@ function pintar(modelo) {
     grupo.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(a.map((p) => new THREE.Vector3(...p))), matLinea));
   }
   if (!encuadrado && mallas.length) { encuadrar(); encuadrado = true; }
+  pintar3d();
   $("e-cara").value = elegida ? elegida.name : "";
   const [x, y, z] = modelo.caja || [0, 0, 0];
   $("medidas").textContent = modelo.n_caras
@@ -73,7 +80,7 @@ function encuadrar() {
   const c = new THREE.Vector3(); caja.getCenter(c);
   const r = caja.getSize(new THREE.Vector3()).length() / 2 || 100;
   camara.position.set(c.x + r * 1.2, c.y - r * 1.6, c.z + r * 1.2); camara.up.set(0, 0, 1);
-  controles.target.copy(c); controles.update();
+  controles.target.copy(c); controles.update(); pintar3d();
 }
 const ray = new THREE.Raycaster();
 function elegir(px, py) {
@@ -83,6 +90,7 @@ function elegir(px, py) {
   if (elegida) elegida.material = matNormal;
   elegida = hit ? hit.object : null;
   if (elegida) elegida.material = matElegida;
+  pintar3d();
   $("e-cara").value = elegida ? elegida.name : "";
   return hit ? { nombre: hit.object.name, punto: hit.point.toArray(), normal: hit.face.normal.toArray() } : null;
 }
@@ -103,7 +111,6 @@ window.addEventListener("pointerup", (e) => {
   const mm = Math.round(d * 100) / 100; const nombre = arrastre.nombre; arrastre = null;
   if (Math.abs(mm) >= 1) intentar(() => operacion({ op: "empujar_cara", cara: nombre, mm }));
 });
-renderer.setAnimationLoop(() => { controles.update(); renderer.render(escena, camara); });
 
 // ------------------------------------------------------------------ el documento
 let doc = null, rutaActual = null;
