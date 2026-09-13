@@ -142,11 +142,15 @@ class Motor:
 
 def _manejador(motor: Motor):
     class H(BaseHTTPRequestHandler):
-        def log_message(self, *a):
-            pass
+        def log_message(self, formato, *args):
+            pass                                            # lo de abajo ya deja rastro con el tiempo
+
+        def _rastro(self, inicio: float, codigo: int):
+            print(f"[motor] {self.command} {self.path} → {codigo} en {(time.perf_counter() - inicio) * 1000:.0f} ms", flush=True)
 
         def _json(self, datos, codigo=200):
             cuerpo = json.dumps(datos, ensure_ascii=False).encode("utf-8")
+            self._rastro(getattr(self, "_t0", time.perf_counter()), codigo)
             self.send_response(codigo)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(cuerpo)))
@@ -169,6 +173,7 @@ def _manejador(motor: Motor):
             self.wfile.write(datos)
 
         def do_GET(self):
+            self._t0 = time.perf_counter()
             try:
                 if self.path == "/api/salud":
                     return self._json({"ok": True, "version": VERSION})
@@ -195,6 +200,7 @@ def _manejador(motor: Motor):
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 400)
 
         def do_POST(self):
+            self._t0 = time.perf_counter()
             try:
                 datos = self._cuerpo()
                 if self.path == "/api/documento/nuevo":
