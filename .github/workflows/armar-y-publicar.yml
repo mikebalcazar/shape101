@@ -88,10 +88,12 @@ jobs:
           rm -rf runtime/python/site-packages/playwright* runtime/python/site-packages/greenlet* runtime/python/site-packages/pyee*
           PTH=$(ls runtime/python/python*._pth); echo "site-packages" >> "$PTH"
           echo "runtime/python: $(du -sm runtime/python | cut -f1) MB"
-          # que el Python empotrado arranque el motor de verdad, con la app copiada como la empaqueta electron-builder
-          mkdir -p prueba/app101 && cp -r ../../app prueba/app101/app && rm -rf prueba/app101/app/electron prueba/app101/app/pruebas
-          (cd prueba/app101 && ../../runtime/python/python.exe -c "import app.motor.servidor as s; print('el Python empotrado importa el motor', s.VERSION)")
-          rm -rf prueba
+          # que el Python empotrado arranque el motor de verdad, con la app copiada como la empaqueta
+          # electron-builder (en una carpeta temporal FUERA del repo: copiar app/ dentro de app/ no se puede)
+          PY="$(pwd)/runtime/python/python.exe"
+          T=$(mktemp -d); mkdir -p "$T/app101" && cp -r ../../app "$T/app101/app" && rm -rf "$T/app101/app/electron" "$T/app101/app/pruebas"
+          (cd "$T/app101" && "$PY" -c "import app.motor.servidor as s; print('el Python empotrado importa el motor', s.VERSION)")
+          rm -rf "$T"
           npm install --no-audit --no-fund
           npx electron-builder --win nsis
           EXE=$(ls dist/shape101-*-setup.exe)
