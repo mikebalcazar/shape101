@@ -1,3 +1,3 @@
 """El motor de shape101: documento, historial, nombres, bocetos, vistas y API local."""
 
-VERSION = "0.1.0-bloque1"
+from app.motor.version import VERSION, FECHA, BITACORA  # noqa: F401

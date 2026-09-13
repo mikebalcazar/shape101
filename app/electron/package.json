@@ -1,0 +1,28 @@
+{
+  "name": "shape101",
+  "productName": "shape101",
+  "version": "0.1.0",
+  "_versionApp": "la que manda es app/motor/version.py; ésta existe porque electron-builder exige semver y el flujo se niega si no coinciden",
+  "description": "shape101 · modelador 3D de sólidos de Taller 101",
+  "main": "main.js",
+  "license": "UNLICENSED",
+  "author": "Taller 101",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "mx.taller101.shape101",
+    "productName": "shape101",
+    "artifactName": "shape101-0.1.0-setup.${ext}",
+    "asar": true,
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js"],
+    "extraResources": [
+      { "from": "runtime/python", "to": "python" },
+      { "from": "../../app", "to": "app101/app", "filter": ["__init__.py", "motor/**", "ui/**", "!**/__pycache__/**"] }
+    ],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "signAndEditExecutable": false },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true }
+  }
+}

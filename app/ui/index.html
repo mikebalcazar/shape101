@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>shape101</title>
+<link rel="stylesheet" href="/ui/estilo.css">
+<div id="app">
+  <aside id="panel">
+    <header><b>shape101</b> <span id="version"></span></header>
+    <section>
+      <h2>Archivo</h2>
+      <div class="fila">
+        <button id="b-nuevo">Nueva pieza</button>
+        <button id="b-abrir">Abrir…</button>
+        <button id="b-guardar">Guardar</button>
+        <button id="b-guardar-como">Guardar como…</button>
+      </div>
+      <div class="fila">
+        <button id="b-step">Exportar STEP…</button>
+        <button id="b-stl">STL…</button>
+        <button id="b-gltf">glTF…</button>
+      </div>
+    </section>
+    <section id="s-pieza">
+      <h2>Pieza</h2>
+      <label>Nombre <input id="p-nombre" value="Tablero"></label>
+      <label>Material <input id="p-material" value="MDF"></label>
+      <label>Espesor (mm) <input id="p-espesor" type="number" step="0.01" value="18"></label>
+    </section>
+    <section id="s-agregar">
+      <h2>Agregar</h2>
+      <details open><summary>Tablero (ancho × fondo, con el espesor de la pieza)</summary>
+        <label>Ancho <input id="t-ancho" type="number" step="0.01" value="900"></label>
+        <label>Fondo <input id="t-fondo" type="number" step="0.01" value="600"></label>
+        <button id="b-tablero">Poner tablero</button>
+      </details>
+      <details><summary>Barreno pasante</summary>
+        <label>X <input id="h-x" type="number" step="0.01" value="450"></label>
+        <label>Y <input id="h-y" type="number" step="0.01" value="300"></label>
+        <label>Diámetro <input id="h-d" type="number" step="0.01" value="160"></label>
+        <button id="b-barreno">Hacer barreno</button>
+      </details>
+      <details><summary>Corte rectangular pasante</summary>
+        <label>X <input id="c-x" type="number" step="0.01" value="60"></label>
+        <label>Y <input id="c-y" type="number" step="0.01" value="60"></label>
+        <label>Ancho <input id="c-ancho" type="number" step="0.01" value="120"></label>
+        <label>Alto <input id="c-alto" type="number" step="0.01" value="80"></label>
+        <button id="b-corte">Hacer corte</button>
+      </details>
+      <details><summary>Redondear las esquinas verticales</summary>
+        <label>Radio <input id="r-radio" type="number" step="0.01" value="20"></label>
+        <button id="b-redondear">Redondear</button>
+      </details>
+      <details><summary>Empujar la cara elegida</summary>
+        <p class="nota">Elige una cara con clic en el 3D. Arrastrar también empuja.</p>
+        <label>Cara <input id="e-cara" readonly placeholder="(ninguna)"></label>
+        <label>Milímetros (+ afuera, − adentro) <input id="e-mm" type="number" step="0.01" value="10"></label>
+        <button id="b-empujar">Empujar</button>
+      </details>
+    </section>
+    <section id="s-historial">
+      <h2>Historial</h2>
+      <ol id="historial"></ol>
+      <div id="editor" hidden>
+        <textarea id="ed-json" rows="6"></textarea>
+        <div class="fila"><button id="b-aplicar">Aplicar</button><button id="b-borrar">Borrar</button><button id="b-cancelar">Cancelar</button></div>
+      </div>
+    </section>
+    <section><h2>Medidas</h2><pre id="medidas">—</pre></section>
+    <footer id="estado">arrancando…</footer>
+  </aside>
+  <main><canvas id="lienzo"></canvas></main>
+</div>
+<script type="importmap">
+{ "imports": { "three": "/ui/lib/three.module.js", "three/addons/": "/ui/lib/addons/" } }
+</script>
+<script type="module" src="/ui/app.js"></script>
