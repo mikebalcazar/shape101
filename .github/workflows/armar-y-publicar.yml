@@ -86,14 +86,17 @@ jobs:
           cp -r "$SP" runtime/python/site-packages
           # playwright y el navegador NO van en el instalador
           rm -rf runtime/python/site-packages/playwright* runtime/python/site-packages/greenlet* runtime/python/site-packages/pyee*
-          PTH=$(ls runtime/python/python*._pth); echo "site-packages" >> "$PTH"
+          # el Python empotrado corre aislado (no agrega el directorio actual a sys.path):
+          # las rutas van en el ._pth, relativas a resources/python → resources/app101
+          PTH=$(ls runtime/python/python*._pth); printf 'site-packages\n../app101\n' >> "$PTH"
           echo "runtime/python: $(du -sm runtime/python | cut -f1) MB"
           # que el Python empotrado arranque el motor de verdad, con la app copiada como la empaqueta
           # electron-builder (en una carpeta temporal FUERA del repo: copiar app/ dentro de app/ no se puede)
-          PY="$(pwd)/runtime/python/python.exe"
-          T=$(mktemp -d); mkdir -p "$T/app101" && cp -r ../../app "$T/app101/app" && rm -rf "$T/app101/app/electron" "$T/app101/app/pruebas"
-          (cd "$T/app101" && "$PY" -c "import app.motor.servidor as s; print('el Python empotrado importa el motor', s.VERSION)")
-          rm -rf "$T"
+          # misma distribución que resources/: python/ y app101/app/ lado a lado (mv en el mismo disco, no copia 600 MB)
+          T=$(mktemp -d -p "$(cygpath -u "$RUNNER_TEMP")"); mkdir -p "$T/app101" && cp -r ../../app "$T/app101/app" && rm -rf "$T/app101/app/electron" "$T/app101/app/pruebas"
+          mv runtime/python "$T/python"
+          (cd "$T" && ./python/python.exe -c "import app.motor.servidor as s; print('el Python empotrado importa el motor', s.VERSION)")
+          mv "$T/python" runtime/python && rm -rf "$T"
           npm install --no-audit --no-fund
           npx electron-builder --win nsis
           EXE=$(ls dist/shape101-*-setup.exe)
