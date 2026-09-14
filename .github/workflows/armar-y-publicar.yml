@@ -123,6 +123,17 @@ jobs:
           ./runtime/python/python.exe -c "import ezdxf, fastapi, uvicorn, numpy, PIL, reportlab; print('python empotrado ok')"
           rm -rf anterior anterior.exe
 
+      - name: El kernel de sólidos dentro del Python empotrado
+        run: |
+          set -euo pipefail
+          # El Python empotrado no trae pip: se instala desde el Python del
+          # armador hacia adentro. Las ruedas son para este mismo Windows.
+          pip install --target runtime/python/Lib/site-packages --upgrade build123d
+          # Los dos mundos tienen que convivir: el kernel trae su numpy y su
+          # ezdxf, y la app ya usaba los suyos. Si se pelean, que truene aquí.
+          ./runtime/python/python.exe -c "import ezdxf, fastapi, uvicorn, numpy, PIL, reportlab; import build123d; from build123d import Box; print('kernel y app conviven; caja de prueba con', len(Box(1,1,1).faces()), 'caras')"
+          du -sh runtime/python || true
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
