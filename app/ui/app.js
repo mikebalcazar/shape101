@@ -117,7 +117,7 @@ let doc = null, rutaActual = null;
 function espesor() { return Number($("p-espesor").value); }
 function etiqueta(op, i) {
   switch (op.op) {
-    case "boceto": { const e = op.entidades[0]; return e.tipo === "polilinea" ? `boceto rectángulo` : e.tipo === "circulo" ? `boceto círculo ⌀${2 * e.radio}` : `boceto`; }
+    case "boceto": { if (op.origen) return `boceto de ${op.origen.dibujo} (draw101, ${op.origen.unidades})`; const e = op.entidades[0]; return e.tipo === "polilinea" ? `boceto rectángulo` : e.tipo === "circulo" ? `boceto círculo ⌀${2 * e.radio}` : `boceto`; }
     case "extruir": return `extruir ${op.mm} mm`;
     case "restar": { const e = op.entidades[0]; return e.tipo === "circulo" ? `barreno ⌀${2 * e.radio} en (${e.centro[0]}, ${e.centro[1]})` : `corte rectangular`; }
     case "redondear": return `redondear ${op.aristas.length} aristas r=${op.r}`;
@@ -165,6 +165,15 @@ $("b-tablero").onclick = () => intentar(async () => {
   if (!doc) await nuevaPieza();
   await api("/api/operacion", { op: { op: "boceto", plano: "XY", entidades: rect(0, 0, Number($("t-ancho").value), Number($("t-fondo").value)) } });
   await operacion({ op: "extruir", mm: espesor() });
+});
+$("b-t101d").onclick = () => intentar(async () => {
+  const ruta = await rutaPara(false, "", "t101d"); if (!ruta) return;
+  const info = await api("/api/t101d", { ruta });
+  if (!doc) await nuevaPieza();
+  await api("/api/operacion", { op: { op: "boceto", t101d: ruta } });
+  await operacion({ op: "extruir", mm: espesor() });
+  decir(`boceto de ${info.dibujo}: ${info.entidades.length} trazos, dibujado en ${info.unidades}` +
+        (info.ignoradas ? ` · ${info.ignoradas} cosas que no son contorno (${info.tipos_ignorados.join(", ")}) se dejaron fuera` : ""));
 });
 $("b-barreno").onclick = () => intentar(() => operacion({ op: "restar", mm: espesor() + PASANTE_EXTRA,
   entidades: [{ tipo: "circulo", centro: [Number($("h-x").value), Number($("h-y").value)], radio: Number($("h-d").value) / 2 }] }));

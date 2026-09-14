@@ -1,7 +1,7 @@
 {
   "name": "shape101",
   "productName": "shape101",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "_versionApp": "la que manda es app/motor/version.py; ésta existe porque electron-builder exige semver y el flujo se niega si no coinciden",
   "description": "shape101 · modelador 3D de sólidos de Taller 101",
   "main": "main.js",
@@ -14,7 +14,7 @@
   "build": {
     "appId": "mx.taller101.shape101",
     "productName": "shape101",
-    "artifactName": "shape101-0.1.0-setup.${ext}",
+    "artifactName": "shape101-0.2.0-setup.${ext}",
     "asar": true,
     "directories": { "output": "dist" },
     "files": ["main.js", "preload.js"],

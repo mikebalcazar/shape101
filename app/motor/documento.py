@@ -9,7 +9,9 @@ Decisiones de Mike del 13-sep, por botones:
 
 El archivo `.s101` es JSON UTF-8 con los bocetos EMBEBIDOS (entidades de
 draw101, nunca la ruta de un .t101d: un archivo suelto es un archivo que se
-pierde).
+pierde). Un boceto se puede AGREGAR como `{"op": "boceto", "t101d": ruta}`: se
+lee ahí mismo y lo que se guarda son sus entidades, ya en milímetros, más de
+qué archivo y en qué unidades vinieron.
 
 La caché por operación es parte del contrato, no una mejora: P3 midió 10 s
 para regenerar 60 operaciones desde cero. Cada operación guarda el sólido y
@@ -23,7 +25,7 @@ import datetime as dt
 import json
 import pathlib
 
-from app.motor import historial
+from app.motor import historial, t101d
 
 FORMATO = "shape101"
 VERSION_FORMATO = 1
@@ -101,7 +103,18 @@ class Documento:
         if op["op"] == "boceto":
             plano = op.get("plano", "XY")
             if plano not in PLANOS_BLOQUE_1:
-                raise ValueError(f"el plano «{plano}» todavía no: en el bloque 1 sólo XY")
+                raise ValueError(f"el plano «{plano}» todavía no: por ahora sólo XY")
+            if "t101d" in op:
+                if "entidades" in op:
+                    raise ValueError("un boceto trae o sus «entidades» o un «t101d», no los dos")
+                op = dict(op)
+                lectura = t101d.leer(op.pop("t101d"))
+                if not lectura["entidades"]:
+                    raise ValueError(f"{pathlib.Path(lectura['archivo']).name}: el modelo no trae "
+                                     f"líneas, arcos, círculos ni polilíneas que hagan un boceto")
+                op["entidades"] = lectura["entidades"]
+                op["origen"] = {"archivo": lectura["archivo"], "dibujo": lectura["dibujo"],
+                                "unidades": lectura["unidades"], "importado": _ahora()}
             if "entidades" not in op:
                 raise ValueError("un boceto lleva sus entidades embebidas («entidades»), no una ruta")
         return _redondear(op, self.decimales)

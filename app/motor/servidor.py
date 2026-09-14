@@ -9,6 +9,7 @@ en el servidor, no en el navegador. Contesta JSON en 127.0.0.1 y sólo ahí.
   POST /api/operacion             {op} → agrega, regenera y devuelve el modelo
   GET  /api/modelo                una malla por cara con su nombre, más las aristas
   POST /api/exportar              {formato: step|stl|gltf, ruta}
+  POST /api/t101d                 {ruta} → qué trae ese dibujo de draw101, ya en mm
   POST /api/operacion/editar      {i, op} → reemplaza, regenera y devuelve el modelo
   POST /api/operacion/borrar      {i}     → quita, regenera y devuelve el modelo
   POST /api/regenerar             regenera y devuelve el modelo
@@ -33,7 +34,7 @@ RAIZ_REPO = pathlib.Path(__file__).resolve().parents[2]
 
 from build123d import export_step, export_stl
 
-from app.motor import VERSION, malla
+from app.motor import VERSION, malla, t101d
 from app.motor.documento import Documento
 
 
@@ -214,6 +215,8 @@ def _manejador(motor: Motor):
                 if self.path == "/api/operacion":
                     motor.operacion(datos["op"])
                     return self._json(motor.modelo())
+                if self.path == "/api/t101d":
+                    return self._json(t101d.leer(datos["ruta"]))
                 if self.path == "/api/exportar":
                     return self._json(motor.exportar(datos["formato"], datos["ruta"]))
                 if self.path == "/api/operacion/editar":

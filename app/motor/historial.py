@@ -22,7 +22,7 @@ import time
 
 from build123d import Face, extrude, fillet
 
-from app.motor import boceto, draw101_lector as d1, nombres
+from app.motor import boceto, nombres, t101d
 
 
 class Regenerado:
@@ -40,7 +40,7 @@ class Regenerado:
 def _entidades(op: dict) -> list[dict]:
     if "entidades" in op:
         return op["entidades"]
-    return d1.leer(op["t101d"])
+    return t101d.leer(op["t101d"])["entidades"]
 
 
 OPERACIONES = {"boceto", "extruir", "restar", "redondear", "empujar_cara"}
