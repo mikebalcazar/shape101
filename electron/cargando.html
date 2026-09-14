@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>shape101 — cargando</title>
+<!--
+  Pantalla de carga de shape101. La pidió Mike el 4-sep-2026: «un plano en
+  perspectiva y el logo de shape101 centrado; con transparencia, para que el
+  plano se vea flotando en la pantalla y no un recuadro feo atrás».
+
+  Es una ventana de Electron sin marco y transparente (ver main.js). Todo lo
+  que hay aquí es un dibujo SVG de una cocina —lo que se hace en Taller 101—
+  inclinado con `perspective`, que se va trazando solo mientras el motor de
+  Python arranca, y encima la marca. No hay fondo: lo que se ve detrás es el
+  escritorio del usuario.
+
+  Colores: los de la identidad de Taller 101 (core/config.py). No inventar.
+-->
+<style>
+  @font-face{font-family:"Sansation";src:url("../ui/vendor/fonts/sansation-700.woff2") format("woff2");font-weight:700}
+  @font-face{font-family:"Sansation";src:url("../ui/vendor/fonts/sansation-400.woff2") format("woff2");font-weight:400}
+  @font-face{font-family:"Raleway";src:url("../ui/vendor/fonts/raleway-400.woff2") format("woff2");font-weight:400}
+
+  :root{
+    --azul:#0080C1; --azul-claro:#3AA3DC; --sombra:#122733; --canto:#C8813A;
+  }
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-app-region:drag;cursor:default}
+  body{display:grid;place-items:center;font-family:"Raleway",system-ui,sans-serif}
+
+  /* --- El plano flotando ------------------------------------------------ */
+  .escena{position:absolute;inset:0;perspective:1100px;perspective-origin:50% 38%}
+  .plano{
+    position:absolute;left:50%;top:50%;width:620px;height:420px;margin:-210px 0 0 -310px;
+    transform:rotateX(56deg) rotateZ(-16deg) translateY(28px) scale(.9);
+    transform-style:preserve-3d;
+    /* La sombra es lo que lo despega de la pantalla: sin ella es una
+       calcomanía, con ella es una hoja. */
+    filter:drop-shadow(0 26px 22px rgba(18,39,51,.28)) drop-shadow(0 4px 6px rgba(18,39,51,.18));
+    animation:flotar 9s ease-in-out infinite;
+  }
+  @keyframes flotar{
+    0%,100%{transform:rotateX(56deg) rotateZ(-16deg) translateY(28px) scale(.9)}
+    50%{transform:rotateX(54deg) rotateZ(-13deg) translateY(16px) scale(.9)}
+  }
+  .plano svg{width:100%;height:100%;overflow:visible}
+  .plano .hoja{fill:rgba(255,255,255,.55);stroke:rgba(0,128,193,.35);stroke-width:1}
+  .plano .muro{fill:none;stroke:var(--sombra);stroke-width:5;stroke-linejoin:miter;opacity:.85}
+  .plano .mueble{fill:none;stroke:var(--azul);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+  .plano .fino{fill:none;stroke:var(--azul);stroke-width:.9;stroke-linecap:round}
+  .plano .cota{fill:none;stroke:var(--canto);stroke-width:.9}
+  .plano .num{font:9px "Sansation",sans-serif;fill:var(--canto);text-anchor:middle}
+  .plano .rel{fill:none;stroke:rgba(0,128,193,.14);stroke-width:.6}
+
+  /* Se trazan solos, como si el programa los estuviera dibujando. */
+  .plano .traza{stroke-dasharray:1400;stroke-dashoffset:1400;animation:trazar 2.6s ease-out forwards}
+  .plano .traza.t1{animation-delay:.1s}
+  .plano .traza.t2{animation-delay:.7s}
+  .plano .traza.t3{animation-delay:1.3s}
+  .plano .traza.t4{animation-delay:1.9s}
+  @keyframes trazar{to{stroke-dashoffset:0}}
+  .plano .aparece{opacity:0;animation:aparecer .6s ease-out 2.4s forwards}
+  @keyframes aparecer{to{opacity:1}}
+
+  /* --- La marca, en medio ----------------------------------------------- */
+  .marca{position:relative;text-align:center;
+    /* Un halo suave para que se lea sobre cualquier escritorio, claro u
+       oscuro, sin ponerle un recuadro. */
+    padding:34px 70px;border-radius:50%;
+    background:radial-gradient(closest-side, rgba(255,255,255,.96) 45%, rgba(255,255,255,0) 100%);
+  }
+  .marca img{height:70px;width:auto;display:block;margin:0 auto 10px}
+  .marca .nombre{display:none}
+  .marca .nombre b{color:var(--sombra);font-weight:700}
+  .marca .sub{margin-top:10px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--sombra);opacity:.75}
+  .marca .estado{margin-top:14px;font-size:12px;color:var(--azul);min-height:16px;opacity:.9}
+  .marca .estado i{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--azul);margin:0 2px;
+    animation:latir 1.2s ease-in-out infinite}
+  .marca .estado i:nth-child(2){animation-delay:.2s}
+  .marca .estado i:nth-child(3){animation-delay:.4s}
+  @keyframes latir{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+</style>
+</head>
+<body>
+
+<div class="escena"><div class="plano">
+  <svg viewBox="0 0 620 420" xmlns="http://www.w3.org/2000/svg">
+    <!-- hoja -->
+    <rect class="hoja" x="0" y="0" width="620" height="420" rx="3"/>
+    <!-- rejilla suave, como en el lienzo -->
+    <g class="rel">
+      <path d="M60 0V420M120 0V420M180 0V420M240 0V420M300 0V420M360 0V420M420 0V420M480 0V420M540 0V420
+               M0 60H620M0 120H620M0 180H620M0 240H620M0 300H620M0 360H620"/>
+    </g>
+
+    <!-- muros: cocina en L con puerta y ventana -->
+    <path class="muro traza t1" d="M70 60H550V340H70Z"/>
+    <path class="muro traza t1" d="M300 60V150"/>
+    <!-- vano de puerta (abajo) -->
+    <path class="fino traza t2" d="M420 340H500"/>
+    <path class="fino traza t2" d="M420 340A80 80 0 0 1 500 260"/>
+    <!-- ventana (arriba derecha) -->
+    <path class="fino traza t2" d="M360 56H480M360 64H480"/>
+
+    <!-- barra en L -->
+    <path class="mueble traza t2" d="M76 66H294V126H136V334H76Z"/>
+    <path class="fino traza t2" d="M76 96H120"/>
+    <path class="fino traza t2" d="M106 126V334"/>
+    <!-- gabinetes: divisiones -->
+    <path class="fino traza t3" d="M136 66V126M196 66V126M246 66V126M76 176H136M76 226H136M76 276H136"/>
+    <!-- tarja -->
+    <path class="mueble traza t3" d="M148 78h70a6 6 0 0 1 6 6v26a6 6 0 0 1-6 6h-70a6 6 0 0 1-6-6V84a6 6 0 0 1 6-6z"/>
+    <circle class="fino traza t3" cx="183" cy="96" r="5"/>
+    <path class="fino traza t3" d="M183 78v-8"/>
+    <!-- estufa -->
+    <path class="mueble traza t3" d="M82 186h48v50H82z"/>
+    <circle class="fino traza t3" cx="95" cy="199" r="7"/>
+    <circle class="fino traza t3" cx="117" cy="199" r="7"/>
+    <circle class="fino traza t3" cx="95" cy="223" r="7"/>
+    <circle class="fino traza t3" cx="117" cy="223" r="7"/>
+    <!-- refrigerador -->
+    <path class="mueble traza t3" d="M310 66h64v74h-64z"/>
+    <path class="fino traza t3" d="M310 103h64M368 72v26"/>
+
+    <!-- isla -->
+    <path class="mueble traza t3" d="M230 190h180v70H230z"/>
+    <path class="fino traza t3" d="M230 214h180M320 190v70"/>
+    <!-- bancos -->
+    <circle class="fino traza t4" cx="260" cy="282" r="10"/>
+    <circle class="fino traza t4" cx="320" cy="282" r="10"/>
+    <circle class="fino traza t4" cx="380" cy="282" r="10"/>
+
+    <!-- cotas -->
+    <g class="aparece">
+      <path class="cota" d="M70 372V386M550 372V386M70 380H550"/>
+      <path class="cota" d="M74 376l-4 4 4 4M546 376l4 4-4 4"/>
+      <text class="num" x="310" y="394">4800</text>
+      <path class="cota" d="M578 60H592M578 340H592M586 60V340"/>
+      <path class="cota" d="M582 64l4-4 4 4M582 336l4 4 4-4"/>
+      <text class="num" x="606" y="204" transform="rotate(90 606 204)">2800</text>
+      <path class="cota" d="M230 166V178M410 166V178M230 172H410"/>
+      <text class="num" x="320" y="166">1800</text>
+      <path class="cota" d="M40 66H52M40 334H52M46 66V334"/>
+      <text class="num" x="30" y="204" transform="rotate(-90 30 204)">2680</text>
+    </g>
+    <!-- rótulo de la hoja -->
+    <g class="aparece">
+      <path class="fino" d="M470 356H612V412H470Z M470 376H612 M540 376V412"/>
+      <text class="num" x="505" y="369" style="fill:#0080C1">COCINA · PLANTA</text>
+      <text class="num" x="505" y="396" style="fill:#0080C1">ESC 1:20</text>
+      <text class="num" x="576" y="396" style="fill:#0080C1">A-01</text>
+    </g>
+  </svg>
+</div></div>
+
+<div class="marca">
+  <img src="../assets/marca/shape101.png" alt="shape101">
+  <div class="nombre">shape101</div>
+  <div class="sub">Dibujo 2D · Taller 101</div>
+  <div class="estado" id="estado">Cargando aplicación <i></i><i></i><i></i></div>
+</div>
+
+<script>
+  // main.js manda mensajes cortos de avance con executeJavaScript(`estado("…")`).
+  window.estado = (t) => {
+    const e = document.getElementById("estado");
+    e.innerHTML = "";
+    e.appendChild(document.createTextNode(t + " "));
+    for (let i = 0; i < 3; i++) e.appendChild(document.createElement("i"));
+  };
+</script>
+</body>
+</html>

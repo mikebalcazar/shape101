@@ -1,22 +1,28 @@
-runtime/
-node_modules/
-dist/
+# Lo que NO se versiona, y por qué. Cómo vuelve: README.md, «Lo que no está
+# aquí y cómo se repone».
+
+# El CPython 3.11 para Windows con ezdxf, FastAPI, uvicorn, numpy, pillow,
+# reportlab y pypdfium2. Son 140 MB de binarios de otro que no cambian con el
+# código: se sacan de un instalador ya publicado.
+/runtime/
+
+# Se rehace con `npm install`.
+/node_modules/
+
+# OJO: `dwgjs/node_modules/` SÍ se versiona, y por eso la regla de arriba lleva
+# diagonal al principio (sólo la raíz). Son los dos motores de DWG —LibreDWG en
+# WebAssembly y acad-ts—; `npm install` no garantiza la misma versión, y con
+# otra versión shape101 deja de abrir los planos que hoy abre.
+
+# Lo que arma electron-builder. Con ancla, como `runtime/` y `node_modules/`:
+# sin la diagonal del principio, `dist/` casa con CUALQUIER carpeta llamada
+# `dist` a cualquier profundidad, y dentro de `dwgjs/node_modules` hay varias
+# —acad-ts publica su código compilado justo ahí—. Con la regla sin anclar se
+# quedaban fuera 618 archivos de los motores de DWG y la app no habría podido
+# abrir un DWG. Se midió: `git ls-files --others --ignored`.
+/dist/
+
 __pycache__/
 *.pyc
-*.step
-*.stl
-*.gltf
-*.glb
-
-# El entorno de Python con build123d + OpenCascade (780 MB) se rehace con
-# `python3.11 -m venv .venv && .venv/bin/pip install build123d`.
-.venv/
-# Lo que deja cada corrida de poc/verificar.py
-poc/salida/
-poc/cascaron/node_modules/
-poc/cascaron/runtime/
-poc/cascaron/dist/
-app/ui/lib/
-app/electron/node_modules/
-app/electron/runtime/
-app/electron/dist/
+*.parcial
+.DS_Store

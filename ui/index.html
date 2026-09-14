@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<title>shape101 — Taller 101</title>
+<link rel="icon" href="vendor/marca/disco.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Pantalla de inicio  ·  punto 10.
+     La misma del Despiezador, con lo que cambia: aquí se abren DXF, DWG y
+     .t101d, y el atajo de la derecha son los planos recientes. Sale al
+     arrancar y se puede volver a ella con Ctrl+I. -->
+<div id="inicio">
+  <div class="panel">
+    <button class="cerrar" id="iCerrar" title="Volver al dibujo abierto (Esc)">×</button>
+
+    <div class="marca">
+      <img id="iLogo" class="logoimg" src="vendor/marca/shape101.png" alt="shape101">
+      <div class="nm">shape101</div>
+      <div class="sub">Dibujo 2D para taller · Taller 101</div>
+    </div>
+
+    <div class="cols">
+      <div class="acciones">
+        <button class="tarj nueva" id="iNuevo">
+          <span class="ic">+</span>
+          <span class="txt"><b>Dibujo nuevo</b>
+            <small>Hoja en blanco, capas 0 y COTAS</small></span>
+        </button>
+        <button class="tarj" id="iAbrir">
+          <span class="ic">↥</span>
+          <span class="txt"><b>Abrir un plano…</b>
+            <small>DWG, DXF o .t101d</small></span>
+        </button>
+        <button class="tarj" id="iT101x">
+          <span class="ic">▤</span>
+          <span class="txt"><b>Traer de Taller 101…</b>
+            <small>Un mueble .t101x ya despiezado</small></span>
+        </button>
+      </div>
+
+      <div class="recientes">
+        <div class="hd">Recientes <button class="limpiar" id="iOlvidar"
+             title="Vaciar la lista">limpiar</button></div>
+        <div class="lista" id="iRecientes"></div>
+      </div>
+    </div>
+
+    <div class="pie">
+      <span id="iVersion">—</span>
+      <span id="iAyuda">Todo va en milímetros. El modelo se dibuja a 1:1.</span>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="marca">
+    <img src="vendor/marca/shape101.png" alt="shape101">
+    <span class="nombre">shape101</span>
+  </div>
+  <div class="sep"></div>
+
+  <div class="barra">
+    <button id="b-inicio" class="gh" title="Pantalla de inicio (Ctrl+I)">⌂</button>
+    <button id="b-nuevo" class="gh" title="Nuevo dibujo">Nuevo</button>
+    <button id="b-abrir" class="gh" title="Abrir DXF, DWG o .t101d (Ctrl+O)">Abrir…</button>
+    <button id="b-guardar" class="pri" title="Guardar .t101d (Ctrl+S)">Guardar</button>
+    <button id="b-guardar-como" class="gh" title="Guardar con otro nombre (Ctrl+Shift+S)">Guardar como…</button>
+    <button id="b-exportar" class="gh" title="Exportar DXF R2013">Exportar DXF…</button>
+  </div>
+  <div class="sep"></div>
+  <div class="barra">
+    <button id="b-deshacer" class="gh" title="Deshacer (Ctrl+Z)">↶</button>
+    <button id="b-rehacer" class="gh" title="Rehacer (Ctrl+Y)">↷</button>
+  </div>
+  <div class="sep"></div>
+  <div class="barra">
+    <button id="b-encuadrar" class="gh" title="Encuadrar todo (doble clic en el lienzo)">Encuadrar</button>
+    <button id="b-medir" class="gh" title="Medir distancia entre dos puntos (MD)">Medir</button>
+    <button id="b-tema" class="gh" title="Claro / oscuro">◐</button>
+  </div>
+  <div class="sep"></div>
+  <div class="barra">
+    <!-- Ayuda ▾: comandos, configuración (idioma, tema), ODA, acerca de.
+         Mike (6-sep-2026): «en ayuda habrá que poner el menú de configuración». -->
+    <button id="b-ayuda" class="gh" title="Ayuda y configuración">Ayuda ▾</button>
+    <div id="menu-ayuda" class="menu-ayuda" hidden>
+      <button data-cmd="AYUDA">Comandos (AYUDA)</button>
+      <button data-cmd="GUIA">Guía de herramientas (PDF)…</button>
+      <button data-cmd="CONFIGURACION">Configuración de shape101…</button>
+      <button data-cmd="UNIDADES">Unidades del dibujo…</button>
+      <button data-cmd="ODA">Instalar ODA File Converter…</button>
+      <button data-cmd="ACTUALIZAR">Buscar actualizaciones…</button>
+      <button data-cmd="AVISOS">Avisos de Taller 101…</button>
+      <button data-cmd="LICENCIAS">Licencias de terceros…</button>
+      <button data-cmd="VERSION">Acerca de shape101</button>
+    </div>
+  </div>
+
+  <div class="crece"></div>
+  <div class="archivo">
+    <span class="punto" id="sucio" title="Hay cambios sin guardar"></span>
+    <b id="nombre-doc">Sin título</b>
+    <span id="ruta-doc"></span>
+  </div>
+</header>
+
+<!-- Pestañas de dibujos abiertos  ·  punto 14.
+     Se esconde sola cuando sólo hay uno: una fila de pestañas con una sola
+     pestaña es ruido. -->
+<div id="docs" hidden>
+  <div class="tiras" id="doc-tiras"></div>
+  <button id="doc-mas" class="gh" title="Dibujo nuevo (Ctrl+N)">+</button>
+</div>
+
+<main>
+  <!-- La barra y el lienzo van juntos en una zona propia: así la barra puede
+       apilarse arriba o abajo del lienzo sin arrastrar consigo el panel de
+       capas, que se queda siempre a la derecha. -->
+  <div id="zona">
+  <!-- Barra de herramientas · F2 y F3.
+       Se ancla a los cuatro lados o se deja flotando; los iconos se reacomodan
+       solos en varias filas o columnas si no caben. Ver ui/barra.js -->
+  <nav id="herramientas" data-anclaje="flotante">
+    <div class="asa" title="Arrastra para moverla · doble clic para anclarla otra vez">
+      <span class="puntos">⠿</span>
+    </div>
+    <!-- Bloques por tipo de función, cada uno con su título y sus iconos en
+         dos renglones (o dos columnas, si la barra va de lado). Lo pidió Mike
+         el 4-sep: «separa por bloques de 2 renglones por tipo de función y
+         ponle un pequeño título a cada bloque». -->
+    <div class="bloque" data-et="TRAZO">
+      <div class="titulo">Trazo</div>
+      <div class="celdas">
+        <button data-cmd="LINEA" title="Línea (L)">╱</button>
+        <button data-cmd="POLILINEA" title="Polilínea (PL)">⌇</button>
+        <button data-cmd="RECTANGULO" title="Rectángulo (REC)">▭</button>
+        <button data-cmd="CIRCULO" title="Círculo (C)">◯</button>
+        <button data-cmd="ARCO" title="Arco por tres puntos (A)">◜</button>
+        <button data-cmd="ELIPSE" title="Elipse (EL)">⬭</button>
+        <button data-cmd="SPLINE" title="Spline (SPL)">∿</button>
+        <button data-cmd="PUNTO" title="Punto (PU)">•</button>
+        <button data-cmd="RAYADO" title="Rayado (H)">▨</button>
+      </div>
+    </div>
+    <div class="bloque" data-et="ANOTACIONES">
+      <div class="titulo">Anotaciones</div>
+      <div class="celdas">
+        <button data-cmd="COTA" title="Cota recta (CO_)">⊢⊣</button>
+        <button data-cmd="COTAALINEADA" title="Cota alineada (CAL)">⇗</button>
+        <button data-cmd="COTACONTINUA" title="Cotas encadenadas (CC)">⇹</button>
+        <button data-cmd="COTAANGULAR" title="Cota angular (CAN)">∠</button>
+        <button data-cmd="COTARADIO" title="Radio (CR)">◠</button>
+        <button data-cmd="COTADIAMETRO" title="Diámetro (CD)">⌀</button>
+        <button data-cmd="DIRECTRIZ" title="Directriz con nota (DIR)">↰</button>
+        <button data-cmd="TEXTO" title="Texto (T)">A</button>
+      </div>
+    </div>
+    <div class="bloque" data-et="MODIFICAR">
+      <div class="titulo">Modificar</div>
+      <div class="celdas">
+        <button data-cmd="MOVER" title="Mover (M)">✥</button>
+        <button data-cmd="COPIAR" title="Copiar (CP)">⧉</button>
+        <button data-cmd="ROTAR" title="Rotar (RO)">↻</button>
+        <button data-cmd="ESCALAR" title="Escalar (ES)">⤢</button>
+        <button data-cmd="ESPEJO" title="Espejo (SI)">⇋</button>
+        <button data-cmd="DESFASE" title="Desfase (DF)">≡</button>
+        <button data-cmd="RECORTAR" title="Recortar (RC)">✂</button>
+        <button data-cmd="EXTENDER" title="Extender (EXT)">⇥</button>
+        <button data-cmd="EMPALME" title="Empalme (EM)">◟</button>
+        <button data-cmd="CHAFLAN" title="Chaflán (CH)">◺</button>
+        <button data-cmd="ARREGLO" title="Arreglo (AR)">⋮⋮</button>
+        <button data-cmd="ESTIRAR" title="Estirar (ET)">↔</button>
+        <button data-cmd="UNIR" title="Unir en una polilínea (J)">⛓</button>
+        <button data-cmd="EXPLOTAR" title="Explotar en sus partes (X)">✸</button>
+        <button data-cmd="GRUPO" title="Agrupar (Ctrl+G) · DESAGRUPAR con Ctrl+Shift+G · Alt+clic pica uno solo">⧈</button>
+        <button data-cmd="IGUALAR" title="Igualar propiedades (IG)">≈</button>
+        <button data-cmd="BORRAR" title="Borrar (Supr)">🗑</button>
+      </div>
+    </div>
+    <div class="bloque" data-et="BLOQUES">
+      <div class="titulo">Bloques</div>
+      <div class="celdas">
+        <button data-cmd="BLOQUE" title="Crear bloque (BL)">◼</button>
+        <button data-cmd="INSERTAR" title="Insertar bloque (IN)">⊞</button>
+        <button data-cmd="PDFFONDO" title="PDF de fondo para calcar (FONDO)">📄</button>
+      </div>
+    </div>
+    <div class="bloque" data-et="HOJA">
+      <div class="titulo">Hoja</div>
+      <div class="celdas">
+        <button data-cmd="PLANO" title="Hoja nueva o editar la hoja (PLANO)">▤</button>
+        <button data-cmd="EDITARVENTANA" title="Editar las ventanas de la hoja con el ratón: esquinas y lados cambian el tamaño, el marco mueve, el interior corre el dibujo (VP)">▣</button>
+        <button data-cmd="VENTANANUEVA" title="Ventana nueva en la hoja (NV)">⊞</button>
+        <button data-cmd="IMPRIMIR" title="Exportar a PDF (PDF)">⎙</button>
+        <button data-cmd="IMPRIMIRFISICO" title="Imprimir en impresora (Ctrl+P)">🖨</button>
+      </div>
+    </div>
+  </nav>
+
+  <div id="lienzo-caja">
+    <canvas id="lienzo"></canvas>
+    <!-- Lo que cambia al mover el ratón —la mira, la selección, la goma— va en
+         su propio lienzo encima. Así, pasear el cursor sobre un plano de cien
+         mil líneas no vuelve a dibujar ninguna. `pointer-events:none` para que
+         los clics sigan llegando al de abajo, que es el que los escucha. -->
+    <canvas id="encima"></canvas>
+    <!-- El parpadeo de «sí pasó»: un velo que se desvanece cuando un comando
+         cambió algo. Ver Parpadeo en vista.js. -->
+    <div id="parpadeo"></div>
+    <div id="coords">0, 0 mm</div>
+    <div id="aviso"></div>
+    <!-- «Trabajando»: sale cuando el motor lleva más de medio segundo en algo,
+         y dice qué. Ver `Ocupado` en base.js. -->
+    <div id="ocupado" aria-live="polite"><span class="rueda"></span><span class="que">Trabajando…</span></div>
+    <!-- Modelo / hojas · F6 -->
+    <div id="pestanas"></div>
+
+    <!-- Entrada dinámica · feature 15 -->
+    <div id="dinamica">
+      <div class="campo" id="din-c1">
+        <span class="etq" id="din-e1">Long</span>
+        <input id="din-v1" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="campo" id="din-c2">
+        <span class="etq" id="din-e2">Áng</span>
+        <input id="din-v2" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="pista">Tab fija · Espacio o Enter aceptan · Esc cancela</div>
+    </div>
+  </div>
+  </div>
+
+  <!-- Asa para ensanchar el panel. Va antes del <aside> porque se arrastra
+       hacia la izquierda: el ratón tiene que encontrarla en el borde. -->
+  <div id="asa-panel" title="Arrastra para cambiar el ancho · doble clic para volver al normal"></div>
+
+  <aside>
+    <h2>Capas</h2>
+    <div class="capas" id="capas"></div>
+
+    <div class="pie-capas">
+      <button id="b-capa-nueva">Nueva capa</button>
+      <button id="b-capa-borrar">Borrar</button>
+    </div>
+
+    <!-- Tamaño de las cotas de todo el documento  ·  0.20.0.
+         Mike (9-sep): «un panel pequeño a la derecha con el tamaño de las cotas
+         de todo el documento (altura del texto y flechas) para ajustarlas de un
+         jalón». Los números van en unidades del dibujo. -->
+    <div class="props cotas-doc" id="props-cotas">
+      <h2>Cotas del documento</h2>
+      <div class="fila">
+        <label for="pc-texto" title="Altura del texto de las cotas, en unidades del dibujo">Texto</label>
+        <div class="con-suf"><input id="pc-texto" type="text" inputmode="decimal"><span class="suf" id="pc-u1">mm</span></div>
+      </div>
+      <div class="fila">
+        <label for="pc-flecha" title="Tamaño de las flechas o palomitas, en unidades del dibujo">Flechas</label>
+        <div class="con-suf"><input id="pc-flecha" type="text" inputmode="decimal"><span class="suf" id="pc-u2">mm</span></div>
+      </div>
+      <div class="fila">
+        <label></label>
+        <button class="gh chico" id="pc-estilo" title="Todo el estilo de cota (ESTILOCOTA)">Estilo completo…</button>
+      </div>
+    </div>
+
+    <!-- Propiedades de la capa: ya no van fijas en el panel. Salen con clic
+         derecho sobre la capa (Mike, 9-sep-2026), en este mismo cuadro pero
+         flotante junto al ratón. -->
+    <div class="props flotante" id="props" hidden>
+      <div class="cab"><b id="p-titulo">Capa</b><button class="cerrar" id="p-cerrar" title="Cerrar (Esc)">×</button></div>
+      <div class="fila">
+        <label for="p-nombre">Nombre</label>
+        <input id="p-nombre" type="text">
+      </div>
+      <div class="fila">
+        <label for="p-color">Color</label>
+        <input id="p-color" type="color">
+      </div>
+      <div class="fila">
+        <label for="p-grosor">Grosor</label>
+        <select id="p-grosor"></select>
+      </div>
+      <div class="fila">
+        <label for="p-tl">Tipo de línea</label>
+        <select id="p-tl"></select>
+      </div>
+      <div class="fila">
+        <label>Imprime</label>
+        <div class="check"><input id="p-imprime" type="checkbox">
+          <span id="p-imprime-txt">sí</span></div>
+      </div>
+    </div>
+    <div class="props objeto" id="props-obj" hidden>
+      <h2>Objeto</h2>
+      <div id="obj-campos"></div>
+    </div>
+  </aside>
+</main>
+
+<!-- Línea de comando · feature 17 -->
+<div id="consola">
+  <div id="cmd-historial"></div>
+  <button id="cmd-mas" title="Ver más líneas de la consola (F2)" aria-label="Más líneas">▴</button>
+  <div class="linea">
+    <span id="cmd-etiqueta">Comando:</span>
+    <input id="cmd" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Z E · MD · REF · AYUDA">
+  </div>
+</div>
+
+<footer>
+  <span class="etq">Entidades</span> <b id="f-entidades">0</b>
+  <span class="preservadas" id="f-preservadas"></span>
+  <span class="etq">Capas</span> <b id="f-capas">0</b>
+  <span class="etq">Activa</span> <b id="f-activa">0</b>
+  <b id="f-sel" class="sel"></b>
+
+  <div class="interruptores">
+    <button id="sw-rejilla" title="Rejilla (F7)">REJILLA</button>
+    <button id="sw-snap" title="Forzar el cursor a la rejilla (F9)">SNAP</button>
+    <button id="sw-ortho" title="Horizontal o vertical (F8)">ORTHO</button>
+    <button id="sw-ref" title="Referencias a objetos (F3)">REF</button>
+    <button id="sw-din" title="Entrada dinámica">DIN</button>
+  </div>
+
+  <div class="crece"></div>
+  <span class="etq">Zoom</span> <b id="f-zoom">100%</b>
+  <span class="etq">DXF</span> <b>R2013 · <span id="f-unidades" title="Unidad de trabajo del dibujo (comando UNIDADES)">mm</span></b>
+  <span id="f-dwg" class="etq"></span>
+  <b id="f-version" class="version" title="Versión instalada · escribe VERSION para ver qué trae">v—</b>
+</footer>
+
+<script src="idioma-en.js"></script>
+<script src="idioma.js"></script>
+<script src="base.js"></script>
+<script src="dialogo.js"></script>
+<script src="radial.js"></script>
+  <script src="iconos.js"></script>
+<script src="vista.js"></script>
+<script src="osnap.js"></script>
+<script src="indice.js"></script>
+<script src="entrada.js"></script>
+<script src="seleccion.js"></script>
+<script src="comandos.js"></script>
+<script src="dibujar.js"></script>
+<script src="editar.js"></script>
+<script src="variantes.js"></script>
+<script src="cotas.js"></script>
+<script src="bloques.js"></script>
+<script src="papel.js"></script>
+<script src="suite.js"></script>
+<script src="barra.js"></script>
+<script src="ajustes.js"></script>
+<script src="actualizar.js"></script>
+<script src="app.js"></script>
+<script src="marco.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+Sansation — Bernd Montag (2008-2011)
+
+Freeware: el autor la publica gratis para uso personal y comercial
+(«Sansation is freeware - anyhow a PayPal donation is very much appreciated!
+So if you want to use it commercially, please consider the work behind this font»).
+No es OFL. Los términos completos van en el Sansation_1.31_ReadMe.txt del
+paquete original del autor. shape101 la usa sólo en el logotipo y como tipografía
+de la interfaz; no la vende ni la modifica.

@@ -3,14 +3,14 @@
 Este archivo va **igual en los once repositorios**: `descargas`,
 `suite101-api`, `cotizador-t101`, `dash101`, `bitacora-obra`,
 `t101-portal-trabajadores`, `taller101`, `wall101`, `nest101`, `peek101` y
-`draw101`. Si lo cambias en uno, cópialo a los demás en el mismo trabajo: once
+`shape101`. Si lo cambias en uno, cópialo a los demás en el mismo trabajo: once
 copias que se separan son peor que ninguna. El 12-sep se comprobaron las once
 y estaban idénticas salvo el nombre del repositorio en las direcciones de
 `api.github.com`, que es la única diferencia que debe haber. Es el contrato:
 un chat nuevo lo lee y ya sabe trabajar sin preguntarle nada a Mike y sin que
 Mike prenda su computadora.
 
-`nest101`, `peek101` y `draw101` todavía no tienen código: el archivo llegó
+`nest101`, `peek101` y `shape101` todavía no tienen código: el archivo llegó
 primero, para que el chat que los estrene no empiece inventando su manera de
 trabajar.
 
