@@ -2,11 +2,13 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-14T02:55:34+00:00
-- recado: empaque y flujo de armado
+- corrido: 2026-09-14T04:04:15+00:00
+- recado: devolver lo que el trasplante se llevó de más
 
 ```
-package.json: versión 0.3.0, appId propio, instalador shape101-0.3.0-setup, archivos .101s
-armar-y-publicar.yml: el de draw101 con la identidad cambiada (el runtime sigue saliendo de draw101 0.20.1)
-core/version.py y package.json dicen los dos 0.3.0
+draw101 tiene 868 archivos en git
+faltaban 711 archivos; restaurados (0 además renombrados)
+  · dwgjs/node_modules: 711
+borrado .github/workflows/p1-peso-windows.yml (era del camino desechado)
+los dos motores de DWG están en su sitio
 ```
