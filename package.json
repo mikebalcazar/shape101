@@ -1,10 +1,10 @@
 {
   "name": "shape101",
   "productName": "shape101",
-  "version": "0.20.4",
-  "_versionApp": "0.20.4 — la que enseña la app viene de core/version.py; ésta sólo existe porque electron-builder exige semver",
+  "version": "0.3.0",
+  "_versionApp": "0.3.0 — la que enseña la app viene de core/version.py; ésta sólo existe porque electron-builder exige semver",
   "_notaEmpaque": "asar apagado a propósito: main.js busca server.py junto a electron/, y el motor de Python no puede vivir dentro de un asar. Y electron-builder saca cualquier node_modules de los globs de `files`, así que los dos motores de DWG (dwgjs/node_modules) se copian por extraResources o la app se queda sin leer DWG.",
-  "description": "CAD 2D de Taller 101 — leer, trazar, acotar e imprimir planos",
+  "description": "shape101 — modelador 3D de sólidos de Taller 101",
   "main": "electron/main.js",
   "author": "Taller 101",
   "license": "UNLICENSED",
@@ -17,9 +17,9 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "mx.taller101.dibujador",
+    "appId": "mx.taller101.shape101",
     "productName": "shape101",
-    "artifactName": "shape101-0.20.4-setup.${ext}",
+    "artifactName": "shape101-0.3.0-setup.${ext}",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -56,8 +56,8 @@
       ],
       "fileAssociations": [
         {
-          "ext": "t101d",
-          "name": "Dibujo Taller 101",
+          "ext": "101s",
+          "name": "Pieza de shape101",
           "icon": "build/icon.ico"
         }
       ]

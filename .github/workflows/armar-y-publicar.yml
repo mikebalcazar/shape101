@@ -1,12 +1,39 @@
-# Arma el instalador de shape101 en un Windows de GitHub, corre las pruebas de
-# aceptación y las de la PoC, y deja el .exe como artefacto. Con el secreto
-# TOKEN_DESCARGAS, además lo manda a `descargas` por la rama de carga que
-# espera publicar-instalador.yml (desde main, no huérfana) y deja el
-# manifiesto y el README de descargas diciendo la versión nueva.
+# Arma el instalador de shape101 en un Windows de GitHub, lo prueba, lo manda a
+# `descargas` por la rama de carga que espera `publicar-instalador.yml`, espera
+# a que esa release exista y entonces deja `shape101.json` y el README de
+# `descargas` diciendo la versión nueva. Al terminar, la 0.20.x instalada en
+# cualquier máquina ve el letrero «Actualizar».
 #
-# Se dispara con un tag `v<versión>`, una rama `claude/publicar-<versión>` o a
-# mano. La versión de app/motor/version.py, la de app/electron/package.json y
-# la del tag tienen que coincidir o el flujo se niega.
+# POR QUÉ
+#
+# El chat de shape101 (claude.ai) es el responsable de publicar el producto, pero
+# su conector de GitHub sólo escribe texto: no puede subir un .exe de 120 MB ni
+# crear releases. Lo que sí puede es empujar este archivo y una rama. Con eso,
+# aquí se arma y se publica todo; el binario nunca pasa por el chat.
+#
+# CÓMO SE DISPARA
+#
+#   · creando una rama `claude/publicar-<version>` (p. ej. `claude/publicar-0.20.3`)
+#     desde la rama que tenga el código: es lo que el conector del chat sí sabe
+#     hacer (create_branch dispara el evento push), o
+#   · empujando un tag `v<version>`, o
+#   · a mano (workflow_dispatch) eligiendo la rama.
+#   El nombre debe coincidir con core/version.py o el flujo se niega.
+#
+# QUÉ NECESITA (una sola vez, lo pone Mike)
+#
+#   Secreto del repositorio `TOKEN_DESCARGAS`: token fine-grained con acceso
+#   SÓLO al repositorio `descargas`, permiso Contents: Read and write. Sin él,
+#   el flujo arma y prueba igual, deja el .exe como artefacto del run, y se
+#   detiene antes de cargar (lo dice claro en el resumen).
+#
+# PARCHES PENDIENTES
+#
+#   Si existe `claude/APLICAR.txt`, cada renglón es un parche de `claude/` que
+#   se aplica sobre el árbol antes de armar (el chat deja el cambio así cuando
+#   los archivos son grandes para reescribirlos por el conector). Cuando Jr.
+#   mezcla el parche en el código, borra el renglón y el flujo no aplica nada.
+
 name: Armar y publicar
 
 on:
@@ -14,16 +41,27 @@ on:
     tags: ['v*']
     branches: ['claude/publicar-*']
   workflow_dispatch:
+    inputs:
+      saltar_pruebas:
+        description: 'Saltar python verificar.py (sólo para diagnosticar el armado)'
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: armar-y-publicar
   cancel-in-progress: false
 
 env:
-  PYTHONUTF8: '1'          # Python en Windows escribe cp1252 si no; todo lo nuestro es UTF-8
+  # INSTALADOR_ANTERIOR es de draw101 a propósito: de ahí sale el Python de
+  # Windows con ezdxf, fastapi, numpy, pillow y reportlab ya dentro, que es lo que
+  # shape101 necesita hoy. Cuando el 3D pida OpenCascade, esto cambia.
+  # El Windows del runner escribe cp1252: sin esto, una «→» en la salida de
+  # verificar.py tumba las pruebas (corrida 34794283220).
+  PYTHONUTF8: '1'
+  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/draw101-0.20.1/draw101-0.20.1-setup.exe
 
 jobs:
   armar:
@@ -34,94 +72,106 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+
+      - name: Aplicar parches pendientes (claude/APLICAR.txt)
+        run: |
+          set -euo pipefail
+          if [ -f claude/APLICAR.txt ]; then
+            # El Git del runner de Windows saca los archivos con CRLF (autocrlf):
+            # sin quitar el \r, el renglón dice «0.20.4.patch\r» y no existe.
+            while read -r p; do
+              p="${p%$'\r'}"
+              [ -z "$p" ] && continue
+              echo "aplicando claude/$p"
+              sed -i 's/\r$//' "claude/$p"
+              git apply --check "claude/$p"
+              git apply "claude/$p"
+            done < claude/APLICAR.txt
+          else
+            echo "sin parches pendientes"
+          fi
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
 
       - name: Versión y tag deben coincidir
         id: version
         run: |
           set -euo pipefail
-          VER=$(python -c "import ast,re;print(re.search(r'VERSION = \"([^\"]+)\"', open('app/motor/version.py',encoding='utf-8').read()).group(1))")
+          VER=$(python -c "import core.version as v; print(v.VERSION)")
           echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "app/motor/version.py dice $VER"
-          grep -q "\"version\": \"$VER\"" app/electron/package.json || { echo "app/electron/package.json no dice $VER"; exit 1; }
-          grep -q "shape101-$VER-setup" app/electron/package.json || { echo "artifactName no dice $VER"; exit 1; }
+          echo "core/version.py dice $VER"
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/v}"; [ "$TAG" = "$VER" ] || { echo "el tag v$TAG no coincide con version.py ($VER)"; exit 1; }
+            TAG="${GITHUB_REF#refs/tags/v}"
+            [ "$TAG" = "$VER" ] || { echo "el tag v$TAG no coincide con core/version.py ($VER)"; exit 1; }
           elif [[ "$GITHUB_REF" == refs/heads/claude/publicar-* ]]; then
-            PED="${GITHUB_REF#refs/heads/claude/publicar-}"; [ "$PED" = "$VER" ] || { echo "la rama pide $PED pero version.py dice $VER"; exit 1; }
+            PED="${GITHUB_REF#refs/heads/claude/publicar-}"
+            [ "$PED" = "$VER" ] || { echo "la rama pide $PED pero core/version.py dice $VER"; exit 1; }
           fi
+          grep -q "\"version\": \"$VER\"" package.json || { echo "package.json no dice $VER"; exit 1; }
+          grep -q "shape101-$VER-setup" package.json || { echo "artifactName de package.json no dice $VER"; exit 1; }
+          case "$VER" in X.*) echo "la línea X no se publica"; exit 1;; esac
 
-      - name: El motor en un Python limpio
+      - name: Python empotrado (del último instalador publicado)
         run: |
           set -euo pipefail
-          python -m venv venv
-          venv/Scripts/python -m pip install -q --upgrade pip
-          venv/Scripts/python -m pip install -q build123d playwright
-          venv/Scripts/python -m playwright install chromium
-          npm ci --no-audit --no-fund
-          venv/Scripts/python app/armar_ui.py
+          curl -sSL -o anterior.exe "$INSTALADOR_ANTERIOR"
+          7z x -y -oanterior anterior.exe "resources/python/*" > /dev/null
+          mkdir -p runtime && mv anterior/resources/python runtime/python
+          test -f runtime/python/python.exe
+          ./runtime/python/python.exe -c "import ezdxf, fastapi, uvicorn, numpy, PIL, reportlab; print('python empotrado ok')"
+          rm -rf anterior anterior.exe
 
-      - name: Pruebas de aceptación (app/verificar.py) y de la PoC (poc/verificar.py)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Dependencias de Electron
+        run: npm ci --no-audit --no-fund
+
+      - name: Motores DWG presentes
+        run: |
+          test -f dwgjs/node_modules/@mlightcad/libredwg-web/wasm/libredwg-web.wasm
+          test -d dwgjs/node_modules/@node-projects/acad-ts/dist
+          echo "motores DWG ok"
+
+      - name: Pruebas (python verificar.py)
+        if: ${{ !inputs.saltar_pruebas }}
         run: |
           set -euo pipefail
-          venv/Scripts/python app/verificar.py | tee /tmp/app.txt
-          venv/Scripts/python poc/verificar.py p3 | tee /tmp/poc.txt     # p2 necesita draw101, que el corredor no tiene
-          grep -q "Todo bien" /tmp/app.txt
-          grep -q "Todo bien" /tmp/poc.txt
+          pip install -q ezdxf fastapi uvicorn numpy pillow reportlab pymupdf pypdfium2 playwright
+          python -m playwright install chromium
+          python verificar.py
 
-      - name: Empotrar el Python y armar el instalador
-        id: armar
-        run: |
-          set -euo pipefail
-          cd app/electron
-          PYVER=$(python -c "import sys;print('%d.%d.%d'%sys.version_info[:3])")
-          curl -sSL -o py.zip "https://www.python.org/ftp/python/$PYVER/python-$PYVER-embed-amd64.zip"
-          mkdir -p runtime/python && (cd runtime/python && unzip -q ../../py.zip)
-          SP=$(../../venv/Scripts/python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
-          cp -r "$SP" runtime/python/site-packages
-          # playwright y el navegador NO van en el instalador
-          rm -rf runtime/python/site-packages/playwright* runtime/python/site-packages/greenlet* runtime/python/site-packages/pyee*
-          # el Python empotrado corre aislado (no agrega el directorio actual a sys.path):
-          # las rutas van en el ._pth, relativas a resources/python → resources/app101
-          PTH=$(ls runtime/python/python*._pth); printf 'site-packages\n../app101\n' >> "$PTH"
-          echo "runtime/python: $(du -sm runtime/python | cut -f1) MB"
-          # que el Python empotrado arranque el motor de verdad, con la app copiada como la empaqueta
-          # electron-builder (en una carpeta temporal FUERA del repo: copiar app/ dentro de app/ no se puede)
-          # misma distribución que resources/: python/ y app101/app/ lado a lado (mv en el mismo disco, no copia 600 MB)
-          T=$(mktemp -d -p "$(cygpath -u "$RUNNER_TEMP")"); mkdir -p "$T/app101" && cp -r ../../app "$T/app101/app" && rm -rf "$T/app101/app/electron" "$T/app101/app/pruebas"
-          mv runtime/python "$T/python"
-          (cd "$T" && ./python/python.exe -c "import app.motor.servidor as s; print('el Python empotrado importa el motor', s.VERSION)")
-          mv "$T/python" runtime/python && rm -rf "$T"
-          npm install --no-audit --no-fund
-          npx electron-builder --win nsis
-          EXE=$(ls dist/shape101-*-setup.exe)
-          MB=$(( ($(stat -c %s "$EXE") + 500000) / 1000000 ))
-          echo "mb=$MB" >> "$GITHUB_OUTPUT"; echo "exe=$EXE" >> "$GITHUB_OUTPUT"
-          echo "instalador: $EXE · $MB MB"
+      - name: Armar el instalador
+        run: npx electron-builder --win nsis
 
       - name: Preparar la carga y el manifiesto
         id: carga
         run: |
           set -euo pipefail
           VER=${{ steps.version.outputs.version }}
-          venv/Scripts/python app/cargar.py "app/electron/dist/shape101-$VER-setup.exe" salida
+          python build/cargar.py "dist/shape101-$VER-setup.exe" salida
           SHA=$(python -c "import json;print(json.load(open('salida/carga/meta.json'))['sha256'])")
           B=$(python -c "import json;print(json.load(open('salida/carga/meta.json'))['bytes'])")
-          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"; echo "bytes=$B" >> "$GITHUB_OUTPUT"
-          { echo "## shape101 $VER armada"; echo; echo "- \`shape101-$VER-setup.exe\` · $B bytes · sha256 \`$SHA\`"; } >> "$GITHUB_STEP_SUMMARY"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "bytes=$B" >> "$GITHUB_OUTPUT"
+          {
+            echo "## shape101 $VER armada"
+            echo
+            echo "- \`shape101-$VER-setup.exe\` · $B bytes · sha256 \`$SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - name: Guardar el instalador como artefacto del run
+        uses: actions/upload-artifact@v4
         with:
           name: shape101-${{ steps.version.outputs.version }}-setup
-          path: app/electron/dist/shape101-${{ steps.version.outputs.version }}-setup.exe
+          path: dist/shape101-${{ steps.version.outputs.version }}-setup.exe
           retention-days: 14
 
-      - name: Cargar a descargas (rama claude/carga-…, desde main)
+      - name: Cargar a descargas (rama claude/carga-…)
         id: cargar
         env:
           TOKEN: ${{ secrets.TOKEN_DESCARGAS }}
@@ -130,16 +180,23 @@ jobs:
           VER=${{ steps.version.outputs.version }}
           if [ -z "${TOKEN:-}" ]; then
             echo "::warning::Falta el secreto TOKEN_DESCARGAS: el instalador quedó como artefacto del run, pero no se cargó a descargas."
-            echo "- **No se cargó a descargas**: falta el secreto \`TOKEN_DESCARGAS\`. Jr. puede cargarlo desde el artefacto." >> "$GITHUB_STEP_SUMMARY"
-            echo "cargado=no" >> "$GITHUB_OUTPUT"; exit 0
+            echo "- **No se cargó a descargas**: falta el secreto \`TOKEN_DESCARGAS\` (Settings → Secrets and variables → Actions)." >> "$GITHUB_STEP_SUMMARY"
+            echo "cargado=no" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           git clone -q --depth 1 "https://x-access-token:${TOKEN}@github.com/mikebalcazar/descargas" descargas
           cd descargas
-          git config user.name "shape101 (Armar y publicar)"; git config user.email "mike@forespot.com"
+          git config user.name "shape101 (Armar y publicar)"
+          git config user.email "mike@forespot.com"
           RAMA="claude/carga-shape101-$VER"
-          git checkout -q -b "$RAMA"            # desde main: una rama huérfana no dispara publicar-instalador.yml
+          # Desde main, no huérfana: una rama huérfana NO dispara
+          # publicar-instalador.yml (medido por Jr. el 13-sep con shape101).
+          git checkout -q -b "$RAMA"
           rm -rf carga && cp -r ../salida/carga carga
-          git add carga && git commit -qm "carga: shape101 $VER (armada por Actions de shape101)" && git push -q origin "$RAMA"
+          git add carga
+          git commit -qm "carga: shape101 $VER (armada por Actions de shape101)"
+          git push -q origin "$RAMA"
+          echo "rama $RAMA empujada; publicar-instalador.yml arranca solo en descargas"
           echo "cargado=si" >> "$GITHUB_OUTPUT"
 
       - name: Esperar la release y dejar el manifiesto en main
@@ -148,46 +205,39 @@ jobs:
           TOKEN: ${{ secrets.TOKEN_DESCARGAS }}
         run: |
           set -euo pipefail
-          VER=${{ steps.version.outputs.version }}; SHA=${{ steps.carga.outputs.sha256 }}; B=${{ steps.carga.outputs.bytes }}
+          VER=${{ steps.version.outputs.version }}
+          SHA=${{ steps.carga.outputs.sha256 }}
+          B=${{ steps.carga.outputs.bytes }}
           URL="https://github.com/mikebalcazar/descargas/releases/download/shape101-$VER/shape101-$VER-setup.exe"
           ok=0
-          for i in $(seq 1 40); do
+          for i in $(seq 1 40); do          # hasta ~20 min
             code=$(curl -s -L --max-time 300 -o bajado.exe -w '%{http_code}' "$URL" || true)
-            if [ "$code" = "200" ] && [ "$(sha256sum bajado.exe | cut -d' ' -f1)" = "$SHA" ] && [ "$(stat -c '%s' bajado.exe)" = "$B" ]; then ok=1; break; fi
-            rm -f bajado.exe; sleep 30
+            if [ "$code" = "200" ]; then
+              sha=$(sha256sum bajado.exe | cut -d' ' -f1); b=$(stat -c '%s' bajado.exe)
+              if [ "$sha" = "$SHA" ] && [ "$b" = "$B" ]; then ok=1; break; fi
+              echo "publicado pero no cuadra todavía ($sha / $b), reintento $i"
+            else
+              echo "release aún no existe ($code), reintento $i"
+            fi
+            rm -f bajado.exe
+            sleep 30
           done
-          [ $ok = 1 ] || { echo "la release shape101-$VER no apareció con la huella esperada"; exit 1; }
-          cd descargas && git checkout -q main && git pull -q
+          [ $ok = 1 ] || { echo "la release shape101-$VER no apareció con la huella esperada: no se toca el manifiesto"; exit 1; }
+          echo "release shape101-$VER publicada y comprobada: $B bytes · sha256 cuadra ✓"
+
+          cd descargas
+          git checkout -q main && git pull -q
           cp ../salida/shape101.json shape101.json
-          python - <<'EOF2'
+          python - <<'EOF'
           import re, pathlib
           renglon = pathlib.Path("../salida/readme-renglon.md").read_text(encoding="utf-8").strip()
           p = pathlib.Path("README.md"); s = p.read_text(encoding="utf-8")
           nuevo, n = re.subn(r"^\| \*\*shape101\*\* \|.*$", renglon, s, count=1, flags=re.M)
           if n != 1: raise SystemExit("no encontré el renglón de shape101 en README.md")
           p.write_text(nuevo, encoding="utf-8")
-          EOF2
-          git add shape101.json README.md && git commit -qm "shape101 $VER: manifiesto y README (armada y publicada por Actions de shape101)" && git push -q origin main
-          echo "- Release \`shape101-$VER\` publicada · \`shape101-ultima\` movida · manifiesto y README en main." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Dejar lo medido en el commit
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MB: ${{ steps.armar.outputs.mb }}
-          SHA: ${{ steps.carga.outputs.sha256 }}
-          B: ${{ steps.carga.outputs.bytes }}
-          CARGADO: ${{ steps.cargar.outputs.cargado }}
-        run: |
-          set -euo pipefail
-          { echo "shape101 ${{ steps.version.outputs.version }} · armar y publicar"; echo "pruebas app:"; grep -h "Todo bien\|fallo" /tmp/app.txt /tmp/poc.txt 2>/dev/null || echo "(sin salida de pruebas)"
-            echo "instalador: ${MB:-NO SE ARMÓ} MB · ${B:-?} bytes · sha256 ${SHA:-?}"; echo "cargado a descargas: ${CARGADO:-no}"; } > medido.txt
-          cat medido.txt
-          python - <<'EOF2'
-          import json, os, urllib.request
-          cuerpo = "**Armar y publicar · medición**\n\n```\n" + open("medido.txt", encoding="utf-8", errors="replace").read() + "```\n\n---\n_Generated by [Claude Code](https://claude.ai/code)_\n"
-          req = urllib.request.Request(f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/commits/{os.environ['GITHUB_SHA']}/comments",
-              data=json.dumps({"body": cuerpo}).encode(), method="POST",
-              headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
-          print(urllib.request.urlopen(req).status)
-          EOF2
+          EOF
+          git add shape101.json README.md
+          git commit -qm "shape101 $VER: manifiesto y README (armada y publicada por Actions de shape101)"
+          git push -q origin main
+          echo "- Release \`shape101-$VER\` publicada · \`shape101-ultima\` movida · \`shape101.json\` y README en main." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Las 0.20.x instaladas ya ven el letrero «Actualizar»." >> "$GITHUB_STEP_SUMMARY"
