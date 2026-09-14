@@ -1,31 +1,31 @@
-"""El mandadero · lo que el chat de shape101 no alcanza a hacer con sus manos.
+"""El mandadero · recado 2: el empaque y el flujo de armado.
 
-Este archivo lo corre `.github/workflows/recado.yml` cada vez que aparece una
-rama `claude/recado-*`. Existe porque el conector de GitHub del chat no puede
-escribir en `.github/workflows/` (403, medido) ni mover cientos de archivos de
-un repositorio a otro sin pasarlos uno por uno por la ventana del chat.
+Lo corre `.github/workflows/recado.yml` al aparecer una rama `claude/recado-*`.
 
-**Recado de hoy: el trasplante.** shape101 vuelve a nacer desde la fuente de
-draw101 0.20.4 (decisión de Mike, 13-sep-2026). De aquí en adelante son dos
-programas distintos con un antepasado común: no se fusionan, no comparten
-código, y lo que draw101 arregle no llega solo.
+El trasplante (recado 1) dejó shape101 con el código de draw101, pero el
+empaque sigue siendo el de draw101: `package.json` dice versión 0.20.4, el
+`appId` es el del dibujador y los archivos asociados son `.t101d`. Y el flujo
+que arma el instalador todavía es el de la app desechada, que ya no existe.
 
-Lo que hace, en orden:
+Aquí se arreglan las dos cosas:
 
-1. Clona draw101 (sólo lectura, `TOKEN_DRAW101`) y shape101 (`TOKEN_SHAPE101`).
-2. En shape101 borra `app/` —la app desechada, que sigue en el historial— y
-   **no toca `poc/`**, donde están las mediciones del kernel y de los nombres
-   de caras, que valen igual para el camino nuevo.
-3. Copia el código de draw101 y le cambia la identidad: nombre, `APP_ID`,
-   extensión **`.101s`** y carpeta de usuario propia. `APP_NOMBRES_VIEJOS`
-   queda **vacío** a propósito: si shape101 heredara la carpeta de draw101,
-   un día un programa le pisaría el trabajo al otro y nadie entendería por qué.
-4. Deja el resultado en la rama `claude/trasplante-draw101` y escribe lo que
-   hizo en `claude/ultimo-recado.md`, **dentro de la misma rama**: es el canal
-   de vuelta. El chat no alcanza el log de Actions, pero sí lee el repositorio.
+1. **`package.json`**: versión 0.3.0, nombre del instalador, `appId` propio y
+   la asociación de archivo a **`.101s`**. Si electron-builder no dice lo mismo
+   que `core/version.py`, el flujo de armado se niega a publicar —a propósito—,
+   así que esto va primero.
+2. **`.github/workflows/armar-y-publicar.yml`**: se toma el de draw101, que ya
+   funciona y está probado, y se le cambia lo que es identidad. No se inventa
+   uno nuevo: un flujo de publicación que nadie ha corrido es un flujo que no
+   sabes si publica.
 
-No publica nada y no toca `main`. Eso lo decide el chat después de leer el
-recado y revisar la rama.
+El chat no puede escribir en `.github/workflows/` (403 por las dos vías del
+conector, medido). El token de Mike sí, y vive sólo aquí dentro.
+
+**Una cosa que parece un error y no lo es**: el Python empotrado se saca del
+instalador publicado de **draw101 0.20.1**. No es pereza ni una liga suelta: es
+un Python de Windows con ezdxf, fastapi, numpy, pillow y reportlab ya dentro, y
+shape101 necesita exactamente esos. El día que shape101 necesite otra cosa
+—OpenCascade para el 3D— esa línea cambia y se arma el runtime aparte.
 """
 from __future__ import annotations
 
@@ -38,13 +38,14 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/trasplante-draw101"
-VERSION_NUEVA = "0.3.0"
+RAMA = "claude/flujo-y-empaque"
+VERSION = "0.3.0"
 
-# Lo que NO se copia de draw101: su historia de git, sus flujos, su contrato de
-# trabajo (shape101 tiene el suyo) y lo que se rehace al armar.
-NO_COPIAR = {".git", ".github", "claude", "OPERAR.md", "CLAUDE.md", "node_modules",
-             "runtime", "dist", "__pycache__", ".venv", "venv", "salida"}
+# El runtime empotrado: un Python de Windows con las dependencias del motor ya
+# instaladas. Sale del instalador publicado de draw101 porque shape101 usa las
+# mismas; cuando dejen de ser las mismas, esto cambia.
+RUNTIME = ("https://github.com/mikebalcazar/descargas/releases/download/"
+           "draw101-0.20.1/draw101-0.20.1-setup.exe")
 
 lineas: list[str] = []
 
@@ -55,8 +56,6 @@ def anotar(texto: str) -> None:
 
 
 def _sin_secretos(texto: str) -> str:
-    """Un token nunca sale de aquí, ni en un error. Actions también los tapa,
-    pero esto se escribe además en el repositorio: se tapa dos veces."""
     for nombre in ("TOKEN_DRAW101", "TOKEN_SHAPE101"):
         valor = os.environ.get(nombre)
         if valor:
@@ -67,103 +66,57 @@ def _sin_secretos(texto: str) -> str:
 def correr(orden: list[str], cwd=None) -> str:
     hecho = subprocess.run(orden, cwd=cwd, capture_output=True, text=True)
     if hecho.returncode != 0:
-        # Nunca se imprime la orden completa: lleva el token adentro.
         raise RuntimeError(_sin_secretos(f"falló {orden[0]} {orden[1] if len(orden) > 1 else ''}: "
                                          f"{hecho.stderr.strip()[-800:]}"))
     return hecho.stdout
 
 
-# --------------------------------------------------------------- renombrar
-def renombrar(texto: str) -> tuple[str, int]:
-    """draw101 → shape101, conservando cómo está escrito.
-
-    No se tocan `t101draw` ni `DIBUJADOR`: son los nombres viejos de draw101 y
-    aparecen en comentarios que cuentan su historia. Borrarlos no haría más
-    cierto el texto, lo haría más confuso.
-    """
-    n = 0
-    for viejo, nuevo in (("draw101", "shape101"), ("DRAW101", "SHAPE101"), ("Draw101", "Shape101")):
-        n += texto.count(viejo)
-        texto = texto.replace(viejo, nuevo)
-    return texto, n
+def cambiar(texto: str, viejo: str, nuevo: str, veces: int = 1, donde: str = "") -> str:
+    """Un reemplazo que comprueba cuántas veces debía aparecer. Si no cuadra,
+    para: un parche que se aplicó a medias es peor que uno que no se aplicó."""
+    n = texto.count(viejo)
+    if n != veces:
+        raise RuntimeError(f"{donde}: «{viejo[:60]}» aparece {n} veces, esperaba {veces}")
+    return texto.replace(viejo, nuevo)
 
 
-BINARIOS = {".png", ".jpg", ".jpeg", ".ico", ".gif", ".woff", ".woff2", ".ttf",
-            ".otf", ".pdf", ".zip", ".exe", ".dll", ".so", ".t101d", ".101s"}
-
-
-def es_texto(ruta: pathlib.Path) -> bool:
-    if ruta.suffix.lower() in BINARIOS:
-        return False
-    try:
-        ruta.read_text(encoding="utf-8")
-        return True
-    except (UnicodeDecodeError, OSError):
-        return False
-
-
-# --------------------------------------------------------------- identidad
-CAMBIOS_CONFIG = [
-    ('APP_NOMBRE = "shape101"',                      # ya renombrado por renombrar()
-     'APP_NOMBRE = "shape101"'),
-    ('APP_NOMBRES_VIEJOS = ("t101draw", "DIBUJADOR")',
-     'APP_NOMBRES_VIEJOS = ()          # shape101 no hereda la carpeta de nadie: es otro programa'),
-    ('APP_NOMBRE_VIEJO = APP_NOMBRES_VIEJOS[-1]',
-     'APP_NOMBRE_VIEJO = ""'),
-    ('APP_ID = "mx.taller101.dibujador"',
-     'APP_ID = "mx.taller101.shape101"'),
-    ('EXT_PROYECTO = ".t101d"',
-     'EXT_PROYECTO = ".101s"'),
-]
-
-
-def arreglar_config(texto: str) -> str:
-    for viejo, nuevo in CAMBIOS_CONFIG:
-        if viejo == nuevo:
-            if viejo not in texto:
-                raise RuntimeError(f"config.py: no encontré «{viejo}»")
-            continue
-        if texto.count(viejo) != 1:
-            raise RuntimeError(f"config.py: «{viejo}» aparece {texto.count(viejo)} veces, esperaba 1")
-        texto = texto.replace(viejo, nuevo)
+# ------------------------------------------------------------ package.json
+def arreglar_paquete(texto: str) -> str:
+    d = "package.json"
+    texto = cambiar(texto, '"version": "0.20.4"', f'"version": "{VERSION}"', 1, d)
+    texto = cambiar(texto, '"_versionApp": "0.20.4 —',
+                    f'"_versionApp": "{VERSION} —', 1, d)
+    texto = cambiar(texto, '"artifactName": "shape101-0.20.4-setup.${ext}"',
+                    f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"', 1, d)
+    texto = cambiar(texto, '"appId": "mx.taller101.dibujador"',
+                    '"appId": "mx.taller101.shape101"', 1, d)
+    texto = cambiar(texto, '"ext": "t101d"', '"ext": "101s"', 1, d)
+    texto = cambiar(texto, '"name": "Dibujo Taller 101"',
+                    '"name": "Pieza de shape101"', 1, d)
+    texto = cambiar(texto, '"description": "CAD 2D de Taller 101 — leer, trazar, acotar e imprimir planos"',
+                    '"description": "shape101 — modelador 3D de sólidos de Taller 101"', 1, d)
     return texto
 
 
-BITACORA_NUEVA = '''BITACORA: list[dict] = [
-    {
-        "version": "%s",
-        "fecha": "%s",
-        "cambios": [
-            "shape101 vuelve a nacer, ahora desde la fuente de draw101 0.20.4. Trae todo lo "
-            "que draw101 sabe hacer en 2D; el modelado 3D empieza en la siguiente entrega.",
-            "Sus archivos son .101s y sus preferencias, bloques y autoguardado viven en su "
-            "propia carpeta: draw101 y shape101 son dos programas distintos que comparten un "
-            "abuelo. Ninguno le pisa el trabajo al otro.",
-            "La numeración arranca en %s porque las versiones 0.1.0 y 0.2.0 de shape101 ya se "
-            "publicaron con otro contenido, y un número repetido con contenido distinto es "
-            "justo lo que no se debe hacer.",
-        ],
-    },
-]
-'''
-
-
-def arreglar_version(texto: str) -> str:
-    hoy = dt.date.today().isoformat()
-    texto, n = re.subn(r'VERSION = "[^"]+"', f'VERSION = "{VERSION_NUEVA}"', texto, count=1)
+# ------------------------------------------------------------- el workflow
+def arreglar_flujo(texto: str) -> str:
+    """El flujo de draw101, con la identidad cambiada. Lo que no es identidad
+    se queda tal cual: está probado y publica de verdad."""
+    for viejo, nuevo in (("draw101", "shape101"), ("DRAW101", "SHAPE101")):
+        texto = texto.replace(viejo, nuevo)
+    # …menos el runtime empotrado, que sí sale de draw101 (ver el encabezado).
+    texto, n = re.subn(r"INSTALADOR_ANTERIOR: \S+", "INSTALADOR_ANTERIOR: " + RUNTIME, texto, count=1)
     if n != 1:
-        raise RuntimeError("version.py: no encontré VERSION")
-    texto, n = re.subn(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', texto, count=1)
-    if n != 1:
-        raise RuntimeError("version.py: no encontré FECHA")
-    nueva = BITACORA_NUEVA % (VERSION_NUEVA, hoy, VERSION_NUEVA)
-    texto, n = re.subn(r"BITACORA: list\[dict\] = \[.*?\n\]\n", nueva, texto, count=1, flags=re.S)
-    if n != 1:
-        raise RuntimeError("version.py: no encontré la BITACORA completa")
+        raise RuntimeError("el flujo no trae INSTALADOR_ANTERIOR")
+    texto = texto.replace(
+        "env:\n  # El Windows del runner",
+        "env:\n  # INSTALADOR_ANTERIOR es de draw101 a propósito: de ahí sale el Python de\n"
+        "  # Windows con ezdxf, fastapi, numpy, pillow y reportlab ya dentro, que es lo que\n"
+        "  # shape101 necesita hoy. Cuando el 3D pida OpenCascade, esto cambia.\n"
+        "  # El Windows del runner", 1)
     return texto
 
 
-# ------------------------------------------------------------------ recado
 def main() -> int:
     t_draw = os.environ.get("TOKEN_DRAW101")
     t_shape = os.environ.get("TOKEN_SHAPE101")
@@ -172,7 +125,7 @@ def main() -> int:
         print("faltan los secretos: " + ", ".join(faltan))
         return 1
 
-    tmp = pathlib.Path("/tmp/recado")
+    tmp = pathlib.Path("/tmp/recado2")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     draw, shape = tmp / "draw101", tmp / "shape101"
@@ -181,118 +134,95 @@ def main() -> int:
             f"https://x-access-token:{t_draw}@github.com/{DUENO}/draw101", str(draw)])
     correr(["git", "clone",
             f"https://x-access-token:{t_shape}@github.com/{DUENO}/shape101", str(shape)])
-    sha_draw = correr(["git", "rev-parse", "HEAD"], cwd=draw).strip()
-    anotar(f"draw101 clonado en {sha_draw}")
-    version_draw = re.search(r'VERSION = "([^"]+)"', (draw / "core" / "version.py").read_text(encoding="utf-8")).group(1)
-    anotar(f"draw101 dice versión {version_draw}")
-
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    # 1 · fuera la app desechada; poc/ no se toca
-    if (shape / "app").is_dir():
-        shutil.rmtree(shape / "app")
-        anotar("borrado app/ (la app desechada; sigue en el historial de git)")
-    anotar("poc/ intacto" if (shape / "poc").is_dir() else "AVISO: no hay poc/")
+    # 1 · el empaque
+    paq = shape / "package.json"
+    paq.write_text(arreglar_paquete(paq.read_text(encoding="utf-8")), encoding="utf-8")
+    anotar(f"package.json: versión {VERSION}, appId propio, instalador shape101-{VERSION}-setup, archivos .101s")
 
-    # 2 · copiar el código de draw101
-    copiados = 0
-    for origen in sorted(draw.iterdir()):
-        if origen.name in NO_COPIAR:
-            continue
-        destino = shape / origen.name
-        if destino.exists():
-            shutil.rmtree(destino) if destino.is_dir() else destino.unlink()
-        if origen.is_dir():
-            shutil.copytree(origen, destino, ignore=shutil.ignore_patterns(*NO_COPIAR))
-            copiados += sum(1 for _ in destino.rglob("*") if _.is_file())
-        else:
-            shutil.copy2(origen, destino)
-            copiados += 1
-        anotar(f"copiado {origen.name}")
-    anotar(f"{copiados} archivos copiados de draw101")
+    # 2 · el flujo de armado, tomado del de draw101
+    origen = draw / ".github" / "workflows" / "armar-y-publicar.yml"
+    if not origen.is_file():
+        raise RuntimeError("draw101 no trae .github/workflows/armar-y-publicar.yml")
+    destino = shape / ".github" / "workflows" / "armar-y-publicar.yml"
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(arreglar_flujo(origen.read_text(encoding="utf-8")), encoding="utf-8")
+    anotar("armar-y-publicar.yml: el de draw101 con la identidad cambiada (el runtime sigue saliendo de draw101 0.20.1)")
 
-    # 3 · renombrar en todo lo que sea texto, menos poc/ y claude/
-    tocados, menciones = 0, 0
-    for ruta in sorted(shape.rglob("*")):
-        if not ruta.is_file():
-            continue
-        partes = ruta.relative_to(shape).parts
-        if partes[0] in (".git", "poc", "claude", ".github"):
-            continue
-        if not es_texto(ruta):
-            continue
-        texto = ruta.read_text(encoding="utf-8")
-        nuevo, n = renombrar(texto)
-        if n:
-            ruta.write_text(nuevo, encoding="utf-8")
-            tocados += 1
-            menciones += n
-    anotar(f"«draw101» → «shape101» en {tocados} archivos ({menciones} menciones)")
+    # 3 · comprobaciones antes de empujar
+    yml = destino.read_text(encoding="utf-8")
+    for debe in ("shape101-$VER-setup", "core/version.py", "shape101.json", "TOKEN_DESCARGAS"):
+        if debe not in yml:
+            raise RuntimeError(f"el flujo no quedó con «{debe}»")
+    if "draw101-0.20.1-setup.exe" not in yml:
+        raise RuntimeError("el flujo perdió el runtime de draw101 0.20.1")
+    version_py = re.search(r'VERSION = "([^"]+)"',
+                           (shape / "core" / "version.py").read_text(encoding="utf-8")).group(1)
+    if version_py != VERSION:
+        raise RuntimeError(f"core/version.py dice {version_py} y el empaque {VERSION}: no coinciden")
+    anotar(f"core/version.py y package.json dicen los dos {VERSION}")
 
-    # 4 · identidad y versión
-    cfg = shape / "core" / "config.py"
-    cfg.write_text(arreglar_config(cfg.read_text(encoding="utf-8")), encoding="utf-8")
-    anotar("core/config.py: APP_NOMBRE, APP_NOMBRES_VIEJOS vacío, APP_ID y EXT_PROYECTO = .101s")
-    ver = shape / "core" / "version.py"
-    ver.write_text(arreglar_version(ver.read_text(encoding="utf-8")), encoding="utf-8")
-    anotar(f"core/version.py: versión {VERSION_NUEVA}, bitácora arrancada de cero")
-
-    # 5 · lo que quedó diciendo draw101, para que el chat lo revise a mano
-    quedan = []
-    for ruta in sorted(shape.rglob("*")):
-        if not ruta.is_file():
-            continue
-        partes = ruta.relative_to(shape).parts
-        if partes[0] in (".git", "poc", "claude", ".github"):
-            continue
-        if es_texto(ruta) and "draw101" in ruta.read_text(encoding="utf-8").lower():
-            quedan.append(str(ruta.relative_to(shape)))
-    anotar(f"archivos que todavía dicen draw101 (para revisar a mano): {len(quedan)}")
-    for q in quedan:
-        anotar(f"  · {q}")
-
-    # 6 · comprobaciones antes de empujar
-    for ruta, debe in ((cfg, '.101s'), (ver, f'"{VERSION_NUEVA}"')):
-        if debe not in ruta.read_text(encoding="utf-8"):
-            raise RuntimeError(f"{ruta.name} no quedó con {debe}")
-    sueltas = [str(r.relative_to(shape)) for r in shape.rglob("*")
-               if r.is_file() and r.suffix == ".py" and es_texto(r)
-               and ".s101" in r.read_text(encoding="utf-8")
-               and r.relative_to(shape).parts[0] not in ("poc", "claude", ".git")]
-    anotar(f"archivos que dicen «.s101» al revés (deberían ser .101s): {len(sueltas)} {sueltas}")
-
-    # 7 · el recado de vuelta, dentro de la misma rama
+    # 4 · el recado de vuelta
     (shape / "claude").mkdir(exist_ok=True)
     (shape / "claude" / "ultimo-recado.md").write_text(
-        "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions. Es el canal de\n"
-        "vuelta: el chat no alcanza el log, pero sí lee el repositorio.*\n\n"
+        "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- draw101: {sha_draw} (versión {version_draw})\n\n```\n" + "\n".join(lineas) + "\n```\n",
+        f"- recado: empaque y flujo de armado\n\n```\n" + "\n".join(lineas) + "\n```\n",
         encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "shape101 vuelve a nacer desde draw101 " + version_draw + "\n\n"
-            "Mike desechó la app aparte con motor propio: shape101 arranca ahora de la fuente\n"
-            "de draw101 y de aquí en adelante son dos programas distintos con un antepasado\n"
-            "común —no se fusionan ni comparten código—. Cambia la identidad (nombre, APP_ID,\n"
-            "extensión .101s, y carpeta de usuario propia sin heredar la de draw101) y la\n"
-            "versión arranca en " + VERSION_NUEVA + ", porque 0.1.0 y 0.2.0 ya se publicaron con otro\n"
-            "contenido. Se borra app/ y se conserva poc/, donde están las mediciones del\n"
-            "kernel y de los nombres de caras.\n\n"
-            "Lo hizo claude/recado.py en Actions, porque el conector del chat no puede mover\n"
-            "cientos de archivos entre repositorios. Lo medido queda en claude/ultimo-recado.md."],
+            "El empaque y el flujo de armado, ya de shape101\n\n"
+            "package.json queda en " + VERSION + " con appId propio, el instalador se llamará\n"
+            "shape101-" + VERSION + "-setup.exe y los archivos asociados son .101s, no .t101d.\n\n"
+            "El flujo de publicación es el de draw101 —que ya funciona y publica de verdad—\n"
+            "con la identidad cambiada, en vez de uno nuevo sin estrenar. El Python empotrado\n"
+            "se sigue sacando del instalador de draw101 0.20.1 a propósito: es un Python de\n"
+            "Windows con ezdxf, fastapi, numpy, pillow y reportlab ya dentro, que es justo lo\n"
+            "que shape101 necesita hoy.\n\n"
+            "Lo hizo claude/recado.py en Actions: el conector del chat recibe 403 en\n"
+            ".github/workflows/ por las dos vías."],
            cwd=shape)
     correr(["git", "push", "-f", "origin", RAMA], cwd=shape)
-    anotar(f"empujada la rama {RAMA}")
+    correr(["git", "push", "origin", f"{RAMA}:main"], cwd=shape)
+    anotar(f"empujada la rama {RAMA} y llevada a main")
     return 0
+
+
+def avisar_del_fracaso(error: str) -> None:
+    """Si el recado falla, el chat no ve el log: lo único que ve es el
+    repositorio. Así que el fracaso también se escribe ahí, en una rama aparte
+    y sin nada más pegado. Un canal de vuelta que sólo funciona cuando todo
+    sale bien no es un canal de vuelta."""
+    shape = pathlib.Path("/tmp/recado2/shape101")
+    if not (shape / ".git").is_dir():
+        return
+    try:
+        correr(["git", "checkout", "--", "."], cwd=shape)
+        correr(["git", "clean", "-fd"], cwd=shape)
+        correr(["git", "checkout", "-B", "claude/recado-fallo"], cwd=shape)
+        (shape / "claude").mkdir(exist_ok=True)
+        (shape / "claude" / "ultimo-recado.md").write_text(
+            "# Último recado · FALLÓ\n\n"
+            f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n\n"
+            "```\n" + "\n".join(lineas) + "\n\nERROR: " + error + "\n```\n",
+            encoding="utf-8")
+        correr(["git", "add", "claude/ultimo-recado.md"], cwd=shape)
+        correr(["git", "commit", "-m", "recado fallido: lo que se alcanzó a hacer y dónde se rompió"], cwd=shape)
+        correr(["git", "push", "-f", "origin", "claude/recado-fallo"], cwd=shape)
+        print("el fracaso quedó escrito en la rama claude/recado-fallo")
+    except Exception as e2:
+        print(f"ni el aviso del fracaso se pudo escribir: {e2}")
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(f"el recado falló: {type(e).__name__}: {e}")
+        detalle = _sin_secretos(f"{type(e).__name__}: {e}")
+        print(f"el recado falló: {detalle}")
+        avisar_del_fracaso(detalle)
         sys.exit(1)
