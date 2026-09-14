@@ -1,6 +1,6 @@
-"""t004 · El `.t101d`: guardar, abrir, autoguardar y recuperar.
+"""t004 · El archivo de proyecto (config.EXT_PROYECTO): guardar, abrir, autoguardar y recuperar.
 
-El `.t101d` es **el trabajo**; el DXF es la entrega. Aquí se comprueba que el
+El archivo de proyecto es **el trabajo**; el DXF es la entrega. Aquí se comprueba que el
 trabajo vuelve entero —capas, unidades, orden de dibujo, el historial de esta
 sesión no, que ése no se guarda a propósito— y las tres reglas del guardado que
 existen para no perder un día de trabajo:
@@ -27,7 +27,7 @@ from core.capas import Capa
 from core.documento import Documento
 from pruebas import comun
 
-DESCRIPCION = ".t101d, guardado atómico, autoguardado y recuperación"
+DESCRIPCION = f"{config.EXT_PROYECTO}, guardado atómico, autoguardado y recuperación"
 
 
 def correr(r: comun.Reporte) -> None:
@@ -57,7 +57,7 @@ def _ida_y_vuelta(r: comun.Reporte, tmp) -> None:
 
     ruta = proyecto.guardar(doc, tmp / "cocina")
     r.igual(ruta.suffix, config.EXT_PROYECTO,
-            "guardar sin extensión la pone sola (.t101d)")
+            f"guardar sin extensión la pone sola ({config.EXT_PROYECTO})")
     r.exige(ruta.exists(), "el archivo queda en disco")
     r.cierto(not doc.sucio, "después de guardar, el documento deja de estar sucio")
 
@@ -66,7 +66,7 @@ def _ida_y_vuelta(r: comun.Reporte, tmp) -> None:
     with zipfile.ZipFile(ruta) as z:
         dentro = sorted(z.namelist())
     r.igual(dentro, ["documento.json", "meta.json"],
-            "el .t101d es un zip con el documento y su ficha")
+            f"el {config.EXT_PROYECTO} es un zip con el documento y su ficha")
 
     vuelto = proyecto.abrir(ruta)
     r.igual([e.id for e in vuelto.lista()], ids,
@@ -87,7 +87,7 @@ def _ida_y_vuelta(r: comun.Reporte, tmp) -> None:
 def _atomico(r: comun.Reporte, tmp) -> None:
     """Guardar dos veces no deja basura, y el archivo nunca queda a medias."""
     doc = _dibujo()
-    ruta = proyecto.guardar(doc, tmp / "atomico.t101d")
+    ruta = proyecto.guardar(doc, tmp / f"atomico{config.EXT_PROYECTO}")
     antes = ruta.read_bytes()
 
     with doc.transaccion("Otra línea"):
@@ -104,7 +104,8 @@ def _atomico(r: comun.Reporte, tmp) -> None:
 
 def _autoguardado(r: comun.Reporte, tmp) -> None:
     doc = _dibujo()
-    original = proyecto.guardar(doc, tmp / "obra.t101d")
+    original = proyecto.guardar(doc, tmp / f"obra{config.EXT_PROYECTO}")
+    intacto = original.read_bytes()
 
     # Recién guardado no hay nada que recuperar: el documento está limpio.
     r.igual(proyecto.autoguardar(doc, original), None,
@@ -119,7 +120,7 @@ def _autoguardado(r: comun.Reporte, tmp) -> None:
              "el autoguardado vive aparte, no junto al archivo del usuario")
     r.cierto(doc.sucio,
              "autoguardar no es guardar: el documento sigue sucio")
-    r.igual(original.read_bytes(), (tmp / "obra.t101d").read_bytes(),
+    r.igual(original.read_bytes(), intacto,
             "y el archivo del usuario no se tocó")
 
     marca = copia.with_suffix(".origen")
