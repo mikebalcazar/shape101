@@ -1,0 +1,2 @@
+NSIS se usa sólo para armar el instalador; el código de NSIS no forma parte de shape101.
+Licencia zlib/libpng: https://nsis.sourceforge.io/License

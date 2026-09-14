@@ -1,0 +1,784 @@
+/* shape101 — identidad Taller 101 con los colores del logotipo invertidos:
+   fondo claro, azul #0080C1. Mismos tokens que Taller 101 para que las dos
+   apps se vean hermanas; lo que cambia es cuál tema arranca. */
+
+:root{
+  --bg:#eef0f3; --panel:#ffffff; --panel2:#f4f6f8; --panel3:#eceff2;
+  --fondo2:#f7f8fa; --fondo3:#e6e9ee; --lienzo:#ffffff;
+  --linea:#d3d8e0; --linea2:#e6e9ee; --linea3:#b9c1cc;
+  --campo:#ffffff; --sw:#e4e8ee; --hover:#e9edf2; --sel:#e2ecf5; --hoverfila:#f2f5f8;
+  --aviso-bg:#e4eef7;
+  --txt:#1a1f27; --txt2:#5a6472; --txt3:#8a93a1;
+  --acc:#0071aa; --acc2:#0080C1; --acc-sombra:#dbeaf5;
+  --canto:#b4712a; --ok:#2f7d4f; --warn:#b4472a;
+  --peligro:#a8422a; --peligro-bg:#fbe6e0;
+  --rejilla:#e3e7ec; --rejilla2:#cfd6de;
+  --sombra:rgba(20,30,45,.18);
+  --r:6px; --f:13px;
+  --marca:"Sansation","Segoe UI",system-ui,sans-serif;
+}
+
+/* El oscuro existe desde el día uno aunque su botón sea del F9: un lienzo
+   negro es lo que pide el que dibuja de noche, y dejarlo para después
+   obligaría a repasar cada color a mano. */
+html[data-tema="oscuro"]{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --panel3:#15181f;
+  --fondo2:#1a1e27; --fondo3:#0d0f14; --lienzo:#0b0d11;
+  --linea:#2a2f3a; --linea2:#23272f; --linea3:#3d4453;
+  --campo:#12151b; --sw:#2b303b; --hover:#272c37; --sel:#22262f; --hoverfila:#1b1f27;
+  --aviso-bg:#1d2530;
+  --txt:#e6e8ec; --txt2:#9aa1ad; --txt3:#6b7280;
+  --acc:#0080C1; --acc2:#3AA3DC; --acc-sombra:#122733;
+  --canto:#c8813a; --ok:#4ea36b; --warn:#c9694a;
+  --peligro:#e08c7a; --peligro-bg:#3a2020;
+  --rejilla:#1b1f27; --rejilla2:#2a2f3a;
+  --sombra:rgba(0,0,0,.55);
+}
+
+@font-face{font-family:"Sansation";src:url("vendor/fonts/sansation-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Sansation";src:url("vendor/fonts/sansation-700.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Raleway";src:url("vendor/fonts/raleway-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Raleway";src:url("vendor/fonts/raleway-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Raleway";src:url("vendor/fonts/raleway-700.woff2") format("woff2");font-weight:700;font-display:swap}
+/* Los números, en Fira Sans (Mike, 6-sep): Raleway trae cifras «old style» que
+   cuelgan y suben, y una medida no se lee. «Cifras» sólo cubre los dígitos y
+   los signos de medida (unicode-range): se pone primero en la pila y el resto
+   del texto sigue cayendo en Raleway, sin tocar ningún marcado. Vale también
+   para el lienzo (canvas) y para las cotas. Subconjunto de 5 KB, OFL. */
+@font-face{font-family:"Cifras";src:url("vendor/fonts/fira-cifras-400.woff2") format("woff2");font-weight:400;font-display:swap;
+  unicode-range:U+0030-0039,U+00B0,U+2300,U+00B1,U+00D7,U+0025}
+@font-face{font-family:"Cifras";src:url("vendor/fonts/fira-cifras-600.woff2") format("woff2");font-weight:600 700;font-display:swap;
+  unicode-range:U+0030-0039,U+00B0,U+2300,U+00B1,U+00D7,U+0025}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--txt);
+  font:var(--f)/1.45 "Cifras","Raleway","Segoe UI",system-ui,sans-serif;
+  font-feature-settings:"tnum" 1;        /* cifras del mismo ancho: no bailan */
+  display:flex; flex-direction:column; overflow:hidden; user-select:none;
+}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--linea);border-radius:var(--r);
+  padding:5px 10px;cursor:pointer;transition:.12s}
+button:hover:not(:disabled){background:var(--hover);border-color:var(--linea3)}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.pri:hover:not(:disabled){background:var(--acc2);border-color:var(--acc2)}
+button.gh{background:transparent;border-color:transparent}
+button.gh:hover:not(:disabled){background:var(--hover)}
+button:disabled{opacity:.35;cursor:not-allowed}
+input,select{background:var(--campo);border:1px solid var(--linea);
+  border-radius:var(--r);padding:4px 7px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--acc2)}
+
+/* --- Barra superior ---------------------------------------------------- */
+header{
+  display:flex;align-items:center;gap:14px;padding:8px 14px;
+  background:var(--panel);border-bottom:1px solid var(--linea);flex:0 0 auto;
+}
+header .marca{display:flex;align-items:center;gap:10px}
+header .marca img{height:26px;width:auto;display:block}
+/* El logotipo ya dice «shape101» (ver build/hacer_logo_shape101.py): el nombre
+ * escrito al lado sobra. Se deja en el HTML (lo lee «Acerca de» y las pruebas)
+ * pero no se pinta dos veces. */
+header .marca .nombre{
+  font-family:var(--marca);font-weight:700;letter-spacing:.06em;
+  font-size:13px;color:var(--acc2);display:none;
+}
+header .sep{width:1px;height:24px;background:var(--linea)}
+header .barra{display:flex;gap:6px;align-items:center}
+header .crece{flex:1}
+header .archivo{color:var(--txt2);font-size:12px;display:flex;gap:6px;align-items:center}
+header .archivo b{color:var(--txt);font-weight:600}
+header .punto{width:7px;height:7px;border-radius:50%;background:var(--warn);display:none}
+header .punto.si{display:block}
+
+/* --- Cuerpo ------------------------------------------------------------ */
+main{flex:1;display:flex;min-height:0;position:relative}
+
+/* La dirección de `main` la manda el anclaje de la barra: para ponerla arriba
+   o abajo del lienzo hay que apilar, no poner en fila. Con `:has()` no hace
+   falta que JavaScript vaya tocando clases en dos sitios — el anclaje vive en
+   un solo atributo y todo lo demás se deduce de él. */
+#zona{flex:1;display:flex;min-width:0;min-height:0;position:relative}
+#zona:has(#herramientas[data-anclaje="arriba"]){flex-direction:column}
+#zona:has(#herramientas[data-anclaje="abajo"]){flex-direction:column-reverse}
+#zona:has(#herramientas[data-anclaje="derecha"]){flex-direction:row-reverse}
+#lienzo-caja{flex:1;position:relative;background:var(--lienzo);min-width:0;min-height:0;overflow:hidden}
+/* **Los dos lienzos van absolutos**: así su tamaño lo pone la caja y nunca al
+   revés. Con el lienzo en el flujo, su alto en píxeles de pantalla (el CSS ×
+   la escala de Windows, 125 % o 150 %) contaba como contenido mínimo de la
+   caja, la caja crecía, el siguiente ajuste medía la caja más grande y volvía a
+   agrandar el lienzo: al maximizar la ventana, la consola y el pie se salían
+   por abajo y `overflow:hidden` los escondía. Reportado por Mike el 4-sep. */
+canvas{display:block}
+#lienzo,#encima{position:absolute;inset:0;width:100%;height:100%}
+/* El lienzo de encima va superpuesto y no recibe clics: los escucha el de
+   abajo. Ver el comentario del pintado en ui/vista.js. */
+#encima{pointer-events:none}
+#coords{
+  /* A la derecha: abajo a la izquierda están las pestañas de las hojas y se
+     tapaban una a la otra. */
+  position:absolute;right:12px;bottom:10px;padding:3px 8px;border-radius:var(--r);
+  background:var(--panel);border:1px solid var(--linea);color:var(--txt2);
+  font-size:12px;font-variant-numeric:tabular-nums;pointer-events:none;
+}
+#aviso{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--linea);border-left:3px solid var(--acc2);
+  box-shadow:0 6px 20px var(--sombra);border-radius:var(--r);
+  padding:9px 14px;max-width:min(560px,80%);display:none;z-index:5;
+}
+#aviso.malo{border-left-color:var(--peligro);background:var(--peligro-bg)}
+#aviso.si{display:block}
+
+/* --- «Trabajando…» --------------------------------------------------- */
+#ocupado{
+  position:absolute;left:50%;bottom:48px;transform:translateX(-50%);
+  display:none;align-items:center;gap:10px;
+  background:var(--panel);border:1px solid var(--linea);border-radius:999px;
+  box-shadow:0 6px 20px var(--sombra);padding:7px 16px 7px 12px;
+  font-size:12.5px;color:var(--txt);z-index:6;pointer-events:none;
+  max-width:min(640px,86%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#ocupado.si{display:flex}
+#ocupado .rueda{
+  width:14px;height:14px;border-radius:50%;flex:none;
+  border:2px solid var(--linea3);border-top-color:var(--acc2);
+  animation:girar .8s linear infinite;
+}
+@keyframes girar{to{transform:rotate(360deg)}}
+
+/* --- Menú radial  ·  ui/radial.js --------------------------------------- */
+.radial{position:fixed;inset:0;z-index:70;pointer-events:none;user-select:none}
+.radial .centro{
+  position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+  background:var(--acc2);box-shadow:0 0 0 4px var(--acc-sombra);
+}
+.radial .gajo{
+  position:absolute;transform:translate(-50%,-50%);
+  display:flex;align-items:center;gap:7px;padding:6px 12px 6px 9px;
+  background:var(--panel);border:1px solid var(--linea);border-radius:999px;
+  box-shadow:0 4px 14px var(--sombra);color:var(--txt2);font-size:12px;
+  white-space:nowrap;transition:transform .08s,background .08s;
+}
+.radial .gajo .ic{font-size:15px;line-height:1;width:18px;text-align:center;color:var(--txt)}
+.radial .gajo .et{font-weight:600;letter-spacing:.02em}
+.radial .gajo.hijo{padding:4px 10px 4px 8px;font-size:11.5px}
+.radial .gajo.elegido{
+  background:var(--acc);border-color:var(--acc);color:#fff;
+  transform:translate(-50%,-50%) scale(1.08);
+}
+.radial .gajo.elegido .ic{color:#fff}
+.radial .gajo.abierto{border-color:var(--acc2);color:var(--acc2)}
+/* Con un anillo de hijos abierto, el resto de la rueda se apaga un poco para
+   que el ojo se vaya a lo que se está eligiendo. */
+.radial.con-hijos .gajo:not(.hijo):not(.abierto){opacity:.35}
+
+/* --- Panel de capas ---------------------------------------------------- */
+/* El ancho lo pone ui/marco.js y se guarda en las preferencias  ·  punto 5.
+   El valor de aquí es sólo el de arranque, antes de que lleguen. */
+:root{--panel-ancho:340px}
+aside{
+  width:var(--panel-ancho);flex:0 0 var(--panel-ancho);background:var(--panel);
+  border-left:1px solid var(--linea);display:flex;flex-direction:column;min-height:0;
+  overflow:hidden;
+}
+
+/* El asa: seis píxeles de nada que se iluminan al pasar por encima. Se le da
+   un área de agarre más ancha que la raya visible porque atinarle a una línea
+   de 1 px con el ratón es exactamente la clase de puntería que Mike pidió no
+   tener que hacer. */
+#asa-panel{
+  flex:0 0 6px;margin-right:-3px;z-index:6;cursor:col-resize;
+  background:transparent;transition:background .12s;
+}
+#asa-panel:hover,#asa-panel.activa{background:var(--acc2)}
+body:has(#asa-panel.activa){cursor:col-resize;user-select:none}
+aside h2{
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt3);
+  padding:10px 12px 6px;font-weight:700;
+}
+.capas{overflow:auto;flex:1}
+.capa{
+  display:grid;grid-template-columns:20px 20px 14px 1fr auto;gap:7px;align-items:center;
+  padding:5px 12px;border-bottom:1px solid var(--linea2);cursor:pointer;
+}
+.capa:hover{background:var(--hoverfila)}
+.capa.activa{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc2)}
+.capa .ojo,.capa .llave{
+  background:none;border:none;padding:0;width:20px;height:20px;line-height:1;
+  font-size:13px;opacity:.75;cursor:pointer;color:var(--txt2);
+}
+.capa .ojo.off,.capa .llave.on{opacity:1;color:var(--acc2)}
+.capa .muestra{width:14px;height:14px;border-radius:3px;border:1px solid var(--linea3)}
+.capa .nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.capa .nom small{color:var(--txt3);display:block;font-size:11px}
+.capa .cuenta{color:var(--txt3);font-size:11px;font-variant-numeric:tabular-nums}
+.pie-capas{padding:9px 12px;border-top:1px solid var(--linea);display:flex;gap:6px}
+
+/* --- Propiedades de la capa seleccionada -------------------------------- */
+.props{border-top:1px solid var(--linea);padding:10px 12px;background:var(--panel2)}
+.props .fila{display:grid;grid-template-columns:78px 1fr;gap:8px;align-items:center;margin-bottom:6px}
+.props .fila:last-child{margin-bottom:0}
+.props label{color:var(--txt2);font-size:12px}
+.props input[type=color]{padding:1px;height:26px;cursor:pointer}
+.props .check{display:flex;align-items:center;gap:6px}
+.props .check input{width:auto}
+
+/* --- Pie --------------------------------------------------------------- */
+footer{
+  flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:5px 14px;
+  background:var(--panel);border-top:1px solid var(--linea);
+  color:var(--txt2);font-size:12px;
+}
+footer .etq{color:var(--txt3)}
+footer b{color:var(--txt);font-weight:600}
+footer .crece{flex:1}
+footer .preservadas{color:var(--canto)}
+/* La versión, discreta pero siempre visible: es lo primero que hay que
+   preguntar cuando alguien reporta algo por teléfono. */
+footer .version{color:var(--txt3);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ======================================================================
+   F1 — entrada dinámica, línea de comando e interruptores
+   ====================================================================== */
+
+/* --- Entrada dinámica  ·  feature 15 ----------------------------------- */
+#dinamica{
+  position:absolute;left:0;top:0;display:none;z-index:6;pointer-events:auto;will-change:transform;
+  background:var(--panel);border:1px solid var(--linea3);border-radius:var(--r);
+  box-shadow:0 4px 14px var(--sombra);padding:5px;gap:4px;
+  font-variant-numeric:tabular-nums;
+}
+#dinamica.si{display:flex;flex-direction:column}
+#dinamica .campo{display:grid;grid-template-columns:34px 90px;gap:6px;align-items:center}
+#dinamica .campo .etq{color:var(--txt3);font-size:11px;text-align:right}
+#dinamica .campo input{padding:2px 6px;font-size:12px;border-color:var(--linea2)}
+/* Un campo fijado deja de seguir al cursor: se marca, o el usuario no
+   entiende por qué la cifra ya no se mueve. */
+#dinamica .campo.fijo input{border-color:var(--acc2);background:var(--acc-sombra);font-weight:600}
+#dinamica .campo.fijo .etq{color:var(--acc2)}
+#dinamica .pista{color:var(--txt3);font-size:10px;text-align:center;padding-top:2px}
+
+/* --- Línea de comando  ·  feature 17 ------------------------------------ */
+#consola{
+  flex:0 0 auto;background:var(--panel3);border-top:1px solid var(--linea);
+  display:flex;flex-direction:column;position:relative;
+}
+#cmd-historial{
+  /* Alto FIJO, no máximo. Con max-height la consola crecía con cada mensaje y
+     el lienzo se encogía debajo del cursor: se picaba donde estaba la línea y
+     el clic caía dos milímetros más abajo. Un lienzo que se mueve solo es un
+     lienzo en el que no se puede dibujar.
+     Dos renglones (Mike, 6-sep): el lienzo es lo que importa. Con el botón de
+     la esquina —o F2, como la ventana de texto de AutoCAD— se abren diez para
+     repasar lo que pasó, con su scroll. */
+  height:40px;overflow:auto;padding:4px 28px 0 12px;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:12px;
+  color:var(--txt2);line-height:18px;
+}
+#consola.abierta #cmd-historial{height:184px}
+#cmd-mas{
+  position:absolute;right:6px;top:4px;width:18px;height:18px;padding:0;
+  border:none;background:transparent;color:var(--txt3);font-size:11px;line-height:18px;
+  border-radius:4px;cursor:pointer;opacity:.55;
+}
+#cmd-mas:hover{opacity:1;background:var(--hover);color:var(--txt2)}
+#consola.abierta #cmd-mas{transform:rotate(180deg)}
+#cmd-historial .eco{white-space:pre-wrap}
+#cmd-historial .eco.malo{color:var(--peligro)}
+#cmd-historial .eco.bien{color:var(--ok)}
+#consola .linea{display:flex;align-items:center;gap:8px;padding:5px 12px 6px}
+#cmd-etiqueta{color:var(--acc2);font-weight:600;white-space:nowrap;min-width:70px}
+#cmd{
+  border:none;background:transparent;padding:2px 0;
+  font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+#cmd:focus{outline:none}
+#cmd::placeholder{color:var(--txt3)}
+
+/* --- Interruptores del pie  ·  features 12, 13, 14, 15 ------------------ */
+footer .interruptores{display:flex;gap:4px;margin-left:6px}
+footer .interruptores button{
+  padding:2px 8px;font-size:10.5px;letter-spacing:.06em;font-weight:600;
+  color:var(--txt3);background:transparent;border-color:transparent;border-radius:4px;
+}
+footer .interruptores button:hover{background:var(--hover);color:var(--txt2)}
+footer .interruptores button.on{
+  background:var(--acc-sombra);border-color:var(--acc2);color:var(--acc2);
+}
+
+/* Ortho invertido por Shift: se marca con raya punteada para que se vea que es
+   de momento y no que alguien dejó el interruptor cambiado. */
+footer .interruptores button.temporal{border-style:dashed;border-color:var(--acc2)}
+
+footer .sel{color:var(--acc2)}
+
+/* --- Propiedades del objeto  ·  feature 43 ----------------------------- */
+.props.objeto{background:var(--panel3);max-height:42vh;overflow:auto}
+.props.objeto h2{padding:0 0 6px}
+.props.objeto .fila{grid-template-columns:88px 1fr}
+.props.objeto .tipo{color:var(--acc2);font-weight:600;margin-bottom:8px}
+.props.objeto .varias{color:var(--txt2);font-size:12px}
+
+/* --- Barra de herramientas  ·  F2 y F3 ---------------------------------
+   Se ancla a los cuatro lados o flota. El reacomodo en varias filas o
+   columnas es `flex-wrap`: no hay una sola cuenta de píxeles en JavaScript.
+   Lo que cambia por anclaje es la **dirección**; el reparto lo hace el
+   navegador, que además lo rehace solo al cambiar el tamaño de la ventana. */
+
+#herramientas{
+  flex:0 0 auto;background:var(--panel);
+  display:flex;gap:2px;padding:6px 4px;
+  /* `wrap` es lo que parte los iconos en dos filas o dos columnas cuando no
+     caben a lo largo. `min-height/width:0` es lo que deja que el flex padre
+     encoja la barra hasta obligarla a partirse — sin eso, se desborda. */
+  flex-wrap:wrap;align-content:flex-start;
+}
+
+/* Anclada a un lado: los iconos van en columna y se parten en más columnas. */
+#herramientas[data-anclaje="izquierda"],
+#herramientas[data-anclaje="derecha"]{
+  flex-direction:column;max-height:100%;min-height:0;
+}
+#herramientas[data-anclaje="izquierda"]{border-right:1px solid var(--linea)}
+#herramientas[data-anclaje="derecha"]{border-left:1px solid var(--linea)}
+
+/* Arriba, abajo y **flotante** van en fila y se parten en más filas. Ésa es
+   la forma que pidió Mike: «si no caben en una fila, que se hagan 2 filas».
+   En fila los iconos además se leen en el orden en que están agrupados —
+   dibujar, editar, acotar— y en columnas ese orden se pierde. */
+#herramientas[data-anclaje="arriba"],
+#herramientas[data-anclaje="abajo"],
+#herramientas[data-anclaje="flotante"]{
+  flex-direction:row;align-items:center;
+}
+#herramientas[data-anclaje="arriba"],
+#herramientas[data-anclaje="abajo"]{width:100%;max-width:100%;min-width:0}
+#herramientas[data-anclaje="arriba"]{border-bottom:1px solid var(--linea)}
+#herramientas[data-anclaje="abajo"]{border-top:1px solid var(--linea)}
+
+/* Flotante: encima del lienzo, despegada con sombra.
+   `max-width` es lo que la obliga a partirse en dos filas en vez de crecer
+   hasta salirse — que es justo lo que estaba mal: la barra quedaba «bloqueada
+   por el ancho del frame». Nunca se sale del lienzo, y nunca se recorta. */
+#herramientas[data-anclaje="flotante"]{
+  position:absolute;z-index:40;
+  /* El tope de ancho es lo que la parte en filas. Se deja en todo el lienzo
+     porque así caben en **dos**, que es lo que pidió Mike; apretándola a 720
+     salen tres, y una fila más de barra es una franja más de plano donde no se
+     puede picar. Lo que sobra a la derecha de la segunda fila no estorba: los
+     huecos de la barra dejan pasar el clic (ver más abajo). */
+  max-width:calc(100% - 24px);max-height:calc(100% - 24px);
+  min-width:0;min-height:0;
+  border:1px solid var(--linea);border-radius:var(--r);
+  box-shadow:0 6px 20px var(--sombra);
+}
+
+/* **Bloques por tipo de función, con título, en dos renglones.**
+   Lo pidió Mike el 4-sep. Cada bloque es una caja de verdad —título arriba y
+   una cuadrícula de dos renglones— y lo que se reparte por la barra son
+   bloques enteros: un bloque no se parte a la mitad, así que los iconos de una
+   misma función siempre están juntos y debajo de su nombre. Si los bloques no
+   caben a lo largo, la barra los pasa al siguiente renglón (o columna). */
+#herramientas .bloque{
+  display:flex;flex-direction:column;gap:2px;flex:0 0 auto;
+  padding:0 3px 2px;border-radius:var(--r);
+}
+#herramientas .bloque .titulo{
+  font-size:8.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--txt3);line-height:12px;padding:0 3px;user-select:none;white-space:nowrap;
+}
+/* En fila: dos renglones, y las columnas que hagan falta. */
+#herramientas .bloque .celdas{
+  display:grid;grid-auto-flow:column;grid-template-rows:repeat(2, 30px);
+  grid-auto-columns:34px;gap:2px;
+}
+/* De lado: el bloque se estira a lo ancho y son dos columnas, con los
+   renglones que hagan falta. */
+#herramientas[data-anclaje="izquierda"] .bloque .celdas,
+#herramientas[data-anclaje="derecha"] .bloque .celdas{
+  grid-auto-flow:row;grid-template-rows:none;grid-template-columns:repeat(2, 34px);
+  grid-auto-rows:30px;
+}
+/* Entre bloque y bloque, una raya fina, para que el ojo los separe rápido. */
+#herramientas .bloque + .bloque{border-left:1px solid var(--linea2);margin-left:2px;padding-left:5px}
+#herramientas[data-anclaje="izquierda"] .bloque + .bloque,
+#herramientas[data-anclaje="derecha"] .bloque + .bloque{
+  border-left:none;border-top:1px solid var(--linea2);margin-left:0;padding-left:3px;
+  margin-top:4px;padding-top:4px;
+}
+/* En fila, la barra alinea los bloques por arriba: así todos los títulos
+   quedan en la misma línea y los iconos debajo. */
+#herramientas[data-anclaje="arriba"],
+#herramientas[data-anclaje="abajo"],
+#herramientas[data-anclaje="flotante"]{align-items:flex-start}
+
+/* Y flotando, los huecos de la barra dejan pasar el clic al lienzo. Los
+   botones y el asa siguen siendo sólidos; lo que era una losa opaca de la que
+   sólo un tercio son botones, ya no lo es. */
+#herramientas[data-anclaje="flotante"]{pointer-events:none}
+#herramientas[data-anclaje="flotante"] button,
+#herramientas[data-anclaje="flotante"] .asa{pointer-events:auto}
+#herramientas[data-anclaje="flotante"] .bloque{pointer-events:none}
+
+#herramientas button{
+  width:34px;height:30px;padding:0;font-size:15px;line-height:1;flex:0 0 auto;
+  background:transparent;border-color:transparent;color:var(--txt2);
+}
+#herramientas button:hover{background:var(--hover);color:var(--txt)}
+#herramientas button.activa{background:var(--acc-sombra);border-color:var(--acc2);color:var(--acc2)}
+
+/* El asa: por donde se agarra para moverla. */
+#herramientas .asa{
+  display:flex;align-items:center;justify-content:center;
+  cursor:grab;color:var(--txt3);flex:0 0 auto;user-select:none;
+  width:34px;height:16px;border-radius:4px;
+}
+#herramientas .asa:hover{background:var(--hover);color:var(--txt2)}
+#herramientas .asa:active{cursor:grabbing}
+#herramientas[data-anclaje="arriba"] .asa,
+#herramientas[data-anclaje="abajo"] .asa,
+#herramientas[data-anclaje="flotante"] .asa{width:16px;height:30px;margin-right:4px}
+#herramientas .asa .puntos{font-size:13px;line-height:1;letter-spacing:-1px}
+
+/* La guía que se enciende en el borde al que se va a anclar. */
+#guia-anclaje{position:absolute;pointer-events:none;display:none;z-index:39;
+  background:var(--acc-sombra);border:1px solid var(--acc2);border-radius:var(--r)}
+#guia-anclaje.si{display:block}
+#guia-anclaje.izquierda{left:0;top:0;bottom:0;width:46px}
+#guia-anclaje.derecha{right:0;top:0;bottom:0;width:46px}
+#guia-anclaje.arriba{left:0;right:0;top:0;height:44px}
+#guia-anclaje.abajo{left:0;right:0;bottom:0;height:44px}
+
+/* --- Pestañas de modelo y hojas  ·  F6 --------------------------------- */
+#pestanas{
+  position:absolute;left:0;bottom:0;display:flex;gap:2px;padding:0 8px;
+  background:linear-gradient(to top, var(--bg), transparent);
+}
+#pestanas button{
+  border-radius:5px 5px 0 0;border-bottom:none;padding:3px 12px;font-size:12px;
+  background:var(--panel2);color:var(--txt2);
+}
+#pestanas button.activa{background:var(--panel);color:var(--acc2);font-weight:600;
+  box-shadow:inset 0 2px 0 var(--acc2)}
+#pestanas button.mas{padding:3px 9px;color:var(--txt3)}
+
+/* ======================================================================
+   Cuadros de diálogo  ·  ui/dialogo.js
+   Un solo constructor para el estilo de cota, los modos de referencia, la
+   hoja y el pie de plano. Lo que antes se preguntaba campo por campo en la
+   línea de comandos.
+   ====================================================================== */
+.dlg{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
+  justify-content:center;background:color-mix(in srgb,var(--bg) 72%,transparent);
+  backdrop-filter:blur(2px)}
+.dlg .panel{width:min(460px,calc(100% - 48px));max-height:86vh;display:flex;
+  flex-direction:column;background:var(--panel);border:1px solid var(--linea);
+  border-radius:11px;box-shadow:0 24px 60px var(--sombra);overflow:hidden}
+.dlg .cab{padding:14px 18px 10px;border-bottom:1px solid var(--linea)}
+.dlg .cab b{font-size:14px}
+.dlg .pista{padding:9px 18px 0;font-size:11.5px;color:var(--txt2);white-space:pre-line;line-height:1.45}
+.dlg .cuerpo{padding:14px 18px;overflow-y:auto;display:grid;gap:9px}
+.dlg .cuerpo::-webkit-scrollbar{width:9px}
+.dlg .cuerpo::-webkit-scrollbar-thumb{background:var(--sw);border-radius:5px}
+.dlg .seccion{font-size:10.5px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--txt3);margin-top:8px;
+  padding-bottom:4px;border-bottom:1px solid var(--linea2)}
+.dlg .seccion:first-child{margin-top:0}
+.dlg .fila{display:grid;grid-template-columns:132px 1fr auto;gap:10px;
+  align-items:center;cursor:default}
+.dlg .fila .et{color:var(--txt2);font-size:12px}
+.dlg .fila .suf{color:var(--txt3);font-size:11px}
+.dlg .fila input,.dlg .fila select,.dlg .fila textarea{width:100%}
+.dlg .fila textarea{
+  resize:vertical;min-height:64px;font:inherit;line-height:1.45;padding:6px 8px;
+  background:var(--campo,var(--panel3));color:var(--txt);
+  border:1px solid var(--linea);border-radius:var(--r);
+}
+.dlg .fila textarea:focus{outline:none;border-color:var(--acc2)}
+.dlg .fila:has(> .nota){grid-template-columns:1fr}
+.dlg .fila:has(> .nota) .et:empty{display:none}
+.dlg .nota{font-size:11.5px;line-height:1.5;color:var(--txt2);white-space:pre-wrap;
+  max-height:220px;overflow:auto;padding:8px 10px;background:var(--panel3);
+  border:1px solid var(--linea2);border-radius:var(--r);user-select:text}
+.dlg .nota.alta{max-height:46vh;font-family:ui-monospace,Consolas,monospace;font-size:11px}
+.dlg .nota a{color:var(--acc2)}
+.dlg .nota table{border-collapse:collapse;width:100%}
+.dlg .nota td{padding:3px 6px 3px 0;vertical-align:top;border-bottom:1px solid var(--linea2)}
+.dlg .nota td.lic{white-space:nowrap;color:var(--txt3)}
+.dlg .nota .v{color:var(--txt3);font-size:10.5px}
+#b-ayuda.con-avisos::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--acc2);margin-left:6px;vertical-align:middle}
+.dlg .nota .aviso-t101{padding:8px 0 10px;border-bottom:1px solid var(--linea2);white-space:normal}
+.dlg .nota .aviso-t101:last-child{border-bottom:0}
+.dlg .nota .aviso-t101 .cab{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.dlg .nota .aviso-t101 .cab b{color:var(--txt);font-size:12.5px}
+.dlg .nota .aviso-t101 .fecha{color:var(--txt3);font-size:10.5px;white-space:nowrap}
+.dlg .nota .aviso-t101 .cuerpo{margin-top:4px;white-space:pre-wrap;color:var(--txt2)}
+.dlg .nota .aviso-t101.nuevo .cab b::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--acc2);margin-right:6px;vertical-align:middle}
+.dlg .nota .aviso-t101.importante .cab b{color:var(--warn,#c47a1a)}
+.dlg .nota .vacio{color:var(--txt3);text-align:center;padding:12px}
+.dlg .nota .subpista{font-size:10.5px;color:var(--warn,#c47a1a);margin-top:2px;white-space:normal}
+/* Con un área de texto la etiqueta se ve mal centrada a media caja. */
+.dlg .fila:has(textarea){align-items:start}
+.dlg .fila:has(textarea) .et{padding-top:7px}
+/* Las casillas van al revés: el cuadrito manda y la etiqueta lo acompaña, y
+   toda la fila es zona de clic — atinarle a un cuadrito de 13 px con el ratón
+   sobre un plano es justo lo que Mike pidió no tener que hacer. */
+.dlg .fila.casilla{grid-template-columns:auto 1fr;cursor:pointer;padding:2px 0}
+.dlg .fila.casilla input{width:auto}
+.dlg .fila.casilla .et{color:var(--txt);font-size:12.5px}
+.dlg .fila.casilla:hover .et{color:var(--acc2)}
+.dlg .subpista{grid-column:1/-1;font-size:10.5px;color:var(--txt3);
+  margin:-4px 0 2px 142px}
+.dlg .queja{margin:0 18px;padding:7px 10px;border-radius:var(--r);
+  background:var(--peligro-bg);color:var(--peligro);font-size:11.5px}
+.dlg .pie{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;
+  border-top:1px solid var(--linea);background:var(--panel2)}
+
+/* ======================================================================
+   Pestañas de dibujos abiertos  ·  punto 14
+   ====================================================================== */
+#docs{
+  flex:0 0 auto;display:flex;align-items:stretch;gap:2px;padding:0 8px;
+  background:var(--panel3);border-bottom:1px solid var(--linea);min-height:30px;
+}
+/* `display:flex` con un selector de id le gana al `[hidden]{display:none}` del
+   navegador, así que la fila de pestañas se veía **siempre**, con un solo
+   dibujo abierto y todo. Hay que decirlo a mano. */
+#docs[hidden]{display:none}
+#docs .tiras{display:flex;gap:2px;overflow-x:auto;flex:1;min-width:0}
+#docs .tiras::-webkit-scrollbar{height:0}
+#docs .pest{
+  display:flex;align-items:center;gap:7px;padding:0 6px 0 10px;font-size:12px;
+  background:transparent;border:1px solid transparent;border-bottom:none;
+  border-radius:6px 6px 0 0;cursor:pointer;max-width:230px;color:var(--txt2);
+}
+#docs .pest:hover{background:var(--hover)}
+#docs .pest.activa{
+  background:var(--panel);border-color:var(--linea);color:var(--txt);font-weight:600;
+  box-shadow:inset 0 2px 0 var(--acc2);
+}
+#docs .pest .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#docs .pest .punto{width:6px;height:6px;border-radius:50%;background:var(--warn);
+  flex:none;visibility:hidden}
+#docs .pest .punto.si{visibility:visible}
+#docs .pest .x{background:transparent;border:none;padding:0 3px;font-size:14px;
+  line-height:1;color:var(--txt3);border-radius:4px;opacity:0}
+#docs .pest:hover .x,#docs .pest.activa .x{opacity:1}
+#docs .pest .x:hover{background:var(--peligro-bg);color:var(--peligro)}
+#docs #doc-mas{flex:none;align-self:center;padding:2px 9px;font-size:15px;line-height:1}
+
+/* ======================================================================
+   Pantalla de inicio  ·  punto 10
+   La misma que el Despiezador: lo primero que uno quiere al abrir no es un
+   lienzo en blanco, es el plano en el que estaba.
+   ====================================================================== */
+#inicio{position:fixed;inset:0;z-index:50;display:none;align-items:center;
+  justify-content:center;
+  background:radial-gradient(1100px 620px at 50% 8%,var(--fondo2) 0%,var(--fondo3) 70%)}
+#inicio.on{display:flex}
+#inicio .panel{position:relative;width:min(880px,calc(100% - 48px));
+  background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+  padding:30px 32px 20px;box-shadow:0 26px 70px var(--sombra)}
+#inicio .cerrar{position:absolute;top:12px;right:12px;background:transparent;
+  border:none;color:var(--txt3);font-size:20px;line-height:1;padding:2px 8px;display:none}
+#inicio .cerrar:hover{color:var(--txt);background:var(--panel2)}
+#inicio.hayDibujo .cerrar{display:block}
+#inicio .marca{margin-bottom:24px}
+#inicio .marca .logoimg{display:block;height:44px;width:auto;margin-bottom:8px}
+#inicio .marca .nm{display:none}
+#inicio .marca .sub{font-size:12px;color:var(--txt2);margin-top:5px}
+#inicio .cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}
+#inicio .acciones{display:grid;gap:10px}
+#inicio .tarj{display:flex;align-items:center;gap:13px;text-align:left;padding:15px 16px;
+  background:var(--panel2);border:1px solid var(--linea);border-radius:9px;width:100%}
+#inicio .tarj:hover{background:var(--hover);border-color:var(--linea3)}
+#inicio .tarj .ic{flex:none;width:36px;height:36px;border-radius:8px;background:var(--sw);
+  color:var(--txt2);display:flex;align-items:center;justify-content:center;
+  font-size:19px;line-height:1}
+#inicio .tarj.nueva{border-color:var(--acc)}
+#inicio .tarj.nueva .ic{background:var(--acc);color:#fff}
+#inicio .tarj .txt{display:block}
+#inicio .tarj b{display:block;font-size:13.5px}
+#inicio .tarj small{display:block;font-size:11px;color:var(--txt3);margin-top:2px}
+#inicio .recientes .hd{display:flex;align-items:center;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--txt3);font-weight:700;
+  padding:0 0 7px;border-bottom:1px solid var(--linea);margin-bottom:4px}
+#inicio .recientes .limpiar{margin-left:auto;background:transparent;border:none;
+  padding:0;font-size:10px;color:var(--txt3);text-transform:none;letter-spacing:0}
+#inicio .recientes .limpiar:hover{color:var(--acc2);background:transparent}
+#inicio .lista{max-height:232px;overflow-y:auto}
+#inicio .lista::-webkit-scrollbar{width:8px}
+#inicio .lista::-webkit-scrollbar-thumb{background:var(--sw);border-radius:5px}
+#inicio .lista .vacio{font-size:11.5px;color:var(--txt3);padding:14px 2px}
+#inicio .rec{display:block;width:100%;text-align:left;background:transparent;border:none;
+  border-bottom:1px solid var(--linea2);border-radius:0;padding:9px 8px}
+#inicio .rec:hover{background:var(--panel2)}
+#inicio .rec .n1{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+#inicio .rec .n2{font-size:10.5px;color:var(--txt3);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+#inicio .rec .cuando{margin-left:auto;font-size:10px;color:var(--txt3);font-weight:400}
+#inicio .pie{display:flex;gap:12px;align-items:center;margin-top:22px;padding-top:12px;
+  border-top:1px solid var(--linea);font-size:10.5px;color:var(--txt3)}
+#inicio .pie #iAyuda{margin-left:auto}
+
+/* ======================================================================
+   «¿Cuál de éstos?»  ·  el menú cuando un clic cae sobre varias cosas
+   ====================================================================== */
+.menu-sel{
+  position:fixed;z-index:55;min-width:230px;max-width:340px;max-height:60vh;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--linea3);
+  border-radius:var(--r);box-shadow:0 10px 30px var(--sombra);padding:4px;
+}
+.menu-sel::-webkit-scrollbar{width:8px}
+.menu-sel::-webkit-scrollbar-thumb{background:var(--sw);border-radius:5px}
+.menu-sel .hd{
+  font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--txt3);
+  font-weight:700;padding:5px 8px 6px;border-bottom:1px solid var(--linea2);
+  margin-bottom:3px;
+}
+.menu-sel .op{
+  display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;
+  text-align:left;background:transparent;border:none;border-radius:4px;
+  padding:5px 8px;line-height:1.3;
+}
+.menu-sel .op:hover{background:var(--sel)}
+.menu-sel .op .n{font-size:12.5px;font-weight:600;color:var(--txt)}
+.menu-sel .op .cp{font-size:10px;color:var(--txt3);align-self:center}
+.menu-sel .op .det{grid-column:1/-1;font-size:10.5px;color:var(--txt3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* --- Variantes de herramienta (clic derecho en el botón)  ·  6-sep ------ */
+#herramientas button.con-variantes{position:relative}
+#herramientas button.con-variantes::after{
+  content:"";position:absolute;right:2px;bottom:2px;
+  border-style:solid;border-width:0 0 5px 5px;
+  border-color:transparent transparent var(--txt3) transparent;opacity:.7;
+}
+.variantes{
+  position:fixed;z-index:60;min-width:220px;padding:4px;
+  background:var(--panel);border:1px solid var(--linea);border-radius:8px;
+  box-shadow:0 10px 30px rgba(18,39,51,.22);
+}
+.variantes .hd{
+  padding:5px 10px 6px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--txt3);border-bottom:1px solid var(--linea);margin-bottom:3px;
+}
+.variantes .op{
+  display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:8px;
+  width:100%;text-align:left;padding:6px 10px;border:none;background:transparent;
+  border-radius:6px;font-size:12.5px;color:var(--txt);cursor:pointer;
+}
+.variantes .op:hover{background:var(--hover)}
+.variantes .op .ic{text-align:center;color:var(--acc2);font-size:14px}
+.variantes .op .nt{font-size:10.5px;color:var(--txt3);white-space:nowrap}
+.variantes .op:first-of-type .et{font-weight:600}
+
+/* El dato del pie de plano que se está editando encima de la hoja (ver Papel.editarCampo) */
+input.campo-hoja{position:absolute;z-index:6;box-sizing:border-box;padding:2px 6px;border:1.5px solid var(--acc2);
+  border-radius:3px;background:#fff;color:#1A1F27;font:inherit;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+
+/* Ayuda ▾ (encabezado) */
+header .barra{position:relative}
+.menu-ayuda{position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:230px;
+  background:var(--panel);border:1px solid var(--linea3);border-radius:var(--r);
+  box-shadow:0 10px 30px var(--sombra);padding:4px;display:flex;flex-direction:column}
+.menu-ayuda[hidden]{display:none}
+.menu-ayuda button{text-align:left;background:transparent;border:none;border-radius:4px;
+  padding:7px 10px;font-size:12.5px;color:var(--txt);width:100%}
+.menu-ayuda button:hover{background:var(--sel)}
+
+/* Vista previa de impresión (Papel.vistaPrevia) */
+.previa-imp{position:fixed;inset:0;z-index:70;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center}
+.previa-imp .panel{width:min(92vw,1200px);height:min(90vh,860px);background:var(--panel);border-radius:var(--r);
+  box-shadow:0 20px 60px var(--sombra);display:flex;flex-direction:column;overflow:hidden}
+.previa-imp .cab{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--linea)}
+.previa-imp .cab .det{color:var(--txt2);font-size:12px}
+.previa-imp .cab .cerrar{margin-left:auto;background:transparent;border:none;font-size:20px;color:var(--txt2)}
+.previa-imp .lienzo{flex:1;position:relative;background:#6b7280;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.previa-imp .papel{position:relative;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.previa-imp .papel .borde{position:absolute;inset:0;border:0 solid rgba(0,0,0,.08);pointer-events:none;box-sizing:border-box}
+.previa-imp .papel .hoja{position:absolute}
+.previa-imp .papel .hoja svg{width:100%;height:100%;display:block}
+.previa-imp .pie{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--linea)}
+.previa-imp .pie .nota{font-size:12px;color:var(--txt2)}
+.previa-imp .pie .crece{flex:1}
+
+/* ======================================================================
+   0.20.0
+   ====================================================================== */
+
+/* El parpadeo de «sí pasó» (Parpadeo en vista.js): un velo del color de marca
+   que aparece y se desvanece. Casi nada, a propósito. */
+#parpadeo{position:absolute;inset:0;pointer-events:none;background:var(--acc2);opacity:0;z-index:4}
+#parpadeo.si{animation:parpadeo-cmd .14s ease-out 1}
+@keyframes parpadeo-cmd{0%{opacity:.07}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){#parpadeo.si{animation:none}}
+
+/* Cotas del documento: el panel chico de la derecha */
+.props.cotas-doc{background:var(--panel2)}
+.props.cotas-doc h2{padding:0 0 6px}
+.props .con-suf{display:flex;align-items:center;gap:6px}
+.props .con-suf input{width:100%;min-width:0;font-variant-numeric:tabular-nums}
+.props .con-suf .suf{color:var(--txt3);font-size:11px;white-space:nowrap}
+.props button.chico{padding:3px 8px;font-size:11.5px;justify-self:start}
+
+/* Las propiedades de la capa, flotantes junto al ratón (clic derecho sobre la capa) */
+.props.flotante{position:fixed;z-index:65;width:270px;border:1px solid var(--linea3);border-radius:var(--r);
+  box-shadow:0 10px 30px var(--sombra);background:var(--panel);padding:10px 12px 12px}
+.props.flotante[hidden]{display:none}
+.props.flotante .cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.props.flotante .cab b{font-size:12.5px}
+.props.flotante .cab .cerrar{background:transparent;border:none;font-size:16px;color:var(--txt2);padding:0 4px;line-height:1}
+
+/* Propiedades de una entidad junto al ratón: clic derecho corto sobre ella.
+   No se cierra hasta hacer clic fuera (o Esc); los cambios se ven al vuelo. */
+.props-flot{position:fixed;z-index:65;width:290px;max-height:70vh;overflow:auto;
+  background:var(--panel);border:1px solid var(--linea3);border-radius:var(--r);
+  box-shadow:0 12px 34px var(--sombra);padding:10px 12px 12px}
+.props-flot .cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+.props-flot .cab b{font-size:12.5px;color:var(--acc2)}
+.props-flot .cab .cerrar{background:transparent;border:none;font-size:16px;color:var(--txt2);padding:0 4px;line-height:1}
+.props-flot .fila{display:grid;grid-template-columns:88px 1fr;gap:8px;align-items:center;margin-bottom:6px}
+.props-flot .fila label{color:var(--txt2);font-size:12px}
+.props-flot .fila input,.props-flot .fila select{width:100%;min-width:0}
+.props-flot .tipo{display:none}
+.props-flot .varias{color:var(--txt2);font-size:12px}
+.props-flot .pie{color:var(--txt3);font-size:10.5px;margin-top:6px}
+.props-flot::-webkit-scrollbar{width:8px}
+.props-flot::-webkit-scrollbar-thumb{background:var(--sw);border-radius:5px}
+
+/* La cajita dinámica pidiendo un solo dato (distancia, radio, factor…) */
+#dinamica.uno #din-c2{display:none}
+#dinamica.uno .campo{grid-template-columns:auto 96px}
+#dinamica.uno .campo .etq{max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+
+/* Galería de patrones de rayado (RAYADO): junto al cursor, con previa en el modelo */
+.galeria-rayado{position:fixed;z-index:65;background:var(--panel);border:1px solid var(--linea3);border-radius:var(--r);
+  box-shadow:0 12px 34px var(--sombra);padding:8px;width:236px}
+.galeria-rayado .hd{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--txt3);padding:0 2px 6px}
+.galeria-rayado .rejilla{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.galeria-rayado .pat{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 2px;border:1px solid var(--linea2);
+  border-radius:6px;background:var(--panel2);cursor:pointer}
+.galeria-rayado .pat canvas{width:44px;height:44px;border-radius:3px;background:#fff}
+.galeria-rayado .pat span{font-size:10px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50px}
+.galeria-rayado .pat:hover,.galeria-rayado .pat.elegido{border-color:var(--acc2);box-shadow:0 0 0 1px var(--acc2)}
+.galeria-rayado .pie{font-size:10.5px;color:var(--txt3);padding:6px 2px 0}
+
+/* Grips en los puntos medios: cuadrito hueco, más chico que el de vértice */
+/* El botón de una herramienta-modo encendida (EDITARVENTANA) */
+#herramientas button.activo{background:var(--acc2);color:#fff;border-color:var(--acc2)}
+select.campo-hoja{position:absolute;z-index:6;box-sizing:border-box;padding:2px 6px;border:1.5px solid var(--acc2);
+  border-radius:3px;background:#fff;color:#1A1F27;font:inherit;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+
+/* Letrero de versión nueva (Actualizar.letrero): arriba del lienzo, con botones */
+#letrero-version{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:7;
+  display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;max-width:min(680px,90%);
+  background:var(--panel);border:1px solid var(--linea);border-left:3px solid var(--acc2);
+  border-radius:var(--r);box-shadow:0 6px 20px var(--sombra);font-size:12.5px}
+#letrero-version span{color:var(--txt)}
+#letrero-version button{white-space:nowrap}

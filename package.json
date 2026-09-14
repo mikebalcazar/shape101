@@ -1,10 +1,72 @@
 {
   "name": "shape101",
-  "version": "0.0.1",
-  "private": true,
-  "description": "shape101 · prueba de concepto de modelado 3D de sólidos para Taller 101",
+  "productName": "shape101",
+  "version": "0.20.4",
+  "_versionApp": "0.20.4 — la que enseña la app viene de core/version.py; ésta sólo existe porque electron-builder exige semver",
+  "_notaEmpaque": "asar apagado a propósito: main.js busca server.py junto a electron/, y el motor de Python no puede vivir dentro de un asar. Y electron-builder saca cualquier node_modules de los globs de `files`, así que los dos motores de DWG (dwgjs/node_modules) se copian por extraResources o la app se queda sin leer DWG.",
+  "description": "CAD 2D de Taller 101 — leer, trazar, acotar e imprimir planos",
+  "main": "electron/main.js",
+  "author": "Taller 101",
   "license": "UNLICENSED",
-  "dependencies": {
-    "three": "0.186.0"
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "mx.taller101.dibujador",
+    "productName": "shape101",
+    "artifactName": "shape101-0.20.4-setup.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asar": false,
+    "files": [
+      "electron/**",
+      "ui/**",
+      "core/**",
+      "export/**",
+      "dwgjs/**",
+      "assets/**",
+      "build/**",
+      "server.py",
+      "LEEME.md",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime/python",
+        "to": "python"
+      },
+      {
+        "from": "dwgjs/node_modules",
+        "to": "app/dwgjs/node_modules"
+      }
+    ],
+    "publish": null,
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true,
+      "target": [
+        "nsis"
+      ],
+      "fileAssociations": [
+        {
+          "ext": "t101d",
+          "name": "Dibujo Taller 101",
+          "icon": "build/icon.ico"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "shortcutName": "shape101"
+    }
   }
 }

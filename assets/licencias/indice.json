@@ -1,0 +1,220 @@
+[
+ {
+  "componente": "annotated-doc",
+  "version": "0.0.5",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/annotated_doc/",
+  "archivo": "annotated-doc.txt"
+ },
+ {
+  "componente": "annotated-types",
+  "version": "0.8.0",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/annotated_types/",
+  "archivo": "annotated-types.txt"
+ },
+ {
+  "componente": "anyio",
+  "version": "4.14.2",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/anyio/",
+  "archivo": "anyio.txt"
+ },
+ {
+  "componente": "charset-normalizer",
+  "version": "3.5.1",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/charset_normalizer/",
+  "archivo": "charset-normalizer.txt"
+ },
+ {
+  "componente": "click",
+  "version": "8.5.0",
+  "licencia": "BSD-3-Clause",
+  "origen": "https://pypi.org/project/click/",
+  "archivo": "click.txt"
+ },
+ {
+  "componente": "ezdxf",
+  "version": "1.4.4",
+  "licencia": "MIT License",
+  "origen": "https://pypi.org/project/ezdxf/",
+  "archivo": "ezdxf.txt"
+ },
+ {
+  "componente": "fastapi",
+  "version": "0.141.1",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/fastapi/",
+  "archivo": "fastapi.txt"
+ },
+ {
+  "componente": "fonttools",
+  "version": "4.63.0",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/fonttools/",
+  "archivo": "fonttools.txt"
+ },
+ {
+  "componente": "h11",
+  "version": "0.16.0",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/h11/",
+  "archivo": "h11.txt"
+ },
+ {
+  "componente": "idna",
+  "version": "3.19",
+  "licencia": "BSD-3-Clause",
+  "origen": "https://pypi.org/project/idna/",
+  "archivo": "idna.txt"
+ },
+ {
+  "componente": "numpy",
+  "version": "2.4.6",
+  "licencia": "BSD-3-Clause AND 0BSD AND MIT AND Zlib A",
+  "origen": "https://pypi.org/project/numpy/",
+  "archivo": "numpy.txt"
+ },
+ {
+  "componente": "orjson",
+  "version": "3.12.0",
+  "licencia": "MPL-2.0 AND (Apache-2.0 OR MIT)",
+  "origen": "https://pypi.org/project/orjson/",
+  "archivo": "orjson.txt"
+ },
+ {
+  "componente": "pillow",
+  "version": "12.2.0",
+  "licencia": "MIT-CMU",
+  "origen": "https://pypi.org/project/pillow/",
+  "archivo": "pillow.txt"
+ },
+ {
+  "componente": "pydantic",
+  "version": "2.13.5",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/pydantic/",
+  "archivo": "pydantic.txt"
+ },
+ {
+  "componente": "pydantic-core",
+  "version": "2.46.5",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/pydantic_core/",
+  "archivo": "pydantic-core.txt"
+ },
+ {
+  "componente": "pyparsing",
+  "version": "3.3.2",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/pyparsing/",
+  "archivo": "pyparsing.txt"
+ },
+ {
+  "componente": "pypdfium2",
+  "version": "5.13.0",
+  "licencia": "BSD-3-Clause, Apache-2.0, dependency licenses",
+  "origen": "https://pypi.org/project/pypdfium2/",
+  "archivo": "pypdfium2.txt"
+ },
+ {
+  "componente": "reportlab",
+  "version": "4.4.10",
+  "licencia": "BSD license",
+  "origen": "https://pypi.org/project/reportlab/",
+  "archivo": "reportlab.txt"
+ },
+ {
+  "componente": "starlette",
+  "version": "1.6.0",
+  "licencia": "BSD-3-Clause",
+  "origen": "https://pypi.org/project/starlette/",
+  "archivo": "starlette.txt"
+ },
+ {
+  "componente": "typing-extensions",
+  "version": "4.16.0",
+  "licencia": "PSF-2.0",
+  "origen": "https://pypi.org/project/typing_extensions/",
+  "archivo": "typing-extensions.txt"
+ },
+ {
+  "componente": "typing-inspection",
+  "version": "0.4.4",
+  "licencia": "MIT",
+  "origen": "https://pypi.org/project/typing_inspection/",
+  "archivo": "typing-inspection.txt"
+ },
+ {
+  "componente": "uvicorn",
+  "version": "0.52.4",
+  "licencia": "BSD-3-Clause",
+  "origen": "https://pypi.org/project/uvicorn/",
+  "archivo": "uvicorn.txt"
+ },
+ {
+  "componente": "Electron",
+  "version": "",
+  "licencia": "MIT",
+  "origen": "https://electronjs.org",
+  "archivo": "electron.txt"
+ },
+ {
+  "componente": "Chromium y sus componentes",
+  "version": "",
+  "licencia": "BSD-3-Clause y otras (ver el archivo)",
+  "origen": "https://www.chromium.org",
+  "archivo": "chromium-y-sus-componentes.html"
+ },
+ {
+  "componente": "Python",
+  "version": "",
+  "licencia": "PSF License",
+  "origen": "https://www.python.org",
+  "archivo": "python.txt"
+ },
+ {
+  "componente": "NSIS (instalador)",
+  "version": "",
+  "licencia": "zlib/libpng",
+  "origen": "https://nsis.sourceforge.io",
+  "archivo": "nsis-instalador.txt"
+ },
+ {
+  "componente": "GNU LibreDWG (vía @mlightcad/libredwg-web)",
+  "version": "",
+  "licencia": "GPL-3.0",
+  "origen": "https://www.gnu.org/software/libredwg/",
+  "archivo": "gnu-libredwg-v-a-mlightcad-libredwg-web.txt",
+  "nota": "Lector de DWG. Bajo GPL-3: si shape101 se distribuye fuera de Taller 101 con este componente dentro, el código de shape101 debe publicarse bajo GPL-3 — o quitarlo (ver dwgjs/LICENCIAS.md)."
+ },
+ {
+  "componente": "acad-ts (puerto de ACadSharp)",
+  "version": "",
+  "licencia": "MIT",
+  "origen": "https://github.com/node-projects/acad-ts",
+  "archivo": "acad-ts-puerto-de-acadsharp.txt"
+ },
+ {
+  "componente": "Raleway (tipografía)",
+  "version": "",
+  "licencia": "SIL Open Font License 1.1",
+  "origen": "https://github.com/impallari/Raleway",
+  "archivo": "raleway-tipograf-a.txt"
+ },
+ {
+  "componente": "Fira Sans (tipografía, sólo dígitos)",
+  "version": "",
+  "licencia": "SIL Open Font License 1.1",
+  "origen": "https://github.com/mozilla/Fira",
+  "archivo": "fira-sans-tipograf-a-s-lo-d-gitos.txt"
+ },
+ {
+  "componente": "Sansation (tipografía)",
+  "version": "",
+  "licencia": "Freeware del autor (Bernd Montag)",
+  "origen": "https://www.1001fonts.com/sansation-font.html",
+  "archivo": "sansation-tipograf-a.txt"
+ }
+]
