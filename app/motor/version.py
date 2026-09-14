@@ -7,11 +7,26 @@
 """
 from __future__ import annotations
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 FECHA = "2026-09-13"
 
 # Qué trae cada entrega, en el idioma del taller. La más nueva arriba.
 BITACORA: list[dict] = [
+    {
+        "version": "0.2.0",
+        "fecha": "2026-09-13",
+        "cambios": [
+            "Bocetos dibujados en draw101: «Importar dibujo…» toma el contorno de un .t101d "
+            "—líneas, arcos, círculos y polilíneas del modelo— y lo vuelve la pieza. Las cotas, "
+            "los textos y lo que vive en una hoja de impresión no entran, y la pantalla dice "
+            "cuántas cosas se dejaron fuera.",
+            "El dibujo se lee sin draw101 instalado. Si está en centímetros o en metros se "
+            "convierte solo a milímetros: un tablero dibujado en cm entra midiendo lo mismo que "
+            "uno dibujado en mm.",
+            "El boceto se guarda dentro del .s101, con el nombre del dibujo y la unidad en que "
+            "venía: la pieza sigue abriendo aunque el .t101d ya no esté.",
+        ],
+    },
     {
         "version": "0.1.0",
         "fecha": "2026-09-13",
