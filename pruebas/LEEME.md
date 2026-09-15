@@ -25,6 +25,7 @@ prueba y, si algo falla, el renglón dice qué se esperaba y qué salió.
 | `t013_ajeno` | un plano de fuera: se pica y se borra, y al osnap se le ignora a propósito |
 | `t014_rapidez` | que una acción cueste lo que cambió y no lo que mide el plano, y que lo pintado sea lo que hay en el servidor |
 | `t015_unir` | UNIR: contornos sueltos, arcos en los dos sentidos y en los dos órdenes, y lo que no se toca no se une |
+| `t023_oda` | Instalar ODA: el MSI sólo de opendesign.com por https; una liga ajena del puntero se ignora; si el puntero declara sha256 se comprueba antes de msiexec |
 
 ## Cómo están escritas
 

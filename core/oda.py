@@ -29,6 +29,18 @@ Flujo:
                                   se instala nada a escondidas.
   3. t101draw lo detecta solo la próxima vez que convierte
      (`dwg.oda_disponible()` busca en Program Files\\ODA).
+
+Dos candados, desde el 15-sep-2026 (barrido de seguridad de Jr.):
+
+  · **El MSI sólo puede venir de opendesign.com, por https.** El puntero dice
+    qué versión y qué liga, pero si la liga no es de ODA se ignora y se pasa
+    a la siguiente fuente. Quien se hiciera del sitio del puntero (o lo
+    interceptara) podría, como mucho, señalar otra versión del convertidor;
+    nunca otro programa. Antes, la liga del puntero se corría tal cual.
+  · **Si el puntero trae `sha256`, se comprueba.** El archivo bajado se
+    compara con la huella antes de correr `msiexec`; si no cuadra, se borra y
+    no se instala. El puntero puede no traerla (la fuente `oda`, leída de su
+    página, nunca la trae): entonces manda el candado del dominio.
 """
 
 from __future__ import annotations
@@ -42,6 +54,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 
 from . import config
@@ -60,6 +73,9 @@ PUNTERO_FIJO = "https://t101draw.netlify.app/oda-fijo.json"
 PAGINA_ODA = "https://www.opendesign.com/guestfiles/oda_file_converter"
 BAJAR_ODA = "https://www.opendesign.com/guestfiles/get?filename="
 PATRON_MSI = re.compile(r"ODAFileConverter_QT6_vc16_amd64dll_(\d+(?:\.\d+)*)\.msi")
+
+#: De dónde puede venir el MSI. Sólo de aquí, por https. Ver el docstring.
+HOSTS_ODA = ("opendesign.com", "www.opendesign.com")
 
 ESPERA_RED = 5          # segundos para el puntero y la página
 AGENTE = f"t101draw/{config.VERSION} (Taller 101)"
@@ -92,6 +108,26 @@ def _leer_url(url: str, espera: int = ESPERA_RED) -> bytes:
         return r.read()
 
 
+def url_de_oda(url) -> bool:
+    """¿Esta liga es de ODA y va por https? Es el candado que hace que el
+    puntero pueda elegir versión, pero no programa."""
+    try:
+        partes = urllib.parse.urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    host = (partes.hostname or "").lower()
+    return partes.scheme == "https" and (host in HOSTS_ODA or host.endswith(".opendesign.com"))
+
+
+def _huella_declarada(oda: dict, plataforma: str) -> str:
+    """El sha256 que el puntero declara para esta plataforma, en minúsculas,
+    o «» si no trae uno que parezca sha256 (64 hexadecimales)."""
+    huellas = oda.get("sha256")
+    h = huellas.get(plataforma) if isinstance(huellas, dict) else None
+    h = str(h or "").strip().lower()
+    return h if re.fullmatch(r"[0-9a-f]{64}", h) else ""
+
+
 def _clave_plataforma() -> str:
     if sys.platform == "win32":
         return "windows"
@@ -101,21 +137,27 @@ def _clave_plataforma() -> str:
 
 
 def ultimo() -> dict:
-    """`{version, url, fuente}` de la última versión que se puede bajar.
+    """`{version, url, fuente, sha256}` de la última versión que se puede bajar.
 
     `fuente` dice de dónde salió el dato: `taller101` (nuestro puntero),
     `oda` (leído de su página) o `ninguna` (sin red: `url` es la página de
-    ODA para bajarlo a mano).
+    ODA para bajarlo a mano). `sha256` es la huella que declara el puntero,
+    o «» si no la trae.
+
+    Un puntero cuya liga no sea de opendesign.com se ignora como si no
+    hubiera contestado: el puntero elige versión, no programa.
     """
     # 1. El puntero de Taller 101: el vivo y, si no, el fijo.
+    plataforma = _clave_plataforma()
     for puntero in (PUNTERO, PUNTERO_FIJO):
         try:
             datos = json.loads(_leer_url(puntero).decode("utf-8"))
             oda = datos.get("oda") or {}
-            url = oda.get(_clave_plataforma())
-            if url and oda.get("version"):
-                return {"version": str(oda["version"]), "url": url, "fuente": "taller101",
-                        "actualizado": oda.get("actualizado", "")}
+            url = oda.get(plataforma)
+            if url and oda.get("version") and url_de_oda(url):
+                return {"version": str(oda["version"]), "url": str(url), "fuente": "taller101",
+                        "actualizado": oda.get("actualizado", ""),
+                        "sha256": _huella_declarada(oda, plataforma)}
         except Exception:
             continue
     # 2. La página de ODA, buscando el nombre del MSI.
@@ -125,11 +167,11 @@ def ultimo() -> dict:
             m = PATRON_MSI.search(html)
             if m:
                 return {"version": m.group(1), "url": BAJAR_ODA + m.group(0), "fuente": "oda",
-                        "actualizado": ""}
+                        "actualizado": "", "sha256": ""}
         except Exception:
             pass
     # 3. Nada: que lo baje a mano.
-    return {"version": "", "url": PAGINA_ODA, "fuente": "ninguna", "actualizado": ""}
+    return {"version": "", "url": PAGINA_ODA, "fuente": "ninguna", "actualizado": "", "sha256": ""}
 
 
 def _mas_nueva(a: str, b: str) -> bool:
@@ -146,7 +188,7 @@ def _mas_nueva(a: str, b: str) -> bool:
 def resumen(con_red: bool = True) -> dict:
     """Lo que enseña Ajustes: instalado, última, y si conviene actualizar."""
     inst = instalado()
-    ult = ultimo() if con_red else {"version": "", "url": PAGINA_ODA, "fuente": "ninguna"}
+    ult = ultimo() if con_red else {"version": "", "url": PAGINA_ODA, "fuente": "ninguna", "sha256": ""}
     return {
         "instalado": inst,
         "ultimo": ult,
@@ -198,6 +240,15 @@ def _bajar(url: str, destino: pathlib.Path) -> None:
         raise RuntimeError("Lo que se bajó no parece el instalador de ODA (pesa menos de 5 MB).")
 
 
+def _sha256(ruta: pathlib.Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(ruta, "rb") as f:
+        for trozo in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(trozo)
+    return h.hexdigest()
+
+
 def _lanzar_instalador(msi: pathlib.Path) -> int:
     """Corre el instalador de ODA **con su ventana**: la licencia la acepta el
     usuario, y Windows pide su permiso. Espera a que termine."""
@@ -207,11 +258,22 @@ def _lanzar_instalador(msi: pathlib.Path) -> int:
     return p.returncode
 
 
-def _trabajo(url: str, version: str) -> None:
+def _trabajo(url: str, version: str, sha256: str = "") -> None:
     try:
+        # El candado del dominio se vuelve a cerrar aquí, aunque `ultimo()` ya
+        # lo cerró: ésta es la función que corre un instalador, y no debe
+        # fiarse de quien la llame.
+        if not url_de_oda(url):
+            raise RuntimeError("El instalador sólo se baja de opendesign.com; esta liga no es de ahí.")
         _poner("descargando", 0, "Bajando el ODA File Converter…", version)
         destino = _carpeta_descargas() / (pathlib.Path(url.split("filename=")[-1]).name or "ODAFileConverter.msi")
         _bajar(url, destino)
+        if sha256:
+            _poner("descargando", 100, "Comprobando la huella del instalador…")
+            huella = _sha256(destino)
+            if huella != sha256:
+                destino.unlink(missing_ok=True)
+                raise RuntimeError("La huella del instalador no cuadra con la que declara el puntero: no se instala.")
         _poner("instalando", 100, "Corriendo el instalador de ODA… acepta su licencia y el permiso de Windows.")
         codigo = _lanzar_instalador(destino)
         # 0 = instalado; 1602 = el usuario canceló; 3010 = instalado, pide reiniciar.
@@ -235,7 +297,7 @@ def instalar() -> dict:
         if ult["fuente"] == "ninguna" or sys.platform != "win32":
             _poner("manual", 0, "No se pudo averiguar la versión. Se abre la página de ODA para bajarlo a mano.")
             return {**_estado, "abrir": PAGINA_ODA}
-        _hilo = threading.Thread(target=_trabajo, args=(ult["url"], ult["version"]), daemon=True)
+        _hilo = threading.Thread(target=_trabajo, args=(ult["url"], ult["version"], ult.get("sha256", "")), daemon=True)
         _hilo.start()
         return dict(_estado)
 
