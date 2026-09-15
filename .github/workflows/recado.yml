@@ -1,7 +1,12 @@
 name: Recado
+# Corre el mandadero (claude/recado.py) cuando el chat de shape101 empuja una
+# rama claude/recado-*. Cuando el mandadero falla, él mismo empuja su aviso a
+# `claude/recado-fallo`; esa rama NO debe volver a disparar esto, o el aviso
+# del fracaso dispara otro fracaso sin fin (63 corridas en 15 minutos el
+# 15-sep-2026, medido por Jr.).
 on:
   push:
-    branches: ['claude/recado-*']
+    branches: ['claude/recado-*', '!claude/recado-fallo']
 permissions:
   contents: write
 jobs:
