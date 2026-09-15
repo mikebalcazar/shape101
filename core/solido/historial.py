@@ -1,18 +1,27 @@
-"""El documento de shape101 como historial regenerable  ·  P3.
+"""El historial regenerable de un cuerpo 3D.
 
-Un documento es una lista de operaciones en JSON. Se regenera desde cero cada
-vez (P3 pide medirlo así); la caché por operación queda para la app.
+Un cuerpo no guarda geometría: guarda **cómo se hizo**. Una lista de
+operaciones en JSON que se vuelve a ejecutar cuando algo cambia. Por eso se
+puede mover un punto del boceto y que el sólido entero se rehaga bien, en vez
+de quedar con una cara estirada y el resto igual.
 
 Operaciones:
-  {"op": "boceto",   "entidades": [...draw101...]}        o "t101d": ruta
+  {"op": "boceto",   "entidades": [...las del dibujo...]}
   {"op": "extruir",  "mm": 18}
   {"op": "restar",   "entidades": [...], "mm": 18}       barreno/cajeado: se extruye y se resta
   {"op": "redondear", "aristas": ["lado[0]|lado[1]", ...], "r": 20}
   {"op": "empujar_cara", "cara": "arriba", "mm": 10}     positivo = hacia afuera
 
-Las referencias (caras y aristas) son **nombres por derivación** (nombres.py):
-así una cota del boceto puede cambiar y «arriba», «lado[2]» o
-«lado[1]|lado[2]» siguen significando lo mismo.
+Las referencias a caras y aristas son **nombres por derivación**
+(`nombres.py`): así una cota del boceto puede cambiar y «arriba», «lado[2]» o
+«lado[1]|lado[2]» siguen significando lo mismo. Sin eso, jalar una cara después
+de editar el boceto jala la cara equivocada, que es el error clásico de los
+modeladores con historial y la razón de que este módulo exista.
+
+Viene de la 0.2.0, el camino que se desechó. Lo que se desechó fue la app, no
+el motor: esto estaba escrito y medido. Lo único que se le quitó al traerlo fue
+el lector de archivos `.t101d` sueltos —aquí las entidades salen del dibujo que
+está abierto, no de un archivo aparte—.
 """
 from __future__ import annotations
 
@@ -22,7 +31,7 @@ import time
 
 from build123d import Face, extrude, fillet
 
-from core.solido import boceto, nombres, t101d
+from core.solido import boceto, nombres
 
 
 class Regenerado:
@@ -40,7 +49,7 @@ class Regenerado:
 def _entidades(op: dict) -> list[dict]:
     if "entidades" in op:
         return op["entidades"]
-    return t101d.leer(op["t101d"])["entidades"]
+    raise ValueError("un boceto lleva sus entidades adentro")
 
 
 OPERACIONES = {"boceto", "extruir", "restar", "redondear", "empujar_cara"}
@@ -103,7 +112,7 @@ def _paso(est: Estado, i: int, op: dict) -> None:
 
 
 def regenerar(operaciones: list[dict]) -> Regenerado:
-    """Desde cero, siempre. Es lo que P3 mide."""
+    """Desde cero, siempre. La caché por operación vive en el cuerpo."""
     est = Estado()
     for i, op in enumerate(operaciones):
         _paso(est, i, op)
@@ -111,9 +120,8 @@ def regenerar(operaciones: list[dict]) -> Regenerado:
 
 
 def extender(reg: "Regenerado", op: dict) -> Regenerado:
-    """Una operación más sobre lo ya regenerado: lo que haría la app con caché
-    por operación cuando lo que cambia es la última. Devuelve el mismo
-    Regenerado, actualizado."""
+    """Una operación más sobre lo ya regenerado: lo que hace la app cuando lo
+    que cambia es la última. Devuelve el mismo Regenerado, actualizado."""
     est = reg.estado
     _paso(est, len(est.ops), op)
     reg.solido, reg.nombrador, reg.tiempos = est.solido, est.nom, est.tiempos
