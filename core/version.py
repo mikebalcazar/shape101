@@ -48,6 +48,10 @@ BITACORA: list[dict] = [
             "del 3D.",
             "El instalador pesa bastante más: el motor de sólidos (OpenCascade) son unos "
             "200 MB. Es el precio de que las piezas sean exactas y se puedan exportar.",
+            "Seguridad del botón «Instalar ODA»: el instalador del convertidor sólo se "
+            "baja de opendesign.com por https; una liga ajena del puntero se ignora, y si "
+            "el puntero declara la huella sha256 se comprueba antes de correr msiexec. "
+            "Prueba t023 (28 comprobaciones).",
         ],
     },
     {
