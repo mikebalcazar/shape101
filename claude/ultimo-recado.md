@@ -2,11 +2,13 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-15T14:19:12+00:00
-- recado: enganchar el 3D a la pantalla y subir a 0.4.0
+- corrido: 2026-09-15T15:20:38+00:00
+- recado: la entidad Cuerpo y el enchufe del 3D (segundo intento)
 
 ```
-ui/index.html: carga tresd.js después de app.js (finales de línea LF)
-core/version.py y package.json dicen los dos 0.4.0
-el programa dice versión 0.4.0 con 2 entradas de bitácora
+core/entidades.py: entidad Cuerpo agregada y registrada
+server.py: las rutas del 3D quedan enchufadas al documento abierto
+la entidad Cuerpo se relee y su caja mide (0, 0, 900, 600)
+las cinco rutas del 3D están escritas en core/solido/rutas.py
+server.py quedó enchufado al documento abierto
 ```

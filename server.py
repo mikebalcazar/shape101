@@ -209,6 +209,16 @@ class _Activa:
 
 S = _Activa()
 
+# --- El 3D -----------------------------------------------------------------
+# Las rutas de sólidos viven en su propio módulo: son otro oficio y, sobre
+# todo, el kernel tarda casi tres segundos en cargar. Importarlas aquí no lo
+# carga —`core/solido/rutas.py` lo importa dentro de cada función—, así que la
+# app sigue abriendo igual de rápido para quien sólo va a dibujar en 2D.
+from core.solido import rutas as rutas_3d  # noqa: E402
+
+rutas_3d.enchufar(lambda: S.doc)
+app.include_router(rutas_3d.router)
+
 
 def _error(exc: Exception, codigo: int = 400):
     raise HTTPException(status_code=codigo, detail=str(exc))

@@ -226,6 +226,43 @@ class Solido(Entidad):
         return _caja_de_puntos(self.puntos)
 
 
+@dataclass
+class Cuerpo(Entidad):
+    """Un sólido 3D. **No guarda geometría: guarda cómo se hizo.**
+
+    Adentro va la lista de operaciones —boceto, extruir, barreno, redondeo,
+    cara jalada— y el sólido se reconstruye a partir de ella. Guardar la malla
+    sería más simple y serviría de poco: en cuanto se mueve un punto del
+    contorno habría que deformarla, y un barreno hecho después dejaría de ser
+    redondo. Rehaciendo la pieza, sigue siéndolo.
+
+    Ojo con el nombre: `Solido` ya existe en este archivo y es otra cosa —el
+    SOLID del DXF, un relleno plano—. Éste es el cuerpo de tres dimensiones.
+    """
+    operaciones: list = field(default_factory=list)
+    tipo: str = field(init=False, default="cuerpo")
+
+    def caja(self):
+        """La sombra en planta, para encuadrar la vista. Se saca del contorno
+        del boceto y no del sólido: pedirle la caja al kernel obligaría a
+        regenerar la pieza cada vez que alguien encuadra."""
+        for op in self.operaciones:
+            if op.get("op") != "boceto":
+                continue
+            pts = []
+            for e in op.get("entidades") or []:
+                t = e.get("tipo")
+                if t == "polilinea":
+                    pts += [[p[0], p[1]] for p in (e.get("puntos") or [])]
+                elif t in ("circulo", "arco"):
+                    c, rad = e.get("centro") or [0, 0], e.get("radio") or 0
+                    pts += [[c[0] - rad, c[1] - rad], [c[0] + rad, c[1] + rad]]
+                elif t == "linea":
+                    pts += [e.get("p1", [0, 0])[:2], e.get("p2", [0, 0])[:2]]
+            return _caja_de_puntos(pts)
+        return None
+
+
 # --- Texto -----------------------------------------------------------------
 
 @dataclass
@@ -437,6 +474,7 @@ CLASES: dict[str, type] = {
     "spline": Spline,
     "punto": Punto,
     "solido": Solido,
+    "cuerpo": Cuerpo,
     "texto": Texto,
     "textom": TextoM,
     "insercion": Insercion,
