@@ -21,13 +21,35 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.3.0"
-FECHA = "2026-09-14"
+VERSION = "0.4.0"
+FECHA = "2026-09-15"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.4.0",
+        "fecha": "2026-09-15",
+        "cambios": [
+            "Empieza el 3D. Dibuja un contorno cerrado como siempre, selecciónalo y teclea "
+            "EXTRUIR: se levanta y se vuelve una pieza sólida de verdad, con su espesor.",
+            "La vista pasa a 3D sola. Arrastrando en el vacío se gira la pieza y la rueda "
+            "acerca. Un clic señala una cara —se pone amarilla— y arrastrarla la jala: la "
+            "pieza se rehace, no se estira. La medida se toma sobre la dirección a la que la "
+            "cara apunta, así que jalar se siente igual mires desde donde mires.",
+            "Los vértices del contorno salen como puntos azules. Al mover uno, la pieza "
+            "entera se reconstruye y conserva lo que hayas hecho después: un barreno sigue "
+            "siendo redondo y una cara jalada sigue jalada.",
+            "La pieza se guarda dentro del .101s como cómo se hizo, no como una malla, y sale "
+            "en STEP para abrirla en otro CAD o en STL para imprimirla.",
+            "Escape vuelve al dibujo; el comando 3D regresa. Esta es la primera versión del "
+            "gesto: todavía no hay ejes de arrastre, ni ajuste a rejilla, ni deshacer dentro "
+            "del 3D.",
+            "El instalador pesa bastante más: el motor de sólidos (OpenCascade) son unos "
+            "200 MB. Es el precio de que las piezas sean exactas y se puedan exportar.",
+        ],
+    },
     {
         "version": "0.3.0",
         "fecha": "2026-09-14",
