@@ -87,7 +87,28 @@ const Radial = (() => {
     return b;
   }
 
+  /* --- La rueda del 3D  ·  Alt + clic derecho -------------------------------
+   * Idea de Mike (16-sep): en vez de meterle un noveno gajo a la rueda de
+   * siempre —que le movería el ángulo a los ocho que ya tiene aprendidos con
+   * la mano—, el 3D tiene la suya. Mismo gesto, con Alt.
+   *
+   * Funciona igual estando en el dibujo o en la vista 3D: no hay que entrar al
+   * 3D para levantar un contorno. */
+  const RUEDA_3D = [
+    { et: "Extruir",  icono: "⬒",  cmd: "EXTRUIR" },
+    { et: "Ver 3D",   icono: "◳",  cmd: "3D" },
+    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },
+    { et: "Sacar",    icono: "⇪",  hijos: [
+        { et: "STEP", icono: "S",  cmd: "STEP" },
+        { et: "STL",  icono: "▲",  cmd: "STL" },
+      ] },
+  ];
+
+  // Cuál de las dos ruedas está abierta. La elige `abrir` según el Alt.
+  let rueda = RUEDA;
+
   function abrir(cx, cy) {
+    rueda = (inicio && inicio.alt) ? RUEDA_3D : RUEDA;
     cerrar();
     const caja = document.createElement("div");
     caja.className = "radial";
@@ -96,8 +117,8 @@ const Radial = (() => {
     centro.style.left = cx + "px";
     centro.style.top = cy + "px";
     caja.appendChild(centro);
-    const gajos = RUEDA.map((item, i) => {
-      const a = angDe(i, RUEDA.length);
+    const gajos = rueda.map((item, i) => {
+      const a = angDe(i, rueda.length);
       const g = gajo(item, cx + RADIO * Math.cos(a), cy + RADIO * Math.sin(a), false);
       caja.appendChild(g);
       return g;
@@ -107,8 +128,8 @@ const Radial = (() => {
   }
 
   function abrirHijos(i) {
-    const item = RUEDA[i];
-    const angPadre = -90 + i * (360 / RUEDA.length);          // grados
+    const item = rueda[i];
+    const angPadre = -90 + i * (360 / rueda.length);          // grados
     // Los hijos van en un anillo **más afuera**, en abanico centrado en la
     // dirección del padre: seguir recto cae en el de en medio, y los gajos
     // vecinos de la rueda no se tapan.
@@ -161,11 +182,11 @@ const Radial = (() => {
       resaltar(sub.gajos, sub.elegido);
       return;
     }
-    const i = gajoBajo(x - abierto.cx, y - abierto.cy, RUEDA.length);
+    const i = gajoBajo(x - abierto.cx, y - abierto.cy, rueda.length);
     abierto.elegido = i;
     resaltar(abierto.gajos, i);
     // Con hijos: en cuanto el ratón pasa del gajo hacia afuera, se abren.
-    if (i >= 0 && RUEDA[i].hijos && Math.hypot(x - abierto.cx, y - abierto.cy) > RADIO * 0.85) {
+    if (i >= 0 && rueda[i].hijos && Math.hypot(x - abierto.cx, y - abierto.cy) > RADIO * 0.85) {
       abrirHijos(i);
       mover(x, y);
     }
@@ -175,9 +196,9 @@ const Radial = (() => {
     if (!abierto) return null;
     if (abierto.sub) {
       const s = abierto.sub;
-      return s.elegido >= 0 ? RUEDA[s.padre].hijos[s.elegido] : null;
+      return s.elegido >= 0 ? rueda[s.padre].hijos[s.elegido] : null;
     }
-    const it = abierto.elegido >= 0 ? RUEDA[abierto.elegido] : null;
+    const it = abierto.elegido >= 0 ? rueda[abierto.elegido] : null;
     return it && !it.hijos ? it : null;
   }
 
@@ -189,7 +210,7 @@ const Radial = (() => {
 
   /* --- Los botones del ratón, desde vista.js ----------------------------- */
   function abajo(e) {
-    inicio = { x: e.clientX, y: e.clientY, t: performance.now() };
+    inicio = { x: e.clientX, y: e.clientY, t: performance.now(), alt: e.altKey };
   }
 
   function arrastre(e) {
@@ -234,7 +255,7 @@ const Radial = (() => {
     inicio = null;
   }
 
-  return { abajo, arrastre, arriba, cancelar, RUEDA,
+  return { abajo, arrastre, arriba, cancelar, RUEDA, RUEDA_3D,
            get activo() { return !!abierto || !!inicio; } };
 })();
 window.Radial = Radial;

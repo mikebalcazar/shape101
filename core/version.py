@@ -21,13 +21,28 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 FECHA = "2026-09-16"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.5.0",
+        "fecha": "2026-09-16",
+        "cambios": [
+            "Sugeridor de comandos: al teclear sale la lista de los que empiezan así, con sus "
+            "atajos y para qué sirven. Las flechas eligen y Enter corre. Con la caja vacía las "
+            "flechas siguen siendo el historial, como siempre.",
+            "El 3D ya no está escondido en la consola: tiene su bloque en la barra de "
+            "herramientas —Extruir, Ver 3D, Jalar, STEP, STL— y su propia rueda con "
+            "**Alt + clic derecho sostenido**. La rueda de siempre no cambió ni un ángulo.",
+            "JALAR mueve la cara señalada una medida exacta. Arrastrar da la sensación; "
+            "teclear da el milímetro, y en un taller hacen falta los dos.",
+            "STEP y STL sacan la pieza desde la barra o la rueda, sin teclear.",
+        ],
+    },
     {
         "version": "0.4.1",
         "fecha": "2026-09-16",

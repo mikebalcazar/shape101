@@ -136,6 +136,11 @@ const Comandos = (() => {
       }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
+        // El sugeridor tiene preferencia: si hay algo tecleado y hay lista, las
+        // flechas eligen entre las sugerencias. Con la caja vacía no hay lista y
+        // esto devuelve false, así que el historial sigue siendo el de siempre.
+        if (typeof Sugeridor !== "undefined" &&
+            Sugeridor.mover(e.key === "ArrowUp" ? -1 : 1)) return;
         if (!historial.length) return;
         iHist = e.key === "ArrowUp"
           ? Math.min(historial.length - 1, iHist + 1)

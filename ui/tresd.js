@@ -379,7 +379,10 @@ const TresD = (() => {
     if (activo && e.key === "Escape") { cerrar(); decir("de vuelta al dibujo"); }
   });
 
-  return { abrir, cerrar, pintar, traer, activo: () => activo, cuerpos };
+  return { abrir, cerrar, pintar, traer, jalar, cuerpos,
+           activo: () => activo,
+           senalada: () => senalada,
+           primerCuerpo: () => [...cuerpos.keys()][0] || null };
 })();
 
 /* --- los comandos --------------------------------------------------------- */
