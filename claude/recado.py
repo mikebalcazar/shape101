@@ -1,18 +1,28 @@
-"""El mandadero · recado 14: 0.4.1 — EXTRUIR pregunta el espesor (segundo intento).
+"""El mandadero · recado 15: la 0.5.0 — el sugeridor y el 3D a la mano.
 
-El recado 13 aplicó bien el parche y **se cayó en su propia comprobación**:
-buscaba que no quedara ningún `window.prompt` en el archivo, y lo encontró en
-el comentario nuevo que explica justamente que Electron no lo soporta. La
-comprobación estaba mal escrita, no el arreglo.
+Seis enganches en cuatro archivos grandes. Todo lo nuevo ya está escrito y
+subido (`ui/sugeridor.js`, `ui/tresd-comandos.js`); aquí sólo se conecta.
 
-Aquí se busca la **llamada** —`window.prompt(`, con paréntesis— y no la
-palabra. Una comprobación que se dispara sola con su propia explicación no
-comprueba nada: sólo estorba.
+1. **La pantalla carga** el sugeridor y los comandos nuevos del 3D.
+2. **Las flechas** le preguntan al sugeridor antes de mover el historial. Con la
+   caja vacía siguen siendo el historial, como siempre; con algo tecleado
+   eligen entre las sugerencias. De paso deja de borrarse lo escrito al apretar
+   la flecha.
+3. **La barra** gana un bloque «3D»: Extruir, Ver 3D, Jalar, STEP, STL. Hasta
+   ahora el 3D sólo existía tecleado, o sea que estaba escondido. Mike lo dijo
+   claro: los comandos tecleados son auxiliares; lo que manda es el icono y la
+   rueda.
+4. **La rueda 3D con Alt + clic derecho**, idea de Mike. La rueda de 2D no
+   cambia ni un ángulo: se anota si venía Alt en el momento de apretar y se
+   elige la rueda al abrir. Como el gesto es el mismo, funciona igual estando
+   en el dibujo o en la vista 3D.
+5. **`tresd.js` expone** lo que los comandos nuevos necesitan.
+6. **0.5.0** en los dos sitios que tienen que coincidir.
 
-Lo que arregla, que es lo de fondo: en 0.4.0, EXTRUIR sin argumento se queda
-muerto con «prompt() is not supported». Electron no tiene `window.prompt`. La
-app ya tiene su forma de pedir una medida —`Entrada.pedirNumero`— que usa la
-cajita de siempre, acepta coma o punto y recuerda el último valor.
+Sobre los finales de línea: los archivos de `ui/` traen CRLF y los de `core/`
+LF. Cada inserción usa el final de línea del archivo que toca. Meter el
+equivocado marca el archivo entero como cambiado y deja ilegible cualquier
+comparación futura con draw101.
 """
 from __future__ import annotations
 
@@ -25,8 +35,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/extruir-pide-espesor"
-VERSION = "0.4.1"
+RAMA = "claude/el-3d-a-la-mano"
+VERSION = "0.5.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -59,33 +69,66 @@ def cambiar(texto: str, viejo: str, nuevo: str, donde: str) -> str:
     return texto.replace(viejo, nuevo, 1)
 
 
-VIEJO_PROMPT = '''    if (!isFinite(mm)) {
-      // `Comandos.pedir` sólo escribe el mensaje en la consola; no devuelve lo
-      // tecleado. Para una medida hace falta una respuesta, así que se pregunta
-      // aparte y se sugiere el espesor más común de taller.
-      mm = parseFloat(window.prompt("Espesor en mm", "18") || "");
-    }'''
+def fin_de_linea(texto: str) -> str:
+    return "\r\n" if "\r\n" in texto else "\n"
 
-NUEVO_PROMPT = '''    if (!isFinite(mm)) {
-      // Electron no tiene la ventanita de preguntar del navegador: usarla deja
-      // el comando muerto con un «prompt() is not supported». La app ya tiene
-      // su forma de pedir una medida, con la cajita de siempre, que acepta coma
-      // o punto y recuerda lo último que se tecleó.
-      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {
-        Comandos.eco("EXTRUIR necesita un espesor.", "malo");
-        return;
-      }
-      mm = await Entrada.pedirNumero({ mensaje: "Espesor en mm", valor: 18, clave: "extruir-espesor" });
-    }'''
+
+RUEDA_3D = '''  /* --- La rueda del 3D  ·  Alt + clic derecho -------------------------------
+   * Idea de Mike (16-sep): en vez de meterle un noveno gajo a la rueda de
+   * siempre —que le movería el ángulo a los ocho que ya tiene aprendidos con
+   * la mano—, el 3D tiene la suya. Mismo gesto, con Alt.
+   *
+   * Funciona igual estando en el dibujo o en la vista 3D: no hay que entrar al
+   * 3D para levantar un contorno. */
+  const RUEDA_3D = [
+    { et: "Extruir",  icono: "⬒",  cmd: "EXTRUIR" },
+    { et: "Ver 3D",   icono: "◳",  cmd: "3D" },
+    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },
+    { et: "Sacar",    icono: "⇪",  hijos: [
+        { et: "STEP", icono: "S",  cmd: "STEP" },
+        { et: "STL",  icono: "▲",  cmd: "STL" },
+      ] },
+  ];
+
+  // Cuál de las dos ruedas está abierta. La elige `abrir` según el Alt.
+  let rueda = RUEDA;
+
+'''
+
+BLOQUE_3D = '''    <div class="bloque" data-et="3D">
+      <div class="titulo">3D</div>
+      <div class="celdas">
+        <button data-cmd="EXTRUIR" title="Levantar el contorno seleccionado (EXTRUIR)">⬒</button>
+        <button data-cmd="3D" title="Ver las piezas en 3D · Escape vuelve al dibujo">◳</button>
+        <button data-cmd="JALAR" title="Mover la cara señalada una medida (JALAR)">↕</button>
+        <button data-cmd="STEP" title="Sacar la pieza en STEP, para otro CAD">S</button>
+        <button data-cmd="STL" title="Sacar la pieza en STL, para imprimir">▲</button>
+      </div>
+    </div>
+'''
+
+FLECHAS_VIEJO = '        if (!historial.length) return;'
+FLECHAS_NUEVO = ('        // El sugeridor tiene preferencia: si hay algo tecleado y hay lista, las'
+                 '\n        // flechas eligen entre las sugerencias. Con la caja vacía no hay lista y'
+                 '\n        // esto devuelve false, así que el historial sigue siendo el de siempre.'
+                 '\n        if (typeof Sugeridor !== "undefined" &&'
+                 '\n            Sugeridor.mover(e.key === "ArrowUp" ? -1 : 1)) return;'
+                 '\n        if (!historial.length) return;')
 
 BITACORA = '''BITACORA: list[dict] = [
     {
         "version": "%s",
         "fecha": "%s",
         "cambios": [
-            "EXTRUIR ya pregunta el espesor como el resto del programa, con la cajita de "
-            "siempre: acepta coma o punto y recuerda lo último que tecleaste. En 0.4.0 el "
-            "comando se quedaba muerto sin preguntar nada.",
+            "Sugeridor de comandos: al teclear sale la lista de los que empiezan así, con sus "
+            "atajos y para qué sirven. Las flechas eligen y Enter corre. Con la caja vacía las "
+            "flechas siguen siendo el historial, como siempre.",
+            "El 3D ya no está escondido en la consola: tiene su bloque en la barra de "
+            "herramientas —Extruir, Ver 3D, Jalar, STEP, STL— y su propia rueda con "
+            "**Alt + clic derecho sostenido**. La rueda de siempre no cambió ni un ángulo.",
+            "JALAR mueve la cara señalada una medida exacta. Arrastrar da la sensación; "
+            "teclear da el milímetro, y en un taller hacen falta los dos.",
+            "STEP y STL sacan la pieza desde la barra o la rueda, sin teclear.",
         ],
     },
 '''
@@ -96,7 +139,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado14")
+    tmp = pathlib.Path("/tmp/recado15")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -106,56 +149,125 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    js = shape / "ui" / "tresd.js"
-    texto = js.read_text(encoding="utf-8")
-    if "Entrada.pedirNumero" in texto:
-        anotar("ui/tresd.js ya pedía el espesor con la cajita: no se toca")
+    # 1 y 3 · la pantalla: los dos archivos nuevos y el bloque de la barra
+    idx = shape / "ui" / "index.html"
+    t = idx.read_text(encoding="utf-8")
+    fin = fin_de_linea(t)
+    if "sugeridor.js" not in t:
+        ancla = '<script src="tresd.js"></script>'
+        t = cambiar(t, ancla, ancla + fin + '<script src="sugeridor.js"></script>'
+                    + fin + '<script src="tresd-comandos.js"></script>', "index.html (scripts)")
+        anotar("ui/index.html: carga sugeridor.js y tresd-comandos.js")
     else:
-        js.write_text(cambiar(texto, VIEJO_PROMPT, NUEVO_PROMPT, "ui/tresd.js"), encoding="utf-8")
-        anotar("ui/tresd.js: EXTRUIR pide el espesor con Entrada.pedirNumero")
-    # La LLAMADA, no la palabra: el comentario que explica el problema nombra
-    # window.prompt a propósito, y buscar la palabra suelta tumbó el intento
-    # anterior con su propia explicación.
-    quedan = js.read_text(encoding="utf-8").count("window.prompt(")
-    if quedan:
-        raise RuntimeError(f"todavía quedan {quedan} llamadas a window.prompt( en tresd.js")
-    anotar("no queda ninguna llamada a window.prompt( en tresd.js")
+        anotar("ui/index.html ya los cargaba")
+    if 'data-et="3D"' not in t:
+        ancla = '    <div class="bloque" data-et="ANOTACIONES">'
+        t = cambiar(t, ancla, BLOQUE_3D.replace("\n", fin) + ancla, "index.html (barra)")
+        anotar("ui/index.html: bloque «3D» en la barra de herramientas")
+    else:
+        anotar("ui/index.html ya tenía el bloque 3D")
+    idx.write_text(t, encoding="utf-8", newline="")
 
+    # 2 · las flechas
+    cmds = shape / "ui" / "comandos.js"
+    t = cmds.read_text(encoding="utf-8")
+    if "Sugeridor.mover" in t:
+        anotar("ui/comandos.js ya preguntaba al sugeridor")
+    else:
+        fin = fin_de_linea(t)
+        cmds.write_text(cambiar(t, FLECHAS_VIEJO, FLECHAS_NUEVO.replace("\n", fin),
+                                "comandos.js (flechas)"), encoding="utf-8", newline="")
+        anotar("ui/comandos.js: las flechas preguntan al sugeridor antes que al historial")
+
+    # 4 · la rueda del 3D
+    rad = shape / "ui" / "radial.js"
+    t = rad.read_text(encoding="utf-8")
+    if "RUEDA_3D" in t:
+        anotar("ui/radial.js ya tenía la rueda 3D")
+    else:
+        fin = fin_de_linea(t)
+        t = cambiar(t, "  function abrir(cx, cy) {",
+                    RUEDA_3D.replace("\n", fin) + "  function abrir(cx, cy) {" + fin
+                    + "    rueda = (inicio && inicio.alt) ? RUEDA_3D : RUEDA;", "radial.js (abrir)")
+        t = cambiar(t, "inicio = { x: e.clientX, y: e.clientY, t: performance.now() };",
+                    "inicio = { x: e.clientX, y: e.clientY, t: performance.now(), alt: e.altKey };",
+                    "radial.js (abajo)")
+        # Las ocho veces que se usa la lista pasan a usar la que esté abierta.
+        for viejo, nuevo, donde in (
+            ("const gajos = RUEDA.map((item, i) => {", "const gajos = rueda.map((item, i) => {", "gajos"),
+            ("const a = angDe(i, RUEDA.length);", "const a = angDe(i, rueda.length);", "ángulo"),
+            ("const item = RUEDA[i];", "const item = rueda[i];", "hijos"),
+            ("const angPadre = -90 + i * (360 / RUEDA.length);", "const angPadre = -90 + i * (360 / rueda.length);", "ángulo del padre"),
+            ("gajoBajo(x - abierto.cx, y - abierto.cy, RUEDA.length)", "gajoBajo(x - abierto.cx, y - abierto.cy, rueda.length)", "gajo bajo el cursor"),
+            ("if (i >= 0 && RUEDA[i].hijos", "if (i >= 0 && rueda[i].hijos", "abrir hijos"),
+            ("RUEDA[s.padre].hijos[s.elegido]", "rueda[s.padre].hijos[s.elegido]", "hijo elegido"),
+            ("abierto.elegido >= 0 ? RUEDA[abierto.elegido]", "abierto.elegido >= 0 ? rueda[abierto.elegido]", "gajo elegido"),
+        ):
+            t = cambiar(t, viejo, nuevo, f"radial.js ({donde})")
+        t = cambiar(t, "return { abajo, arrastre, arriba, cancelar, RUEDA,",
+                    "return { abajo, arrastre, arriba, cancelar, RUEDA, RUEDA_3D,", "radial.js (salida)")
+        rad.write_text(t, encoding="utf-8", newline="")
+        anotar("ui/radial.js: rueda 3D con Alt + clic derecho; la de 2D no cambia ni un ángulo")
+
+    # 5 · lo que tresd.js tiene que prestar
+    js = shape / "ui" / "tresd.js"
+    t = js.read_text(encoding="utf-8")
+    if "primerCuerpo" in t:
+        anotar("ui/tresd.js ya prestaba lo necesario")
+    else:
+        js.write_text(cambiar(
+            t, "return { abrir, cerrar, pintar, traer, activo: () => activo, cuerpos };",
+            "return { abrir, cerrar, pintar, traer, jalar, cuerpos,\n"
+            "           activo: () => activo,\n"
+            "           senalada: () => senalada,\n"
+            "           primerCuerpo: () => [...cuerpos.keys()][0] || null };",
+            "tresd.js (salida)"), encoding="utf-8", newline="")
+        anotar("ui/tresd.js: presta jalar, la cara señalada y la primera pieza")
+
+    # 6 · la versión
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
     t = ver.read_text(encoding="utf-8")
-    t = cambiar(t, 'VERSION = "0.4.0"', f'VERSION = "{VERSION}"', "version.py")
-    t, n = re.subn(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
-    if n != 1:
-        raise RuntimeError("version.py: no encontré FECHA")
+    actual = re.search(r'VERSION = "([^"]+)"', t).group(1)
+    t = cambiar(t, f'VERSION = "{actual}"', f'VERSION = "{VERSION}"', "version.py")
+    t = re.sub(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
     ver.write_text(cambiar(t, "BITACORA: list[dict] = [\n", BITACORA % (VERSION, hoy),
                            "version.py (bitácora)"), encoding="utf-8")
     paq = shape / "package.json"
     t = paq.read_text(encoding="utf-8")
-    t = cambiar(t, '"version": "0.4.0"', f'"version": "{VERSION}"', "package.json")
-    t = cambiar(t, '"_versionApp": "0.4.0 —', f'"_versionApp": "{VERSION} —', "package.json")
-    paq.write_text(cambiar(t, '"artifactName": "shape101-0.4.0-setup.${ext}"',
+    t = cambiar(t, f'"version": "{actual}"', f'"version": "{VERSION}"', "package.json")
+    t = cambiar(t, f'"_versionApp": "{actual} —', f'"_versionApp": "{VERSION} —', "package.json")
+    paq.write_text(cambiar(t, f'"artifactName": "shape101-{actual}-setup.${{ext}}"',
                            f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"',
                            "package.json"), encoding="utf-8")
-    anotar(f"core/version.py y package.json dicen los dos {VERSION}")
+    anotar(f"versión {actual} → {VERSION} en core/version.py y package.json")
+
+    # Comprobar lo que se puede sin pantalla
+    for archivo, debe in ((idx, "tresd-comandos.js"), (idx, 'data-et="3D"'),
+                          (cmds, "Sugeridor.mover"), (rad, "RUEDA_3D"), (js, "primerCuerpo")):
+        if debe not in archivo.read_text(encoding="utf-8"):
+            raise RuntimeError(f"{archivo.name} no quedó con {debe}")
+    if "RUEDA[" in rad.read_text(encoding="utf-8"):
+        raise RuntimeError("radial.js todavía usa RUEDA[ directo en algún sitio")
+    anotar("los cinco enganches están puestos y radial.js ya no usa la lista fija")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, EXTRUIR pide el espesor (segundo intento)\n\n```\n"
+        f"- recado: {VERSION}, el sugeridor y el 3D a la mano\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            f"{VERSION}: EXTRUIR pide el espesor con la cajita del programa\n\n"
-            "Electron no tiene la ventanita de preguntar del navegador, así que en 0.4.0 el\n"
-            "comando se quedaba muerto con un «prompt() is not supported». Lo encontró Mike\n"
-            "al primer intento, en lo único que no se puede probar desde el chat: la\n"
-            "pantalla.\n\n"
-            "El intento anterior de este mismo arreglo se cayó en su propia comprobación:\n"
-            "buscaba que no quedara ningún «window.prompt» y lo encontró en el comentario\n"
-            "que explica por qué no se usa. Ahora se busca la llamada, con paréntesis. Una\n"
-            "comprobación que se dispara con su propia explicación no comprueba nada."],
+            f"{VERSION}: el sugeridor de comandos y el 3D a la mano\n\n"
+            "El 3D sólo existía tecleado, o sea que estaba escondido. Mike lo dijo claro: los\n"
+            "comandos tecleados son auxiliares; lo que manda es el icono y la rueda. Ahora\n"
+            "tiene su bloque en la barra y su propia rueda con Alt + clic derecho sostenido,\n"
+            "idea suya para no meterle un noveno gajo a la rueda de siempre, que le movería\n"
+            "el ángulo a los ocho que ya tiene aprendidos con la mano.\n\n"
+            "El sugeridor enseña los comandos que empiezan como lo tecleado, encabezados por\n"
+            "el que Enter correría ahora mismo. Las flechas ya tenían dueño —el historial—,\n"
+            "así que se reparten por lo que hay escrito."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
@@ -164,7 +276,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado14/shape101")
+    shape = pathlib.Path("/tmp/recado15/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
