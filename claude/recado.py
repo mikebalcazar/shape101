@@ -1,18 +1,19 @@
 """El mandadero · recado 16: la 0.6.0 — un solo espacio.
 
-Todo lo nuevo ya está en `main` (`cuerpos.js`, `camara.js`, el `tresd.js`
-nuevo, la cámara dentro de `vista.js`). Aquí sólo se conecta:
+Aquí se conecta todo y, sobre todo, **se mete la cámara en el lienzo**, que
+había quedado sólo en la máquina del chat y no en el repositorio.
 
-1. El ratón de `vista.js` cede el clic al 3D cuando cae sobre una cara, y sólo
-   entonces. Va **después** del pan: con el espacio apretado, arrastrar sobre
-   una pieza sigue siendo mover la vista.
-2. El fantasma se pinta en la capa de encima, cada cuadro.
-3. El motor dice qué piezas tiene el dibujo (`/api/cuerpo/lista`).
-4. La pantalla carga los dos archivos nuevos; el bloque 3D y la rueda 3D ganan
-   Orbitar, Planta e Iso.
-5. El sugeridor se achica: cinco filas, letra chica, angosto. Mike: «estorba
-   muchísimo».
-6. 0.6.0.
+1. `estado.vista` gana dos ángulos; `aPX` y `aMM` los usan. En cero —la vista
+   superior— corren **la misma cuenta de siempre**, línea por línea: el 2D no
+   cambia ni en el último decimal.
+2. La foto del plano se invalida al girar: se puede correr y escalar, pero no
+   girar. Sin esto, orbitar durante un gesto estiraría el plano viejo.
+3. Los cuerpos se pintan al final de `dibujarPlano`, con la misma cámara.
+4. El ratón cede el clic al 3D cuando cae sobre una cara, después del pan.
+5. El fantasma se pinta en la capa de encima, cada cuadro.
+6. El motor lista sus piezas (`/api/cuerpo/lista`).
+7. La pantalla carga los dos archivos nuevos; barra y rueda ganan Orbitar,
+   Planta e Iso. El sugeridor se achica. 0.6.0.
 
 Cada reemplazo comprueba que el texto viejo aparezca exactamente una vez y
 respeta el final de línea del archivo (los de `ui/` traen CRLF).
@@ -79,6 +80,41 @@ def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
     anotar(f"{donde}: parchado")
 
 
+CAMARA_VIEJA = """const aPX = (x, y) => [
+  (x - estado.vista.x) * estado.vista.escala,
+  (estado.vista.y - y) * estado.vista.escala,
+];
+const aMM = (px, py) => [
+  px / estado.vista.escala + estado.vista.x,
+  estado.vista.y - py / estado.vista.escala,
+];"""
+
+CAMARA_NUEVA = """// Con la cámara en cero —la vista superior— se hace **la misma cuenta de
+// siempre**, línea por línea. Eso no es una optimización: es lo que garantiza
+// que el 2D que ya funciona no cambie ni en el último decimal. Si cambiara, el
+// osnap dejaría de pegar donde debe y nadie sabría por qué.
+const aPX = (x, y, z) => {
+  const v = estado.vista;
+  if (!v.rx && !v.rz) return [(x - v.x) * v.escala, (v.y - y) * v.escala];
+  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
+  const ux = x * cz - y * sz;
+  const uy = x * sz + y * cz;
+  const vy = uy * Math.cos(v.rx) - (z || 0) * Math.sin(v.rx);
+  return [(ux - v.x) * v.escala, (v.y - vy) * v.escala];
+};
+// Al revés se cae **sobre el plano de trabajo** (z = 0): es donde vive el
+// dibujo, así que el punto que sueltas es el que estabas viendo.
+const aMM = (px, py) => {
+  const v = estado.vista;
+  if (!v.rx && !v.rz) return [px / v.escala + v.x, v.y - py / v.escala];
+  const ux = px / v.escala + v.x;
+  const vy = v.y - py / v.escala;
+  const cx = Math.cos(v.rx);
+  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;
+  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
+  return [ux * cz + uy * sz, -ux * sz + uy * cz];
+};"""
+
 BITACORA = '''BITACORA: list[dict] = [
     {
         "version": "%s",
@@ -117,7 +153,60 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    # 1 y 2 · el ratón y el fantasma, en vista.js
+    # 1 · la cámara: el estado y las dos conversiones
+    parchar(shape / "ui" / "base.js", [
+        ("  vista: { x: 0, y: 0, escala: 1 },",
+         "  // `rx` y `rz` son la cámara. En cero es la vista superior, que es como\n"
+         "  // nació el programa y como se dibuja: el plano de trabajo de frente.\n"
+         "  // Girarlos no cambia el dibujo, cambia desde dónde se mira.\n"
+         "  vista: { x: 0, y: 0, escala: 1, rx: 0, rz: 0 },"),
+    ], "rx: 0, rz: 0", "ui/base.js (los ángulos de la cámara)")
+    parchar(shape / "ui" / "vista.js", [(CAMARA_VIEJA, CAMARA_NUEVA)],
+            "if (!v.rx && !v.rz)", "ui/vista.js (la cámara en aPX y aMM)")
+
+    # 2 · la foto del plano no se puede girar
+    parchar(shape / "ui" / "vista.js", [
+        ("    fotoVista = { x: v.x, y: v.y, escala: v.escala, w: lienzo.width, h: lienzo.height,",
+         "    fotoVista = { x: v.x, y: v.y, escala: v.escala, rx: v.rx, rz: v.rz,\n"
+         "                  w: lienzo.width, h: lienzo.height,"),
+        ("""    return f.trazos === estado.trazos && f.tema === tema().cual &&
+           f.modo === estado.modo && f.papel === estado.papel &&
+           f.w === lienzo.width && f.h === lienzo.height;""",
+         """    // La foto se corre y se escala, pero **no se puede girar**: si la cámara
+    // se movió, esta foto ya no dice la verdad y hay que redibujar. Sin esto,
+    // orbitar durante un gesto estiraría el plano viejo y se vería deformado.
+    if (f.rx !== estado.vista.rx || f.rz !== estado.vista.rz) return false;
+    return f.trazos === estado.trazos && f.tema === tema().cual &&
+           f.modo === estado.modo && f.papel === estado.papel &&
+           f.w === lienzo.width && f.h === lienzo.height;"""),
+    ], "f.rx !== estado.vista.rx", "ui/vista.js (la foto sabe si giró)")
+
+    # 3 · los cuerpos al final del plano, y las conversiones al alcance
+    parchar(shape / "ui" / "vista.js", [
+        ("""      c.fillText(lineas[i], 0, i * alturaPX * 1.25);
+    }
+    c.restore();
+  }
+}""",
+         """      c.fillText(lineas[i], 0, i * alturaPX * 1.25);
+    }
+    c.restore();
+  }
+
+  // Los cuerpos 3D se pintan **aquí**, en el mismo lienzo y con la misma
+  // cámara que las líneas. Ésa es la diferencia entre un visor pegado encima y
+  // un espacio: la pieza se para sobre el contorno del que salió porque están
+  // en el mismo sitio, no porque se hayan alineado a mano.
+  if (typeof Cuerpos !== "undefined") Cuerpos.pintar(c, oscuro);
+}"""),
+        ("window.Parpadeo = Parpadeo;",
+         "window.Parpadeo = Parpadeo;\n\n"
+         "// Para quien pinte en este mismo espacio —los cuerpos 3D— y para las\n"
+         "// pruebas. Son las dos únicas puertas entre milímetros y pantalla.\n"
+         "window.aPX = aPX;\nwindow.aMM = aMM;"),
+    ], "Cuerpos.pintar(c, oscuro)", "ui/vista.js (los cuerpos en el plano)")
+
+    # 4 y 5 · el ratón y el fantasma
     parchar(shape / "ui" / "vista.js", [
         ("""    lienzo.style.cursor = "grabbing";
     e.preventDefault();
@@ -140,7 +229,7 @@ def main() -> int:
          "function pintarMira(c = ctx) {\n  if (typeof TresD !== \"undefined\") TresD.pintarFantasma(c);"),
     ], "TresD.abajo(e)", "ui/vista.js (ratón y fantasma)")
 
-    # 3 · el motor lista sus piezas
+    # 6 · el motor lista sus piezas
     parchar(shape / "core" / "solido" / "rutas.py", [
         ('@router.get("/{id_}/malla")',
          '@router.get("/lista")\ndef lista():\n    """Los ids de las piezas del dibujo, para que la pantalla sepa qué pintar."""\n'
@@ -148,7 +237,7 @@ def main() -> int:
          '@router.get("/{id_}/malla")'),
     ], '@router.get("/lista")', "core/solido/rutas.py (lista)")
 
-    # 4 · la pantalla
+    # 7 · la pantalla
     parchar(shape / "ui" / "index.html", [
         ('<script src="tresd-comandos.js"></script>',
          '<script src="tresd-comandos.js"></script>\n<script src="cuerpos.js"></script>\n<script src="camara.js"></script>'),
@@ -162,8 +251,6 @@ def main() -> int:
         ('    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },',
          '    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },\n    { et: "Orbitar",  icono: "⟳",  cmd: "ORBITAR" },'),
     ], '"ORBITAR"', "ui/radial.js (rueda 3D)")
-
-    # 5 · el sugeridor, chico
     parchar(shape / "ui" / "sugeridor.js", [
         ("const TOPE = 8;", "const TOPE = 5;"),
         ('borderRadius: "6px", overflow: "hidden", minWidth: "320px",',
@@ -178,7 +265,7 @@ def main() -> int:
         ('ayuda.style.fontSize = "12px";', 'ayuda.style.fontSize = "10px";'),
     ], "const TOPE = 5;", "ui/sugeridor.js (achicado)")
 
-    # 6 · la versión
+    # 8 · la versión
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
     t = ver.read_text(encoding="utf-8")
@@ -197,15 +284,20 @@ def main() -> int:
                        encoding="utf-8")
         anotar(f"versión {actual} → {VERSION}")
 
-    # Comprobar: que el JS siga siendo JS (node está en el corredor) y que el
-    # motor importe con la ruta nueva.
-    for js in ("vista.js", "tresd.js", "cuerpos.js", "camara.js", "sugeridor.js", "radial.js"):
+    # Comprobar: JS válido (node está en el corredor), Python válido, y que la
+    # cámara en cero dé la misma cuenta de siempre.
+    for js in ("base.js", "vista.js", "tresd.js", "cuerpos.js", "camara.js", "sugeridor.js", "radial.js"):
         correr(["node", "--check", str(shape / "ui" / js)])
-    anotar("los seis archivos de la pantalla pasan node --check")
-    salida = correr([sys.executable, "-c",
-                     "import ast, pathlib; ast.parse(pathlib.Path('core/solido/rutas.py').read_text(encoding='utf-8'));"
-                     "print('rutas.py sigue siendo Python válido')"], cwd=shape)
-    anotar(salida.strip())
+    anotar("los siete archivos de la pantalla pasan node --check")
+    correr([sys.executable, "-c",
+            "import ast, pathlib; ast.parse(pathlib.Path('core/solido/rutas.py').read_text(encoding='utf-8'))"], cwd=shape)
+    anotar("rutas.py sigue siendo Python válido")
+    vista = (shape / "ui" / "vista.js").read_text(encoding="utf-8")
+    for debe in ("if (!v.rx && !v.rz) return [(x - v.x) * v.escala, (v.y - y) * v.escala];",
+                 "Cuerpos.pintar(c, oscuro)", "TresD.abajo(e)", "window.aPX = aPX;"):
+        if debe not in vista:
+            raise RuntimeError(f"vista.js no quedó con: {debe[:50]}")
+    anotar("vista.js: cámara, cuerpos, ratón y conversiones al alcance, los cuatro puestos")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
@@ -219,11 +311,11 @@ def main() -> int:
             "mismo lienzo que las líneas, con la misma cámara, y la vista de planta es un\n"
             "ángulo, no un modo: en cero se dibuja con la misma cuenta de siempre, así que\n"
             "el 2D que ya funciona no cambia ni en el último decimal.\n\n"
-            "El ratón cede el clic al 3D sólo cuando cae sobre una cara, y después del pan:\n"
-            "con el espacio apretado, arrastrar sobre una pieza sigue moviendo la vista. El\n"
-            "fantasma del arrastre se pinta en la capa de encima, cada cuadro.\n\n"
-            "El sugeridor se achica a cinco filas y letra chica: Mike dijo que estorbaba\n"
-            "muchísimo, y tenía razón."],
+            "La foto del plano se invalida al girar: se puede correr y escalar, pero no\n"
+            "girar; sin esto, orbitar durante un gesto estiraría el plano viejo.\n\n"
+            "El ratón cede el clic al 3D sólo cuando cae sobre una cara, y después del pan.\n"
+            "El fantasma del arrastre se pinta en la capa de encima, cada cuadro. El\n"
+            "sugeridor se achica a cinco filas: Mike dijo que estorbaba muchísimo."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
