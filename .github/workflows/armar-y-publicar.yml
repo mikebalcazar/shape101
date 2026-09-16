@@ -157,7 +157,11 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee -a "$GITHUB_WORKSPACE/armado.log") 2>&1
-          pip install -q ezdxf fastapi uvicorn numpy pillow reportlab pymupdf pypdfium2 playwright
+          # build123d es el kernel de sólidos. Se instala también aquí porque las
+          # pruebas del 3D (t020, t021, t022) corren con ESTE Python, no con el
+          # empotrado que se mete al instalador. Son dos Pythons distintos, y
+          # olvidarlo fue lo que tumbó el primer intento de 0.4.0.
+          pip install -q ezdxf fastapi uvicorn numpy pillow reportlab pymupdf pypdfium2 playwright build123d
           python -m playwright install chromium
           python verificar.py
 
