@@ -1,16 +1,18 @@
-"""El mandadero · recado 13: 0.4.1 — EXTRUIR ya puede preguntar el espesor.
+"""El mandadero · recado 14: 0.4.1 — EXTRUIR pregunta el espesor (segundo intento).
 
-Mike instaló 0.4.0, tecleó EXTRUIR y se topó con «prompt() is not supported».
-Tenía razón el programa: **Electron no soporta `window.prompt`**. Lo usé como
-atajo sabiendo que era un atajo, y se rompió en lo único que no podía probar
-aquí: la pantalla.
+El recado 13 aplicó bien el parche y **se cayó en su propia comprobación**:
+buscaba que no quedara ningún `window.prompt` en el archivo, y lo encontró en
+el comentario nuevo que explica justamente que Electron no lo soporta. La
+comprobación estaba mal escrita, no el arreglo.
 
-La app ya tiene su forma de pedir una medida —`Entrada.pedirNumero`—, que
-además usa la cajita de siempre, acepta coma o punto, y recuerda el último
-valor tecleado. O sea que el atajo no sólo estaba mal: era peor que lo que ya
-había.
+Aquí se busca la **llamada** —`window.prompt(`, con paréntesis— y no la
+palabra. Una comprobación que se dispara sola con su propia explicación no
+comprueba nada: sólo estorba.
 
-Aquí se cambia eso y se sube a 0.4.1.
+Lo que arregla, que es lo de fondo: en 0.4.0, EXTRUIR sin argumento se queda
+muerto con «prompt() is not supported». Electron no tiene `window.prompt`. La
+app ya tiene su forma de pedir una medida —`Entrada.pedirNumero`— que usa la
+cajita de siempre, acepta coma o punto y recuerda el último valor.
 """
 from __future__ import annotations
 
@@ -65,12 +67,12 @@ VIEJO_PROMPT = '''    if (!isFinite(mm)) {
     }'''
 
 NUEVO_PROMPT = '''    if (!isFinite(mm)) {
-      // Electron no soporta window.prompt: usarlo deja el comando muerto con un
-      // «prompt() is not supported». La app ya tiene su forma de pedir una
-      // medida, con la cajita de siempre, que acepta coma o punto y recuerda lo
-      // último que se tecleó.
+      // Electron no tiene la ventanita de preguntar del navegador: usarla deja
+      // el comando muerto con un «prompt() is not supported». La app ya tiene
+      // su forma de pedir una medida, con la cajita de siempre, que acepta coma
+      // o punto y recuerda lo último que se tecleó.
       if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {
-        Comandos.eco("EXTRUIR necesita un espesor: teclea «EXTRUIR 18».", "malo");
+        Comandos.eco("EXTRUIR necesita un espesor.", "malo");
         return;
       }
       mm = await Entrada.pedirNumero({ mensaje: "Espesor en mm", valor: 18, clave: "extruir-espesor" });
@@ -83,7 +85,7 @@ BITACORA = '''BITACORA: list[dict] = [
         "cambios": [
             "EXTRUIR ya pregunta el espesor como el resto del programa, con la cajita de "
             "siempre: acepta coma o punto y recuerda lo último que tecleaste. En 0.4.0 el "
-            "comando se quedaba muerto con un «prompt() is not supported».",
+            "comando se quedaba muerto sin preguntar nada.",
         ],
     },
 '''
@@ -94,7 +96,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado13")
+    tmp = pathlib.Path("/tmp/recado14")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -106,10 +108,18 @@ def main() -> int:
 
     js = shape / "ui" / "tresd.js"
     texto = js.read_text(encoding="utf-8")
-    js.write_text(cambiar(texto, VIEJO_PROMPT, NUEVO_PROMPT, "ui/tresd.js"), encoding="utf-8")
-    if "window.prompt" in js.read_text(encoding="utf-8"):
-        raise RuntimeError("todavía quedó un window.prompt en tresd.js")
-    anotar("ui/tresd.js: EXTRUIR pide el espesor con Entrada.pedirNumero; ni un window.prompt queda")
+    if "Entrada.pedirNumero" in texto:
+        anotar("ui/tresd.js ya pedía el espesor con la cajita: no se toca")
+    else:
+        js.write_text(cambiar(texto, VIEJO_PROMPT, NUEVO_PROMPT, "ui/tresd.js"), encoding="utf-8")
+        anotar("ui/tresd.js: EXTRUIR pide el espesor con Entrada.pedirNumero")
+    # La LLAMADA, no la palabra: el comentario que explica el problema nombra
+    # window.prompt a propósito, y buscar la palabra suelta tumbó el intento
+    # anterior con su propia explicación.
+    quedan = js.read_text(encoding="utf-8").count("window.prompt(")
+    if quedan:
+        raise RuntimeError(f"todavía quedan {quedan} llamadas a window.prompt( en tresd.js")
+    anotar("no queda ninguna llamada a window.prompt( en tresd.js")
 
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
@@ -132,27 +142,29 @@ def main() -> int:
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, EXTRUIR pide el espesor como debe\n\n```\n"
+        f"- recado: {VERSION}, EXTRUIR pide el espesor (segundo intento)\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
             f"{VERSION}: EXTRUIR pide el espesor con la cajita del programa\n\n"
-            "Electron no soporta window.prompt, así que en 0.4.0 el comando se quedaba\n"
-            "muerto con un «prompt() is not supported». Lo encontró Mike al primer intento,\n"
-            "en lo único que no se puede probar desde el chat: la pantalla.\n\n"
-            "La app ya tenía Entrada.pedirNumero, que usa la cajita de siempre, acepta coma\n"
-            "o punto y recuerda el último valor. El atajo no sólo estaba mal: era peor que\n"
-            "lo que ya había."],
+            "Electron no tiene la ventanita de preguntar del navegador, así que en 0.4.0 el\n"
+            "comando se quedaba muerto con un «prompt() is not supported». Lo encontró Mike\n"
+            "al primer intento, en lo único que no se puede probar desde el chat: la\n"
+            "pantalla.\n\n"
+            "El intento anterior de este mismo arreglo se cayó en su propia comprobación:\n"
+            "buscaba que no quedara ningún «window.prompt» y lo encontró en el comentario\n"
+            "que explica por qué no se usa. Ahora se busca la llamada, con paréntesis. Una\n"
+            "comprobación que se dispara con su propia explicación no comprueba nada."],
            cwd=shape)
-    correr(["git", "push", "origin", f"HEAD:main"], cwd=shape)
+    correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
     anotar(f"main actualizado y {DESTINO} creada: el armado de {VERSION} arranca")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado13/shape101")
+    shape = pathlib.Path("/tmp/recado14/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
