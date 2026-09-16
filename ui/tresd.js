@@ -392,10 +392,15 @@ Comandos.registrar({
     if (!ids.length) { Comandos.eco("Selecciona primero el contorno cerrado que quieres levantar.", "malo"); return; }
     let mm = parseFloat(args[0]);
     if (!isFinite(mm)) {
-      // `Comandos.pedir` sólo escribe el mensaje en la consola; no devuelve lo
-      // tecleado. Para una medida hace falta una respuesta, así que se pregunta
-      // aparte y se sugiere el espesor más común de taller.
-      mm = parseFloat(window.prompt("Espesor en mm", "18") || "");
+      // Electron no tiene la ventanita de preguntar del navegador: usarla deja
+      // el comando muerto con un «prompt() is not supported». La app ya tiene
+      // su forma de pedir una medida, con la cajita de siempre, que acepta coma
+      // o punto y recuerda lo último que se tecleó.
+      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {
+        Comandos.eco("EXTRUIR necesita un espesor.", "malo");
+        return;
+      }
+      mm = await Entrada.pedirNumero({ mensaje: "Espesor en mm", valor: 18, clave: "extruir-espesor" });
     }
     if (!isFinite(mm) || mm === 0) { Comandos.eco("EXTRUIR necesita un espesor distinto de cero.", "malo"); return; }
     try {

@@ -21,13 +21,22 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.4.0"
-FECHA = "2026-09-15"
+VERSION = "0.4.1"
+FECHA = "2026-09-16"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.4.1",
+        "fecha": "2026-09-16",
+        "cambios": [
+            "EXTRUIR ya pregunta el espesor como el resto del programa, con la cajita de "
+            "siempre: acepta coma o punto y recuerda lo último que tecleaste. En 0.4.0 el "
+            "comando se quedaba muerto sin preguntar nada.",
+        ],
+    },
     {
         "version": "0.4.0",
         "fecha": "2026-09-15",

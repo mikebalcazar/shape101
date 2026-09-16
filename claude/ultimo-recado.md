@@ -2,11 +2,11 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-16T03:06:59+00:00
-- recado: disparar de verdad el armado de 0.4.0
+- corrido: 2026-09-16T04:16:16+00:00
+- recado: 0.4.1, EXTRUIR pide el espesor (segundo intento)
 
 ```
-La vuelta anterior no disparó nada: la rama de publicación ya apuntaba a ese mismo
-commit, y empujar una rama donde ya está no produce ningún evento. Ahora se hace
-un commit de verdad y se lleva la rama ahí.
+ui/tresd.js: EXTRUIR pide el espesor con Entrada.pedirNumero
+no queda ninguna llamada a window.prompt( en tresd.js
+core/version.py y package.json dicen los dos 0.4.1
 ```
