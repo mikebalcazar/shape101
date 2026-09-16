@@ -21,7 +21,7 @@
  */
 
 const Sugeridor = (() => {
-  const TOPE = 8;                 // más que esto tapa el dibujo y no ayuda
+  const TOPE = 5;                 // más que esto tapa el dibujo y no ayuda
   let lista = null, elegido = -1, opciones = [];
 
   function campo() {
@@ -35,8 +35,8 @@ const Sugeridor = (() => {
     Object.assign(lista.style, {
       position: "absolute", display: "none", zIndex: "40",
       background: "#1d1f22", color: "#eee", border: "1px solid #3a3d42",
-      borderRadius: "6px", overflow: "hidden", minWidth: "320px",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.45)", font: "13px system-ui, sans-serif",
+      borderRadius: "4px", overflow: "hidden", minWidth: "220px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.4)", font: "11px system-ui, sans-serif",
     });
     document.body.appendChild(lista);
   }
@@ -46,7 +46,7 @@ const Sugeridor = (() => {
     if (!c) return;
     const r = c.getBoundingClientRect();
     lista.style.left = `${r.left}px`;
-    lista.style.width = `${Math.max(320, r.width)}px`;
+    lista.style.width = `${Math.max(220, Math.min(420, r.width))}px`;
     // Sale ARRIBA de la caja: la consola vive abajo y una lista que baje se
     // sale de la ventana.
     lista.style.bottom = `${window.innerHeight - r.top + 4}px`;
@@ -80,16 +80,16 @@ const Sugeridor = (() => {
     opciones.forEach((o, i) => {
       const fila = document.createElement("div");
       Object.assign(fila.style, {
-        padding: "5px 10px", cursor: "pointer", display: "flex", gap: "10px",
+        padding: "2px 8px", cursor: "pointer", display: "flex", gap: "8px",
         alignItems: "baseline",
         background: i === elegido ? "#3a3d42" : "transparent",
       });
       const nom = document.createElement("b");
       nom.textContent = o.cmd.nombre;
-      nom.style.minWidth = "7em";
+      nom.style.minWidth = "6em";
       const ayuda = document.createElement("span");
       ayuda.style.color = "#9b9da3";
-      ayuda.style.fontSize = "12px";
+      ayuda.style.fontSize = "10px";
       const atajos = (o.cmd.alias || []).join(", ");
       ayuda.textContent = (o.cmd.ayuda || "") + (atajos ? `   ·   ${atajos}` : "");
       fila.append(nom, ayuda);

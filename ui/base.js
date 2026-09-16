@@ -162,7 +162,10 @@ const estado = {
   modosOsnap: {},
   seleccion: null,         // capa seleccionada en el panel
   sel: new SelSet(),       // entidades seleccionadas (ids); ver SelSet
-  vista: { x: 0, y: 0, escala: 1 },
+  // `rx` y `rz` son la cámara. En cero es la vista superior, que es como
+  // nació el programa y como se dibuja: el plano de trabajo de frente.
+  // Girarlos no cambia el dibujo, cambia desde dónde se mira.
+  vista: { x: 0, y: 0, escala: 1, rx: 0, rz: 0 },
   cursor: { px: 0, py: 0, x: 0, y: 0 },   // píxeles y milímetros
   ref: null,               // referencia a objeto encontrada bajo el cursor
   resaltado: null,         // entidad encendida por el menú de «cuál de éstos»

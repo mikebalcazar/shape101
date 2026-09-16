@@ -44,14 +44,31 @@ if (typeof ResizeObserver !== "undefined") {
 }
 
 // La Y se voltea: en CAD crece hacia arriba, en el lienzo hacia abajo.
-const aPX = (x, y) => [
-  (x - estado.vista.x) * estado.vista.escala,
-  (estado.vista.y - y) * estado.vista.escala,
-];
-const aMM = (px, py) => [
-  px / estado.vista.escala + estado.vista.x,
-  estado.vista.y - py / estado.vista.escala,
-];
+// Con la cámara en cero —la vista superior— se hace **la misma cuenta de
+// siempre**, línea por línea. Eso no es una optimización: es lo que garantiza
+// que el 2D que ya funciona no cambie ni en el último decimal. Si cambiara, el
+// osnap dejaría de pegar donde debe y nadie sabría por qué.
+const aPX = (x, y, z) => {
+  const v = estado.vista;
+  if (!v.rx && !v.rz) return [(x - v.x) * v.escala, (v.y - y) * v.escala];
+  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
+  const ux = x * cz - y * sz;
+  const uy = x * sz + y * cz;
+  const vy = uy * Math.cos(v.rx) - (z || 0) * Math.sin(v.rx);
+  return [(ux - v.x) * v.escala, (v.y - vy) * v.escala];
+};
+// Al revés se cae **sobre el plano de trabajo** (z = 0): es donde vive el
+// dibujo, así que el punto que sueltas es el que estabas viendo.
+const aMM = (px, py) => {
+  const v = estado.vista;
+  if (!v.rx && !v.rz) return [px / v.escala + v.x, v.y - py / v.escala];
+  const ux = px / v.escala + v.x;
+  const vy = v.y - py / v.escala;
+  const cx = Math.cos(v.rx);
+  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;
+  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
+  return [ux * cz + uy * sz, -ux * sz + uy * cz];
+};
 
 function recordarVista() {
   historialVista.push({ ...estado.vista });
@@ -579,7 +596,8 @@ const Regen = (() => {
     fc.clearRect(0, 0, foto.width, foto.height);
     fc.drawImage(lienzo, 0, 0);
     const v = estado.vista;
-    fotoVista = { x: v.x, y: v.y, escala: v.escala, w: lienzo.width, h: lienzo.height,
+    fotoVista = { x: v.x, y: v.y, escala: v.escala, rx: v.rx, rz: v.rz,
+                  w: lienzo.width, h: lienzo.height,
                   dpr: window.devicePixelRatio || 1, trazos: estado.trazos,
                   tema: tema().cual, modo: estado.modo, papel: estado.papel };
     contador.fotos++;
@@ -589,6 +607,10 @@ const Regen = (() => {
   function sirve() {
     if (!enGesto || !foto || !fotoVista) return false;
     const f = fotoVista;
+    // La foto se corre y se escala, pero **no se puede girar**: si la cámara
+    // se movió, esta foto ya no dice la verdad y hay que redibujar. Sin esto,
+    // orbitar durante un gesto estiraría el plano viejo y se vería deformado.
+    if (f.rx !== estado.vista.rx || f.rz !== estado.vista.rz) return false;
     return f.trazos === estado.trazos && f.tema === tema().cual &&
            f.modo === estado.modo && f.papel === estado.papel &&
            f.w === lienzo.width && f.h === lienzo.height;
@@ -688,6 +710,11 @@ const Parpadeo = (() => {
   return { exito, get veces() { return veces; } };
 })();
 window.Parpadeo = Parpadeo;
+
+// Para quien pinte en este mismo espacio —los cuerpos 3D— y para las
+// pruebas. Son las dos únicas puertas entre milímetros y pantalla.
+window.aPX = aPX;
+window.aMM = aMM;
 
 /** Pide un repintado. No pinta: lo agenda para el próximo cuadro.
  *
@@ -894,6 +921,12 @@ function dibujarPlano(c, fondo = true) {
     }
     c.restore();
   }
+
+  // Los cuerpos 3D se pintan **aquí**, en el mismo lienzo y con la misma
+  // cámara que las líneas. Ésa es la diferencia entre un visor pegado encima y
+  // un espacio: la pieza se para sobre el contorno del que salió porque están
+  // en el mismo sitio, no porque se hayan alineado a mano.
+  if (typeof Cuerpos !== "undefined") Cuerpos.pintar(c, oscuro);
 }
 
 /** Pinta ahora mismo. Para cuando hace falta el resultado en el acto —una
@@ -1256,6 +1289,7 @@ function pintarReferencia(c = ctx) {
 let _cursorIconoPuesto = null;
 
 function pintarMira(c = ctx) {
+  if (typeof TresD !== "undefined") TresD.pintarFantasma(c);
   // El puntero del sistema se esconde mientras una herramienta lleva icono
   // propio; si no, la flecha compite con la tijera.
   const icono = estado.cursorIcono || null;
@@ -1344,6 +1378,9 @@ lienzo.addEventListener("mousedown", (e) => {
     e.preventDefault();
     return;
   }
+  // El 3D después del pan y antes de todo lo demás: si el clic cayó sobre la
+  // cara de una pieza, es del 3D. Si no, sigue como siempre.
+  if (typeof TresD !== "undefined" && TresD.abajo(e)) { e.preventDefault(); return; }
   if (cajaZoom) {
     const caja = lienzo.getBoundingClientRect();
     const [mx, my] = aMM(e.clientX - caja.left, e.clientY - caja.top);
@@ -1373,6 +1410,7 @@ lienzo.addEventListener("mousedown", (e) => {
 });
 
 lienzo.addEventListener("mouseup", (e) => {
+  if (typeof TresD !== "undefined" && TresD.arrastrando()) { TresD.arriba(); return; }
   if (e.button !== 0 || estado.captura || cajaZoom) return;
   const caja = lienzo.getBoundingClientRect();
   const p = aMM(e.clientX - caja.left, e.clientY - caja.top);
@@ -1397,6 +1435,7 @@ lienzo.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("contextmenu", (e) => { if (Radial.activo) e.preventDefault(); });
 
 lienzo.addEventListener("mousemove", (e) => {
+  if (typeof TresD !== "undefined" && TresD.mover(e)) return;
   const caja = lienzo.getBoundingClientRect();
   const px = e.clientX - caja.left, py = e.clientY - caja.top;
   const [mx, my] = aMM(px, py);

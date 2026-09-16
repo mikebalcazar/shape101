@@ -98,6 +98,7 @@ const Radial = (() => {
     { et: "Extruir",  icono: "⬒",  cmd: "EXTRUIR" },
     { et: "Ver 3D",   icono: "◳",  cmd: "3D" },
     { et: "Jalar",    icono: "↕",  cmd: "JALAR" },
+    { et: "Orbitar",  icono: "⟳",  cmd: "ORBITAR" },
     { et: "Sacar",    icono: "⇪",  hijos: [
         { et: "STEP", icono: "S",  cmd: "STEP" },
         { et: "STL",  icono: "▲",  cmd: "STL" },

@@ -2,15 +2,21 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-16T04:18:22+00:00
-- recado: 0.5.0, el sugeridor y el 3D a la mano
+- corrido: 2026-09-16T13:40:15+00:00
+- recado: 0.6.0, un solo espacio
 
 ```
-ui/index.html: carga sugeridor.js y tresd-comandos.js
-ui/index.html: bloque «3D» en la barra de herramientas
-ui/comandos.js: las flechas preguntan al sugeridor antes que al historial
-ui/radial.js: rueda 3D con Alt + clic derecho; la de 2D no cambia ni un ángulo
-ui/tresd.js: presta jalar, la cara señalada y la primera pieza
-versión 0.4.1 → 0.5.0 en core/version.py y package.json
-los cinco enganches están puestos y radial.js ya no usa la lista fija
+ui/base.js (los ángulos de la cámara): parchado
+ui/vista.js (la cámara en aPX y aMM): parchado
+ui/vista.js (la foto sabe si giró): parchado
+ui/vista.js (los cuerpos en el plano): parchado
+ui/vista.js (ratón y fantasma): parchado
+core/solido/rutas.py (lista): parchado
+ui/index.html (scripts y bloque 3D): parchado
+ui/radial.js (rueda 3D): parchado
+ui/sugeridor.js (achicado): parchado
+versión 0.5.0 → 0.6.0
+los siete archivos de la pantalla pasan node --check
+rutas.py sigue siendo Python válido
+vista.js: cámara, cuerpos, ratón y conversiones al alcance, los cuatro puestos
 ```

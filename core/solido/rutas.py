@@ -86,6 +86,13 @@ def extruir(entrada: Extruir):
     return _malla(nuevo)
 
 
+@router.get("/lista")
+def lista():
+    """Los ids de las piezas del dibujo, para que la pantalla sepa qué pintar."""
+    doc = _doc()
+    return {"ids": [e.id for e in doc.entidades.values() if getattr(e, "tipo", "") == "cuerpo"]}
+
+
 @router.get("/{id_}/malla")
 def malla(id_: str):
     return _malla(_cuerpo(id_))
