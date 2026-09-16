@@ -1,28 +1,21 @@
-"""El mandadero · recado 15: la 0.5.0 — el sugeridor y el 3D a la mano.
+"""El mandadero · recado 16: la 0.6.0 — un solo espacio.
 
-Seis enganches en cuatro archivos grandes. Todo lo nuevo ya está escrito y
-subido (`ui/sugeridor.js`, `ui/tresd-comandos.js`); aquí sólo se conecta.
+Todo lo nuevo ya está en `main` (`cuerpos.js`, `camara.js`, el `tresd.js`
+nuevo, la cámara dentro de `vista.js`). Aquí sólo se conecta:
 
-1. **La pantalla carga** el sugeridor y los comandos nuevos del 3D.
-2. **Las flechas** le preguntan al sugeridor antes de mover el historial. Con la
-   caja vacía siguen siendo el historial, como siempre; con algo tecleado
-   eligen entre las sugerencias. De paso deja de borrarse lo escrito al apretar
-   la flecha.
-3. **La barra** gana un bloque «3D»: Extruir, Ver 3D, Jalar, STEP, STL. Hasta
-   ahora el 3D sólo existía tecleado, o sea que estaba escondido. Mike lo dijo
-   claro: los comandos tecleados son auxiliares; lo que manda es el icono y la
-   rueda.
-4. **La rueda 3D con Alt + clic derecho**, idea de Mike. La rueda de 2D no
-   cambia ni un ángulo: se anota si venía Alt en el momento de apretar y se
-   elige la rueda al abrir. Como el gesto es el mismo, funciona igual estando
-   en el dibujo o en la vista 3D.
-5. **`tresd.js` expone** lo que los comandos nuevos necesitan.
-6. **0.5.0** en los dos sitios que tienen que coincidir.
+1. El ratón de `vista.js` cede el clic al 3D cuando cae sobre una cara, y sólo
+   entonces. Va **después** del pan: con el espacio apretado, arrastrar sobre
+   una pieza sigue siendo mover la vista.
+2. El fantasma se pinta en la capa de encima, cada cuadro.
+3. El motor dice qué piezas tiene el dibujo (`/api/cuerpo/lista`).
+4. La pantalla carga los dos archivos nuevos; el bloque 3D y la rueda 3D ganan
+   Orbitar, Planta e Iso.
+5. El sugeridor se achica: cinco filas, letra chica, angosto. Mike: «estorba
+   muchísimo».
+6. 0.6.0.
 
-Sobre los finales de línea: los archivos de `ui/` traen CRLF y los de `core/`
-LF. Cada inserción usa el final de línea del archivo que toca. Meter el
-equivocado marca el archivo entero como cambiado y deja ilegible cualquier
-comparación futura con draw101.
+Cada reemplazo comprueba que el texto viejo aparezca exactamente una vez y
+respeta el final de línea del archivo (los de `ui/` traen CRLF).
 """
 from __future__ import annotations
 
@@ -35,8 +28,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/el-3d-a-la-mano"
-VERSION = "0.5.0"
+RAMA = "claude/un-solo-espacio"
+VERSION = "0.6.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -62,73 +55,48 @@ def correr(orden, cwd=None) -> str:
     return h.stdout
 
 
+def fin_de(t: str) -> str:
+    return "\r\n" if "\r\n" in t else "\n"
+
+
 def cambiar(texto: str, viejo: str, nuevo: str, donde: str) -> str:
+    fin = fin_de(texto)
+    viejo, nuevo = viejo.replace("\n", fin), nuevo.replace("\n", fin)
     n = texto.count(viejo)
     if n != 1:
         raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba 1")
     return texto.replace(viejo, nuevo, 1)
 
 
-def fin_de_linea(texto: str) -> str:
-    return "\r\n" if "\r\n" in texto else "\n"
+def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
+    t = ruta.read_text(encoding="utf-8")
+    if ya in t:
+        anotar(f"{donde}: ya estaba, no se toca")
+        return
+    for viejo, nuevo in cambios:
+        t = cambiar(t, viejo, nuevo, donde)
+    ruta.write_text(t, encoding="utf-8", newline="")
+    anotar(f"{donde}: parchado")
 
-
-RUEDA_3D = '''  /* --- La rueda del 3D  ·  Alt + clic derecho -------------------------------
-   * Idea de Mike (16-sep): en vez de meterle un noveno gajo a la rueda de
-   * siempre —que le movería el ángulo a los ocho que ya tiene aprendidos con
-   * la mano—, el 3D tiene la suya. Mismo gesto, con Alt.
-   *
-   * Funciona igual estando en el dibujo o en la vista 3D: no hay que entrar al
-   * 3D para levantar un contorno. */
-  const RUEDA_3D = [
-    { et: "Extruir",  icono: "⬒",  cmd: "EXTRUIR" },
-    { et: "Ver 3D",   icono: "◳",  cmd: "3D" },
-    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },
-    { et: "Sacar",    icono: "⇪",  hijos: [
-        { et: "STEP", icono: "S",  cmd: "STEP" },
-        { et: "STL",  icono: "▲",  cmd: "STL" },
-      ] },
-  ];
-
-  // Cuál de las dos ruedas está abierta. La elige `abrir` según el Alt.
-  let rueda = RUEDA;
-
-'''
-
-BLOQUE_3D = '''    <div class="bloque" data-et="3D">
-      <div class="titulo">3D</div>
-      <div class="celdas">
-        <button data-cmd="EXTRUIR" title="Levantar el contorno seleccionado (EXTRUIR)">⬒</button>
-        <button data-cmd="3D" title="Ver las piezas en 3D · Escape vuelve al dibujo">◳</button>
-        <button data-cmd="JALAR" title="Mover la cara señalada una medida (JALAR)">↕</button>
-        <button data-cmd="STEP" title="Sacar la pieza en STEP, para otro CAD">S</button>
-        <button data-cmd="STL" title="Sacar la pieza en STL, para imprimir">▲</button>
-      </div>
-    </div>
-'''
-
-FLECHAS_VIEJO = '        if (!historial.length) return;'
-FLECHAS_NUEVO = ('        // El sugeridor tiene preferencia: si hay algo tecleado y hay lista, las'
-                 '\n        // flechas eligen entre las sugerencias. Con la caja vacía no hay lista y'
-                 '\n        // esto devuelve false, así que el historial sigue siendo el de siempre.'
-                 '\n        if (typeof Sugeridor !== "undefined" &&'
-                 '\n            Sugeridor.mover(e.key === "ArrowUp" ? -1 : 1)) return;'
-                 '\n        if (!historial.length) return;')
 
 BITACORA = '''BITACORA: list[dict] = [
     {
         "version": "%s",
         "fecha": "%s",
         "cambios": [
-            "Sugeridor de comandos: al teclear sale la lista de los que empiezan así, con sus "
-            "atajos y para qué sirven. Las flechas eligen y Enter corre. Con la caja vacía las "
-            "flechas siguen siendo el historial, como siempre.",
-            "El 3D ya no está escondido en la consola: tiene su bloque en la barra de "
-            "herramientas —Extruir, Ver 3D, Jalar, STEP, STL— y su propia rueda con "
-            "**Alt + clic derecho sostenido**. La rueda de siempre no cambió ni un ángulo.",
-            "JALAR mueve la cara señalada una medida exacta. Arrastrar da la sensación; "
-            "teclear da el milímetro, y en un taller hacen falta los dos.",
-            "STEP y STL sacan la pieza desde la barra o la rueda, sin teclear.",
+            "Un solo espacio. El 3D ya no es un visor pegado encima del dibujo: las piezas "
+            "se pintan en el mismo lienzo que las líneas, con la misma cámara, y la pieza se "
+            "para sobre el contorno del que salió. La vista de planta es un ángulo de cámara, "
+            "no un modo: se dibuja igual que siempre.",
+            "ORBITAR gira la vista arrastrando, alrededor de lo que estás mirando. PLANTA, "
+            "FRENTE, DERECHA e ISO son las vistas fijas. El comando 3D alterna planta e "
+            "isométrica. Todo en la barra y en la rueda 3D (Alt + clic derecho sostenido).",
+            "Al jalar una cara ahora ves en tiempo real a dónde va: la cara punteada en su "
+            "sitio nuevo, las líneas que la unen al viejo y la medida en milímetros siguiendo "
+            "al cursor. Al soltar, la pieza se rehace. Si la cara se ve exactamente de canto, "
+            "el programa lo dice en vez de inventar un número.",
+            "El sugeridor de comandos es cinco veces más chico: cinco filas, letra chica, "
+            "pegado a la caja.",
         ],
     },
 '''
@@ -139,7 +107,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado15")
+    tmp = pathlib.Path("/tmp/recado16")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -149,125 +117,113 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    # 1 y 3 · la pantalla: los dos archivos nuevos y el bloque de la barra
-    idx = shape / "ui" / "index.html"
-    t = idx.read_text(encoding="utf-8")
-    fin = fin_de_linea(t)
-    if "sugeridor.js" not in t:
-        ancla = '<script src="tresd.js"></script>'
-        t = cambiar(t, ancla, ancla + fin + '<script src="sugeridor.js"></script>'
-                    + fin + '<script src="tresd-comandos.js"></script>', "index.html (scripts)")
-        anotar("ui/index.html: carga sugeridor.js y tresd-comandos.js")
-    else:
-        anotar("ui/index.html ya los cargaba")
-    if 'data-et="3D"' not in t:
-        ancla = '    <div class="bloque" data-et="ANOTACIONES">'
-        t = cambiar(t, ancla, BLOQUE_3D.replace("\n", fin) + ancla, "index.html (barra)")
-        anotar("ui/index.html: bloque «3D» en la barra de herramientas")
-    else:
-        anotar("ui/index.html ya tenía el bloque 3D")
-    idx.write_text(t, encoding="utf-8", newline="")
+    # 1 y 2 · el ratón y el fantasma, en vista.js
+    parchar(shape / "ui" / "vista.js", [
+        ("""    lienzo.style.cursor = "grabbing";
+    e.preventDefault();
+    return;
+  }
+  if (cajaZoom) {""",
+         """    lienzo.style.cursor = "grabbing";
+    e.preventDefault();
+    return;
+  }
+  // El 3D después del pan y antes de todo lo demás: si el clic cayó sobre la
+  // cara de una pieza, es del 3D. Si no, sigue como siempre.
+  if (typeof TresD !== "undefined" && TresD.abajo(e)) { e.preventDefault(); return; }
+  if (cajaZoom) {"""),
+        ('lienzo.addEventListener("mousemove", (e) => {',
+         'lienzo.addEventListener("mousemove", (e) => {\n  if (typeof TresD !== "undefined" && TresD.mover(e)) return;'),
+        ('lienzo.addEventListener("mouseup", (e) => {',
+         'lienzo.addEventListener("mouseup", (e) => {\n  if (typeof TresD !== "undefined" && TresD.arrastrando()) { TresD.arriba(); return; }'),
+        ("function pintarMira(c = ctx) {",
+         "function pintarMira(c = ctx) {\n  if (typeof TresD !== \"undefined\") TresD.pintarFantasma(c);"),
+    ], "TresD.abajo(e)", "ui/vista.js (ratón y fantasma)")
 
-    # 2 · las flechas
-    cmds = shape / "ui" / "comandos.js"
-    t = cmds.read_text(encoding="utf-8")
-    if "Sugeridor.mover" in t:
-        anotar("ui/comandos.js ya preguntaba al sugeridor")
-    else:
-        fin = fin_de_linea(t)
-        cmds.write_text(cambiar(t, FLECHAS_VIEJO, FLECHAS_NUEVO.replace("\n", fin),
-                                "comandos.js (flechas)"), encoding="utf-8", newline="")
-        anotar("ui/comandos.js: las flechas preguntan al sugeridor antes que al historial")
+    # 3 · el motor lista sus piezas
+    parchar(shape / "core" / "solido" / "rutas.py", [
+        ('@router.get("/{id_}/malla")',
+         '@router.get("/lista")\ndef lista():\n    """Los ids de las piezas del dibujo, para que la pantalla sepa qué pintar."""\n'
+         '    doc = _doc()\n    return {"ids": [e.id for e in doc.entidades.values() if getattr(e, "tipo", "") == "cuerpo"]}\n\n\n'
+         '@router.get("/{id_}/malla")'),
+    ], '@router.get("/lista")', "core/solido/rutas.py (lista)")
 
-    # 4 · la rueda del 3D
-    rad = shape / "ui" / "radial.js"
-    t = rad.read_text(encoding="utf-8")
-    if "RUEDA_3D" in t:
-        anotar("ui/radial.js ya tenía la rueda 3D")
-    else:
-        fin = fin_de_linea(t)
-        t = cambiar(t, "  function abrir(cx, cy) {",
-                    RUEDA_3D.replace("\n", fin) + "  function abrir(cx, cy) {" + fin
-                    + "    rueda = (inicio && inicio.alt) ? RUEDA_3D : RUEDA;", "radial.js (abrir)")
-        t = cambiar(t, "inicio = { x: e.clientX, y: e.clientY, t: performance.now() };",
-                    "inicio = { x: e.clientX, y: e.clientY, t: performance.now(), alt: e.altKey };",
-                    "radial.js (abajo)")
-        # Las ocho veces que se usa la lista pasan a usar la que esté abierta.
-        for viejo, nuevo, donde in (
-            ("const gajos = RUEDA.map((item, i) => {", "const gajos = rueda.map((item, i) => {", "gajos"),
-            ("const a = angDe(i, RUEDA.length);", "const a = angDe(i, rueda.length);", "ángulo"),
-            ("const item = RUEDA[i];", "const item = rueda[i];", "hijos"),
-            ("const angPadre = -90 + i * (360 / RUEDA.length);", "const angPadre = -90 + i * (360 / rueda.length);", "ángulo del padre"),
-            ("gajoBajo(x - abierto.cx, y - abierto.cy, RUEDA.length)", "gajoBajo(x - abierto.cx, y - abierto.cy, rueda.length)", "gajo bajo el cursor"),
-            ("if (i >= 0 && RUEDA[i].hijos", "if (i >= 0 && rueda[i].hijos", "abrir hijos"),
-            ("RUEDA[s.padre].hijos[s.elegido]", "rueda[s.padre].hijos[s.elegido]", "hijo elegido"),
-            ("abierto.elegido >= 0 ? RUEDA[abierto.elegido]", "abierto.elegido >= 0 ? rueda[abierto.elegido]", "gajo elegido"),
-        ):
-            t = cambiar(t, viejo, nuevo, f"radial.js ({donde})")
-        t = cambiar(t, "return { abajo, arrastre, arriba, cancelar, RUEDA,",
-                    "return { abajo, arrastre, arriba, cancelar, RUEDA, RUEDA_3D,", "radial.js (salida)")
-        rad.write_text(t, encoding="utf-8", newline="")
-        anotar("ui/radial.js: rueda 3D con Alt + clic derecho; la de 2D no cambia ni un ángulo")
+    # 4 · la pantalla
+    parchar(shape / "ui" / "index.html", [
+        ('<script src="tresd-comandos.js"></script>',
+         '<script src="tresd-comandos.js"></script>\n<script src="cuerpos.js"></script>\n<script src="camara.js"></script>'),
+        ('<button data-cmd="STL" title="Sacar la pieza en STL, para imprimir">▲</button>',
+         '<button data-cmd="STL" title="Sacar la pieza en STL, para imprimir">▲</button>\n'
+         '        <button data-cmd="ORBITAR" title="Girar la vista arrastrando (ORBITAR)">⟳</button>\n'
+         '        <button data-cmd="PLANTA" title="Mirar desde arriba, como siempre (PLANTA)">⬓</button>\n'
+         '        <button data-cmd="ISO" title="Vista isométrica (ISO)">◈</button>'),
+    ], "camara.js", "ui/index.html (scripts y bloque 3D)")
+    parchar(shape / "ui" / "radial.js", [
+        ('    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },',
+         '    { et: "Jalar",    icono: "↕",  cmd: "JALAR" },\n    { et: "Orbitar",  icono: "⟳",  cmd: "ORBITAR" },'),
+    ], '"ORBITAR"', "ui/radial.js (rueda 3D)")
 
-    # 5 · lo que tresd.js tiene que prestar
-    js = shape / "ui" / "tresd.js"
-    t = js.read_text(encoding="utf-8")
-    if "primerCuerpo" in t:
-        anotar("ui/tresd.js ya prestaba lo necesario")
-    else:
-        js.write_text(cambiar(
-            t, "return { abrir, cerrar, pintar, traer, activo: () => activo, cuerpos };",
-            "return { abrir, cerrar, pintar, traer, jalar, cuerpos,\n"
-            "           activo: () => activo,\n"
-            "           senalada: () => senalada,\n"
-            "           primerCuerpo: () => [...cuerpos.keys()][0] || null };",
-            "tresd.js (salida)"), encoding="utf-8", newline="")
-        anotar("ui/tresd.js: presta jalar, la cara señalada y la primera pieza")
+    # 5 · el sugeridor, chico
+    parchar(shape / "ui" / "sugeridor.js", [
+        ("const TOPE = 8;", "const TOPE = 5;"),
+        ('borderRadius: "6px", overflow: "hidden", minWidth: "320px",',
+         'borderRadius: "4px", overflow: "hidden", minWidth: "220px",'),
+        ('boxShadow: "0 8px 24px rgba(0,0,0,0.45)", font: "13px system-ui, sans-serif",',
+         'boxShadow: "0 4px 12px rgba(0,0,0,0.4)", font: "11px system-ui, sans-serif",'),
+        ('lista.style.width = `${Math.max(320, r.width)}px`;',
+         'lista.style.width = `${Math.max(220, Math.min(420, r.width))}px`;'),
+        ('padding: "5px 10px", cursor: "pointer", display: "flex", gap: "10px",',
+         'padding: "2px 8px", cursor: "pointer", display: "flex", gap: "8px",'),
+        ('nom.style.minWidth = "7em";', 'nom.style.minWidth = "6em";'),
+        ('ayuda.style.fontSize = "12px";', 'ayuda.style.fontSize = "10px";'),
+    ], "const TOPE = 5;", "ui/sugeridor.js (achicado)")
 
     # 6 · la versión
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
     t = ver.read_text(encoding="utf-8")
     actual = re.search(r'VERSION = "([^"]+)"', t).group(1)
-    t = cambiar(t, f'VERSION = "{actual}"', f'VERSION = "{VERSION}"', "version.py")
-    t = re.sub(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
-    ver.write_text(cambiar(t, "BITACORA: list[dict] = [\n", BITACORA % (VERSION, hoy),
-                           "version.py (bitácora)"), encoding="utf-8")
-    paq = shape / "package.json"
-    t = paq.read_text(encoding="utf-8")
-    t = cambiar(t, f'"version": "{actual}"', f'"version": "{VERSION}"', "package.json")
-    t = cambiar(t, f'"_versionApp": "{actual} —', f'"_versionApp": "{VERSION} —', "package.json")
-    paq.write_text(cambiar(t, f'"artifactName": "shape101-{actual}-setup.${{ext}}"',
-                           f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"',
-                           "package.json"), encoding="utf-8")
-    anotar(f"versión {actual} → {VERSION} en core/version.py y package.json")
+    if actual != VERSION:
+        t = cambiar(t, f'VERSION = "{actual}"', f'VERSION = "{VERSION}"', "version.py")
+        t = re.sub(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
+        ver.write_text(cambiar(t, "BITACORA: list[dict] = [\n", BITACORA % (VERSION, hoy), "version.py"),
+                       encoding="utf-8")
+        paq = shape / "package.json"
+        t = paq.read_text(encoding="utf-8")
+        t = cambiar(t, f'"version": "{actual}"', f'"version": "{VERSION}"', "package.json")
+        t = cambiar(t, f'"_versionApp": "{actual} —', f'"_versionApp": "{VERSION} —', "package.json")
+        paq.write_text(cambiar(t, f'"artifactName": "shape101-{actual}-setup.${{ext}}"',
+                               f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"', "package.json"),
+                       encoding="utf-8")
+        anotar(f"versión {actual} → {VERSION}")
 
-    # Comprobar lo que se puede sin pantalla
-    for archivo, debe in ((idx, "tresd-comandos.js"), (idx, 'data-et="3D"'),
-                          (cmds, "Sugeridor.mover"), (rad, "RUEDA_3D"), (js, "primerCuerpo")):
-        if debe not in archivo.read_text(encoding="utf-8"):
-            raise RuntimeError(f"{archivo.name} no quedó con {debe}")
-    if "RUEDA[" in rad.read_text(encoding="utf-8"):
-        raise RuntimeError("radial.js todavía usa RUEDA[ directo en algún sitio")
-    anotar("los cinco enganches están puestos y radial.js ya no usa la lista fija")
+    # Comprobar: que el JS siga siendo JS (node está en el corredor) y que el
+    # motor importe con la ruta nueva.
+    for js in ("vista.js", "tresd.js", "cuerpos.js", "camara.js", "sugeridor.js", "radial.js"):
+        correr(["node", "--check", str(shape / "ui" / js)])
+    anotar("los seis archivos de la pantalla pasan node --check")
+    salida = correr([sys.executable, "-c",
+                     "import ast, pathlib; ast.parse(pathlib.Path('core/solido/rutas.py').read_text(encoding='utf-8'));"
+                     "print('rutas.py sigue siendo Python válido')"], cwd=shape)
+    anotar(salida.strip())
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, el sugeridor y el 3D a la mano\n\n```\n"
-        + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, un solo espacio\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            f"{VERSION}: el sugeridor de comandos y el 3D a la mano\n\n"
-            "El 3D sólo existía tecleado, o sea que estaba escondido. Mike lo dijo claro: los\n"
-            "comandos tecleados son auxiliares; lo que manda es el icono y la rueda. Ahora\n"
-            "tiene su bloque en la barra y su propia rueda con Alt + clic derecho sostenido,\n"
-            "idea suya para no meterle un noveno gajo a la rueda de siempre, que le movería\n"
-            "el ángulo a los ocho que ya tiene aprendidos con la mano.\n\n"
-            "El sugeridor enseña los comandos que empiezan como lo tecleado, encabezados por\n"
-            "el que Enter correría ahora mismo. Las flechas ya tenían dueño —el historial—,\n"
-            "así que se reparten por lo que hay escrito."],
+            f"{VERSION}: un solo espacio\n\n"
+            "El 3D deja de ser un visor pegado encima del dibujo. Las piezas se pintan en el\n"
+            "mismo lienzo que las líneas, con la misma cámara, y la vista de planta es un\n"
+            "ángulo, no un modo: en cero se dibuja con la misma cuenta de siempre, así que\n"
+            "el 2D que ya funciona no cambia ni en el último decimal.\n\n"
+            "El ratón cede el clic al 3D sólo cuando cae sobre una cara, y después del pan:\n"
+            "con el espacio apretado, arrastrar sobre una pieza sigue moviendo la vista. El\n"
+            "fantasma del arrastre se pinta en la capa de encima, cada cuadro.\n\n"
+            "El sugeridor se achica a cinco filas y letra chica: Mike dijo que estorbaba\n"
+            "muchísimo, y tenía razón."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
@@ -276,7 +232,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado15/shape101")
+    shape = pathlib.Path("/tmp/recado16/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
