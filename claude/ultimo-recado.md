@@ -2,12 +2,11 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-16T01:04:23+00:00
-- recado: el kernel también donde corren las pruebas
+- corrido: 2026-09-16T03:06:59+00:00
+- recado: disparar de verdad el armado de 0.4.0
 
 ```
-las pruebas ya instalan build123d en el Python del armador
-el flujo es YAML válido: 16 pasos
-el paso del cuaderno sigue en su sitio: El cuaderno del armado, pase lo que pase
-8 pasos copian su salida al cuaderno
+La vuelta anterior no disparó nada: la rama de publicación ya apuntaba a ese mismo
+commit, y empujar una rama donde ya está no produce ningún evento. Ahora se hace
+un commit de verdad y se lleva la rama ahí.
 ```
