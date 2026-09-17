@@ -26,7 +26,7 @@ const Camara = (() => {
 
   function repintar() {
     if (typeof invalidarPlano === "function") invalidarPlano();
-    if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();
+    if (window.pintar) window.pintar();
   }
 
   /** Pone la cámara en unos ángulos **sin que se mueva de sitio lo que estás

@@ -2,21 +2,18 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-16T13:40:15+00:00
-- recado: 0.6.0, un solo espacio
+- corrido: 2026-09-17T23:32:49+00:00
+- recado: 0.6.1, repintar, girar las líneas y no morir al pintar
 
 ```
-ui/base.js (los ángulos de la cámara): parchado
-ui/vista.js (la cámara en aPX y aMM): parchado
-ui/vista.js (la foto sabe si giró): parchado
-ui/vista.js (los cuerpos en el plano): parchado
-ui/vista.js (ratón y fantasma): parchado
-core/solido/rutas.py (lista): parchado
-ui/index.html (scripts y bloque 3D): parchado
-ui/radial.js (rueda 3D): parchado
-ui/sugeridor.js (achicado): parchado
-versión 0.5.0 → 0.6.0
-los siete archivos de la pantalla pasan node --check
-rutas.py sigue siendo Python válido
-vista.js: cámara, cuerpos, ratón y conversiones al alcance, los cuatro puestos
+ui/vista.js (repintado expuesto): parchado
+ui/vista.js (la llave del plano): parchado
+ui/vista.js (las líneas por la cámara): parchado
+ui/vista.js (el ciclo de pintado nunca muere): parchado
+ui/camara.js (repintar de verdad): parchado
+ui/cuerpos.js (repintar de verdad): parchado
+ui/tresd.js (repintar de verdad): parchado
+versión 0.6.0 → 0.6.1
+los cuatro archivos tocados pasan node --check
+ya nadie pide repintar por Vista.pintar
 ```

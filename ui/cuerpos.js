@@ -49,7 +49,7 @@ const Cuerpos = (() => {
     } finally {
       pidiendo = false;
     }
-    if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();
+    if (window.pintar) window.pintar();
   }
 
   /** Vuelve a traer una pieza concreta: después de jalarle una cara o de mover
@@ -58,7 +58,7 @@ const Cuerpos = (() => {
     try {
       mallas.set(id, await pedir(`/api/cuerpo/${id}/malla`));
     } catch (e) { /* se queda la anterior, que es mejor que nada */ }
-    if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();
+    if (window.pintar) window.pintar();
   }
 
   function olvidar() { mallas.clear(); }
@@ -157,7 +157,7 @@ const Cuerpos = (() => {
 
   function senalar(cual) {
     senalada = cual ? { id: cual.id, cara: cual.cara } : null;
-    if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();
+    if (window.pintar) window.pintar();
     return senalada;
   }
 

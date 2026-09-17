@@ -667,7 +667,7 @@ function invalidarPlano() { _planoLlave = null; }
 
 function llavePlano() {
   const v = estado.vista;
-  return `${v.x}|${v.y}|${v.escala}|${lienzo.width}|${lienzo.height}|` +
+  return `${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
          `${tema().cual}|${estado.modo}|${estado.prefs && estado.prefs.borrador ? "b" : ""}`;
 }
 
@@ -715,6 +715,10 @@ window.Parpadeo = Parpadeo;
 // pruebas. Son las dos únicas puertas entre milímetros y pantalla.
 window.aPX = aPX;
 window.aMM = aMM;
+// Y el repintado, para la cámara, los cuerpos y el gesto del 3D. En 0.6.0
+// pedían repintar por un nombre que no existía y el cuadro llegaba tarde.
+window.pintar = pintar;
+window.invalidarPlano = invalidarPlano;
 
 /** Pide un repintado. No pinta: lo agenda para el próximo cuadro.
  *
@@ -755,7 +759,7 @@ function dibujarPlano(c, fondo = true) {
     c.clearRect(0, 0, anchoPX, altoPX);
     c.fillStyle = T.lienzo;
     c.fillRect(0, 0, anchoPX, altoPX);
-    pintarRejilla(c);
+    if (!(estado.vista.rx || estado.vista.rz)) pintarRejilla(c);   // girada no significa nada
   }
 
   c.lineCap = "round";
@@ -763,7 +767,11 @@ function dibujarPlano(c, fondo = true) {
 
   // Lo que se ve, en milímetros, con un margen para que un trazo grueso que
   // asoma por el borde no desaparezca de golpe.
-  const margen = 20 / esc;
+  // Con la cámara girada la ventana en milímetros no dice la verdad: lo que en
+  // planta queda fuera puede estar en pantalla. Se pinta todo, y las líneas
+  // pasan por aPX en vez del camino rápido, que sólo sabe de planta.
+  const girada = !!(estado.vista.rx || estado.vista.rz);
+  const margen = girada ? 1e12 : 20 / esc;
   const mx0 = vx - margen, mx1 = vx + anchoPX / esc + margen;
   const my1 = vy + margen, my0 = vy - altoPX / esc - margen;
 
@@ -817,7 +825,7 @@ function dibujarPlano(c, fondo = true) {
     // manchas que caen en el mismo píxel son una: alejado del todo, un plano
     // de obra tiene decenas de miles de cosas en unos cuantos miles de
     // píxeles, y pintar veinte veces el mismo punto es puro desperdicio.
-    if ((bb[2] - bb[0]) * esc < MINIMO_PX && (bb[3] - bb[1]) * esc < MINIMO_PX) {
+    if (!girada && (bb[2] - bb[0]) * esc < MINIMO_PX && (bb[3] - bb[1]) * esc < MINIMO_PX) {
       const x = (((bb[0] + bb[2]) / 2 - vx) * esc) | 0;
       const y = ((vy - (bb[1] + bb[3]) / 2) * esc) | 0;
       const px = x * 65536 + y;
@@ -835,7 +843,9 @@ function dibujarPlano(c, fondo = true) {
     c.beginPath();
     for (const pol of t.poligonos) {
       for (let i = 0; i < pol.length; i++) {
-        const px = (pol[i][0] - vx) * esc, py = (vy - pol[i][1]) * esc;
+        let px, py;
+        if (girada) { const q = aPX(pol[i][0], pol[i][1], 0); px = q[0]; py = q[1]; }
+        else { px = (pol[i][0] - vx) * esc; py = (vy - pol[i][1]) * esc; }
         i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
       }
       c.closePath();
@@ -944,6 +954,12 @@ function _anotarLento(desglose) {
 }
 
 function pintarYa() {
+  // Si un cuadro truena, se anota y el programa sigue vivo. En 0.6.0 un
+  // error de dibujo se repetía en cada cuadro y dejó a Mike sin programa.
+  try { _pintarYaCrudo(); }
+  catch (e) { console.error("[vista] el cuadro tronó, el programa sigue:", e); }
+}
+function _pintarYaCrudo() {
   const anchoPX = lienzo.clientWidth, altoPX = lienzo.clientHeight;
   const tCuadro = performance.now();
   let tPlano = 0, tFoto = 0;

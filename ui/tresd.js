@@ -150,7 +150,7 @@ const TresD = (() => {
       arrastre.avisado = true;
       Comandos.eco("Esa cara se ve de canto: gira un poco la vista con ORBITAR para poder jalarla.", "malo");
     }
-    if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();
+    if (window.pintar) window.pintar();
     return true;
   }
 
@@ -158,7 +158,7 @@ const TresD = (() => {
     const a = arrastre;
     arrastre = null;
     if (!a) return false;
-    if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();
+    if (window.pintar) window.pintar();
     if (a.mm === null || Math.abs(a.mm) < 0.5) return true;   // un clic no es una jalada
     await jalar(a.id, a.cara, a.mm);
     return true;
