@@ -513,6 +513,7 @@ def trazos_de(doc: Documento, e) -> list[dict]:
     base = {
         "id": e.id,
         "capa": e.capa,
+        "plano": getattr(e, "plano", "XY"),
         "color": doc.color_efectivo(e),
         "grosor": doc.grosor_efectivo(e) / 100.0,      # a milímetros
         "patron": mod_capas.TIPOS_LINEA.get(

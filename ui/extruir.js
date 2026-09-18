@@ -29,7 +29,7 @@ const Extrusion = (() => {
     const out = [];
     for (const t of (typeof estado !== "undefined" && estado.trazos) || []) {
       if (!quiero.has(t.id) || !t.puntos || t.puntos.length < 2) continue;
-      out.push(t.puntos.map((p) => [p[0], p[1]]));
+      out.push({ plano: t.plano || "XY", pts: t.puntos.map((p) => [p[0], p[1]]) });
     }
     return out;
   }
@@ -66,7 +66,8 @@ const Extrusion = (() => {
   function mmDe(px, py) {
     const a = activa;
     if (a.px0 === null) { a.px0 = px; a.py0 = py; return 0; }
-    const q0 = window.aPX(0, 0, 0), q1 = window.aPX(0, 0, 1);
+    const n = Planos.normal(a.contornos[0].plano);
+    const q0 = window.aPX(0, 0, 0), q1 = window.aPX(n[0], n[1], n[2]);
     let dir = [q1[0] - q0[0], q1[1] - q0[1]];
     let largo = Math.hypot(dir[0], dir[1]);
     if (largo < 1e-6) { dir = [0, -1]; largo = 1; }
@@ -135,16 +136,17 @@ const Extrusion = (() => {
     c.strokeStyle = "rgba(255,211,90,0.95)";
     c.fillStyle = "rgba(255,211,90,0.18)";
     c.lineWidth = 1.5;
-    for (const pts of a.contornos) {
+    for (const { plano, pts } of a.contornos) {
       c.setLineDash([6, 4]);
       c.beginPath();
-      pts.forEach((p, i) => { const q = window.aPX(p[0], p[1], a.mm); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
+      pts.forEach((p, i) => { const m = Planos.aMundo(plano, p[0], p[1], a.mm); const q = window.aPX(m[0], m[1], m[2]); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
       c.closePath();
       c.fill();
       c.stroke();
       c.setLineDash([2, 3]);
       for (const p of pts) {
-        const q0 = window.aPX(p[0], p[1], 0), q1 = window.aPX(p[0], p[1], a.mm);
+        const m0 = Planos.aMundo(plano, p[0], p[1], 0), m1 = Planos.aMundo(plano, p[0], p[1], a.mm);
+        const q0 = window.aPX(m0[0], m0[1], m0[2]), q1 = window.aPX(m1[0], m1[1], m1[2]);
         c.beginPath(); c.moveTo(q0[0], q0[1]); c.lineTo(q1[0], q1[1]); c.stroke();
       }
     }

@@ -186,7 +186,8 @@ const Visor = (() => {
           c.beginPath();
           for (const pol of t.poligonos) {
             for (let i = 0; i < pol.length; i++) {
-              const q = aPX(pol[i][0], pol[i][1], 0);
+              const mp = Planos.aMundo(t.plano || "XY", pol[i][0], pol[i][1], 0);
+              const q = aPX(mp[0], mp[1], mp[2]);
               i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]);
             }
             c.closePath();
@@ -201,7 +202,8 @@ const Visor = (() => {
         c.setLineDash(patron ? patron.map((v) => Math.max(1, Math.abs(v) * escala * (t.escala_tl || 1))) : []);
         c.beginPath();
         for (let i = 0; i < pts.length; i++) {
-          const q = aPX(pts[i][0], pts[i][1], 0);
+          const mp = Planos.aMundo(t.plano || "XY", pts[i][0], pts[i][1], 0);
+          const q = aPX(mp[0], mp[1], mp[2]);
           i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]);
         }
         c.stroke();
@@ -251,7 +253,8 @@ const Visor = (() => {
     const girada = !!(ctx.rx || ctx.rz);
     for (const t of textos) {
       const alturaPX = t.altura * escala;
-      const q = aPX(t.p[0], t.p[1], 0);
+      const mp = Planos.aMundo(t.plano || "XY", t.p[0], t.p[1], 0);
+      const q = aPX(mp[0], mp[1], mp[2]);
       c.save();
       c.translate(q[0], q[1]);
       if (t.rotacion && !girada) c.rotate(-t.rotacion * Math.PI / 180);

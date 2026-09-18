@@ -54,6 +54,44 @@ def _factor_mm() -> float:
     return float(MM_POR_NOMBRE.get(getattr(_doc(), "unidades", "mm"), 1.0))
 
 
+def _a_mundo(plano: str, p):
+    """(u, v, w) del kernel → (x, y, z) del mundo. Rotaciones, no espejos:
+    XZ → (u, −w, v), hacia quien mira la Frontal; YZ → (w, u, v), hacia +X.
+    `ui/planos.js` hace exactamente la misma cuenta."""
+    u, v, w = p[0], p[1], p[2] if len(p) > 2 else 0.0
+    if plano == "XZ":
+        return [u, -w, v]
+    if plano == "YZ":
+        return [w, u, v]
+    return [u, v, w]
+
+
+def _al_mundo(m: dict, plano: str) -> dict:
+    """La malla del kernel, ya en el mundo. El kernel siempre trabaja en XY:
+    ahí los nombres de caras están probados. La pieza se rota al salir."""
+    if plano in (None, "", "XY"):
+        return m
+    for cara in m.get("caras", []):
+        v = cara.get("v") or []
+        nuevo = []
+        for k in range(0, len(v), 3):
+            nuevo.extend(_a_mundo(plano, (v[k], v[k + 1], v[k + 2])))
+        cara["v"] = nuevo
+    m["aristas"] = [[_a_mundo(plano, p) for p in a] for a in m.get("aristas", [])]
+    return m
+
+
+def _rotar(solido, plano: str):
+    """Lo mismo para el sólido que se exporta: la rotación que lleva el plano
+    del kernel al del mundo."""
+    from build123d import Axis
+    if plano == "XZ":
+        return solido.rotate(Axis.X, 90)
+    if plano == "YZ":
+        return solido.rotate(Axis((0, 0, 0), (1, 1, 1)), 120)
+    return solido
+
+
 def _malla(cuerpo):
     from core.solido import cuerpo as mod
     try:
@@ -62,6 +100,7 @@ def _malla(cuerpo):
         # El kernel habla en inglés y con nombres de clase. Aquí se contesta en
         # el idioma del taller, y el cuerpo se queda como estaba.
         raise HTTPException(400, f"no se pudo construir la pieza: {e}") from e
+    m = _al_mundo(m, getattr(cuerpo, "plano", "XY"))
     f = _factor_mm()
     if f != 1.0 and "volumen_mm3" in m:
         m["volumen_mm3"] = round(m["volumen_mm3"] * f ** 3, 1)
@@ -96,7 +135,8 @@ def extruir(entrada: Extruir):
 
     import time
     t0 = time.perf_counter()
-    nuevo = Cuerpo(operaciones=ops, capa=entidades[0].get("capa", "0"))
+    nuevo = Cuerpo(operaciones=ops, capa=entidades[0].get("capa", "0"),
+                   plano=entidades[0].get("plano", "XY"))
     with doc.transaccion("extruir"):
         doc.agregar(nuevo)
     salida = _malla(nuevo)
@@ -213,6 +253,7 @@ def exportar(id_: str, entrada: Exportar):
     # grande que los números del kernel, que es lo que mide de verdad.
     f = _factor_mm()
     solido = reg.solido.scale(f) if f != 1.0 else reg.solido
+    solido = _rotar(solido, getattr(c, "plano", "XY"))
     if formato == "step":
         export_step(solido, str(destino))
     elif formato == "stl":

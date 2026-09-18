@@ -67,6 +67,23 @@ const Ventanas = (() => {
     return i >= 0 && py - ventanas[i].oy < TITULO ? i : -1;
   }
 
+  /** Navegar —pan, zoom, órbita— en la ventana bajo el cursor sin cambiar
+   *  la activa: la activa es de los comandos, y se elige con clic. Mike lo
+   *  quiso así: híbrido. Dura lo que dura el gesto. */
+  let navegando = null;
+  function navegarEn(px, py) {
+    const i = bajo(px, py);
+    if (i < 0 || i === activa || typeof estado === "undefined") return false;
+    navegando = i;
+    estado.vista = ventanas[i];
+    return true;
+  }
+  function terminarNavegacion() {
+    if (navegando === null || typeof estado === "undefined") return;
+    navegando = null;
+    estado.vista = ventanas[activa];
+  }
+
   /** Activar: la cámara de esa ventana pasa a ser `estado.vista`. */
   function activar(i) {
     if (i < 0 || i >= ventanas.length || i === activa) return false;
@@ -181,6 +198,7 @@ const Ventanas = (() => {
 
   return { ventanas, repartir, la, laActiva, bajo, enTitulo, activar, maximizar,
            adoptar, encuadrarTodas, pintarTodas, proyectar, TITULO,
+           navegarEn, terminarNavegacion,
            encuadrarUna: (i, puntos) => encuadrarTodas(puntos, proyectar, i),
            get activa() { return activa; }, get maximizada() { return maximizada; } };
 })();

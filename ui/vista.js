@@ -87,6 +87,9 @@ const aMM = (px, py) => {
     const k = 1 / Math.max(0.1, 1 - t * vy);
     ux = v.x + ((px - cxs) / k + cxs - (v.ox || 0)) / v.escala;
   }
+  // En la Frontal y la Lateral lo que se devuelve son las coordenadas del
+  // plano de la ventana —(x, z) o (y, z)—, que es donde se dibuja ahí.
+  if (v.plano === "XZ" || v.plano === "YZ") return [ux, vy];
   const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;
   const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
   return [ux * cz + uy * sz, -ux * sz + uy * cz];
@@ -1162,28 +1165,30 @@ function pintarImagenRef(t, c = ctx) {
 // mueve el cursor. Una herramienta devuelve una parte, o varias; así la
 // polilínea puede pintar a la vez lo que ya lleva y el tramo que va colgando.
 function pintarParte(h, c = ctx) {
+  // Cada parte va por su plano, o por el de la ventana activa si no lo trae.
+  const P = (x, y) => { const m = typeof Planos !== "undefined" ? Planos.aMundo(h.plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0]; return aPX(m[0], m[1], m[2]); };
   if (!h) return;
   c.beginPath();
   if (h.tipo === "linea") {
-    const [ax, ay] = aPX(h.a[0], h.a[1]);
-    const [bx, by] = aPX(h.b[0], h.b[1]);
+    const [ax, ay] = P(h.a[0], h.a[1]);
+    const [bx, by] = P(h.b[0], h.b[1]);
     c.moveTo(ax, ay); c.lineTo(bx, by);
   } else if (h.tipo === "caja") {
-    const [ax, ay] = aPX(h.a[0], h.a[1]);
-    const [bx, by] = aPX(h.b[0], h.b[1]);
+    const [ax, ay] = P(h.a[0], h.a[1]);
+    const [bx, by] = P(h.b[0], h.b[1]);
     c.rect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
   } else if (h.tipo === "polilinea") {
     const pts = h.puntos || [];
     for (let i = 0; i < pts.length; i++) {
-      const [px, py] = aPX(pts[i][0], pts[i][1]);
+      const [px, py] = P(pts[i][0], pts[i][1]);
       i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
     }
     if (h.cerrada && pts.length > 2) c.closePath();
   } else if (h.tipo === "circulo") {
-    const [cx, cy] = aPX(h.c[0], h.c[1]);
+    const [cx, cy] = P(h.c[0], h.c[1]);
     c.arc(cx, cy, Math.abs(h.r) * estado.vista.escala, 0, Math.PI * 2);
   } else if (h.tipo === "arco") {
-    const [cx, cy] = aPX(h.c[0], h.c[1]);
+    const [cx, cy] = P(h.c[0], h.c[1]);
     // El lienzo tiene la Y al revés que el dibujo, así que el sentido del
     // barrido también se invierte.
     c.arc(cx, cy, Math.abs(h.r) * estado.vista.escala,
@@ -1191,7 +1196,7 @@ function pintarParte(h, c = ctx) {
   } else if (h.tipo === "texto") {
     // Texto de una previa (la cifra de una cota): mismo tamaño y giro que
     // tendrá la entidad, para que lo que se ve sea lo que va a quedar.
-    const [px, py] = aPX(h.p[0], h.p[1]);
+    const [px, py] = P(h.p[0], h.p[1]);
     const alturaPX = (h.altura || 2.5) * estado.vista.escala;
     if (alturaPX >= 3) {
       c.save();
@@ -1206,14 +1211,14 @@ function pintarParte(h, c = ctx) {
     }
     return;                                  // no hay trazo que dar
   } else if (h.tipo === "marca") {
-    const [px, py] = aPX(h.p[0], h.p[1]);
+    const [px, py] = P(h.p[0], h.p[1]);
     c.moveTo(px - 5, py); c.lineTo(px + 5, py);
     c.moveTo(px, py - 5); c.lineTo(px, py + 5);
   } else if (h.tipo === "relleno") {
     // La previa de un rayado sólido: el contorno relleno, translúcido.
     for (const pol of h.poligonos || []) {
       for (let i = 0; i < pol.length; i++) {
-        const [px, py] = aPX(pol[i][0], pol[i][1]);
+        const [px, py] = P(pol[i][0], pol[i][1]);
         i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
       }
       c.closePath();
@@ -1227,8 +1232,8 @@ function pintarParte(h, c = ctx) {
   } else if (h.tipo === "lineas") {
     // Muchas rayas de un jalón (la previa de un patrón de rayado).
     for (const par of h.lineas || []) {
-      const [ax, ay] = aPX(par[0][0], par[0][1]);
-      const [bx, by] = aPX(par[1][0], par[1][1]);
+      const [ax, ay] = P(par[0][0], par[0][1]);
+      const [bx, by] = P(par[1][0], par[1][1]);
       c.moveTo(ax, ay); c.lineTo(bx, by);
     }
   }
@@ -1489,14 +1494,15 @@ lienzo.addEventListener("mousedown", (e) => {
       invalidarPlano(); pintar(); e.preventDefault(); return;
     }
     const i = Ventanas.bajo(vx0, vy0);
-    if (i >= 0 && i !== Ventanas.activa) { Ventanas.activar(i); invalidarPlano(); pintar(); }
+    if (e.button === 0 && i >= 0 && i !== Ventanas.activa) { Ventanas.activar(i); invalidarPlano(); pintar(); }
+    if (e.button === 1) Ventanas.navegarEn(vx0, vy0);      // pan u órbita donde está el cursor
   }
   // Botón derecho: la rueda si se arrastra, Enter si se suelta sin mover.
   if (e.button === 2) { Radial.abajo(e); e.preventDefault(); return; }
   // Alt + botón central: orbitar. Sin Alt, el central sigue siendo pan.
   // Botón central: en la Perspectiva orbita y Alt + central hace pan. En las
   // otras tres el central es pan, como siempre, y Alt + central orbita.
-  if (e.button === 1 && typeof Camara !== "undefined" && (estado.vista.persp ? !e.altKey : e.altKey)) { Camara.arrastrar(e); e.preventDefault(); return; }
+  if (e.button === 1 && typeof Camara !== "undefined" && estado.vista.persp && !e.shiftKey) { Camara.arrastrar(e); e.preventDefault(); return; }
   if (esPan(e)) {
     if (e.button === 0) window.__espacioArrastro = true;   // que el espacio no confirme al soltar
     arrastrePan = { px: e.clientX, py: e.clientY, vx: estado.vista.x, vy: estado.vista.y };
@@ -1545,6 +1551,7 @@ lienzo.addEventListener("mouseup", (e) => {
 });
 
 window.addEventListener("mouseup", (e) => {
+  if (typeof Ventanas !== "undefined") Ventanas.terminarNavegacion();
   if (arrastrePan) { arrastrePan = null; lienzo.style.cursor = ""; Regen.terminarGesto(); }
   if (e.button === 2) Radial.arriba(e);
 });
@@ -1564,12 +1571,6 @@ lienzo.addEventListener("mousemove", (e) => {
   if (typeof TresD !== "undefined" && TresD.mover(e)) return;
   const caja = lienzo.getBoundingClientRect();
   const px = e.clientX - caja.left, py = e.clientY - caja.top;
-  // La ventana se activa con solo pasar el mouse: zoom, pan y órbita van
-  // donde está el cursor. No mientras se arrastra algo.
-  if (typeof Ventanas !== "undefined" && e.buttons === 0 && !(typeof Extrusion !== "undefined" && Extrusion.activa())) {
-    const iv = Ventanas.bajo(px, py);
-    if (iv >= 0 && iv !== Ventanas.activa) { Ventanas.activar(iv); invalidarPlano(); }
-  }
   const [mx, my] = aMM(px, py);
   estado.cursor = { px, py, x: mx, y: my };
   // El ratón sabe si Shift está apretado aunque el teclado se haya perdido un
@@ -1604,7 +1605,9 @@ lienzo.addEventListener("wheel", (e) => {
   e.preventDefault();
   const caja = lienzo.getBoundingClientRect();
   const f = (estado.prefs && estado.prefs.zoom_rueda) || 1.15;
+  if (typeof Ventanas !== "undefined") Ventanas.navegarEn(e.clientX - caja.left, e.clientY - caja.top);
   zoomEn(e.clientX - caja.left, e.clientY - caja.top, e.deltaY < 0 ? f : 1 / f);
+  if (typeof Ventanas !== "undefined") Ventanas.terminarNavegacion();
   Entrada.alMoverse();
 }, { passive: false });
 

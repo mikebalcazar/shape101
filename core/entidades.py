@@ -74,6 +74,9 @@ class Entidad:
     # A qué grupo pertenece, si a alguno. Picar un miembro selecciona el
     # grupo entero. Ver `core/agrupar.py`.
     grupo: str = ""
+    # En qué plano vive: XY (el suelo), XZ (la Frontal) o YZ (la Lateral).
+    # Los archivos viejos no lo traen y valen XY. Ver ui/planos.js.
+    plano: str = "XY"
 
     tipo: str = field(init=False, default="entidad")
 

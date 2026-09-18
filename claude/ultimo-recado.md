@@ -2,18 +2,25 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-18T14:48:01+00:00
-- recado: 0.10.0, el paquete completo de las cuatro vistas
+- corrido: 2026-09-18T15:45:25+00:00
+- recado: 0.11.0, planos por ventana y activación híbrida
 
 ```
-ui/ventanas.js (la Perspectiva lleva perspectiva): parchado
-ui/vista.js (perspectiva en las conversiones): parchado
-ui/vista.js (la capa de encima, ventana por ventana): parchado
-ui/vista.js (central orbita en la Perspectiva): parchado
-ui/vista.js (mouse over activa): parchado
-ui/camara.js (pivote bajo el cursor): parchado
-ui/tresd.js (EXTRUIR interactivo): parchado
-ui/index.html (carga extruir): parchado
-versión 0.9.0 → 0.10.0
-los cinco archivos pasan node --check
+core/entidades.py (cada línea sabe su plano): parchado
+core/dibujo.py (los trazos llevan el plano): parchado
+core/solido/rutas.py (la pieza se rota al salir): parchado
+pruebas/t024_planos.py escrita
+ui/ventanas.js (navegar sin activar): parchado
+ui/vista.js (central navega; orbitar sólo en la Perspectiva): parchado
+ui/vista.js (el mouse over ya no activa): parchado
+ui/vista.js (rueda y soltar): parchado
+ui/vista.js (aMM por plano): parchado
+ui/vista.js (pintarParte por plano): 12 conversiones pasan por el plano
+ui/visor.js (pinta cada trazo en su plano): parchado
+ui/dibujar.js (lo nuevo nace en el plano de la ventana): parchado
+ui/extruir.js (el fantasma en su plano): parchado
+ui/index.html (carga los planos): parchado
+versión 0.10.0 → 0.11.0
+seis archivos de la pantalla pasan node --check; cuatro de Python siguen válidos
+planos.js y el motor hacen la misma cuenta
 ```

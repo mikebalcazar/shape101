@@ -18,6 +18,8 @@
 /* --- Utilidades comunes ------------------------------------------------- */
 
 async function crearEntidad(entidad, accion) {
+  // Lo nuevo nace en el plano de la ventana activa.
+  if (entidad && !entidad.plano && estado.vista && estado.vista.plano) entidad.plano = estado.vista.plano;
   const r = await post("/api/entidad", { entidad, accion });
   aplicar(r);
   if (!aplicarParche(r)) await recargarTrazos();
@@ -25,6 +27,7 @@ async function crearEntidad(entidad, accion) {
 }
 
 async function crearVarias(entidades, accion) {
+  for (const en of entidades || []) if (en && !en.plano && estado.vista && estado.vista.plano) en.plano = estado.vista.plano;
   const r = await post("/api/entidades", { entidades, accion });
   aplicar(r);
   if (!aplicarParche(r)) await recargarTrazos();
