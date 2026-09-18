@@ -172,8 +172,14 @@ const Visor = (() => {
       // El plano de trabajo, apenas insinuado: sin él no se sabe dónde está el
       // suelo cuando la pieza es lo único que hay.
       dibujarSuelo(c, ctx);
+      dibujarRejilla(c, ctx);
+      const textos = [];
       for (const t of ctx.trazos || []) {
         if (t.clase === "imagen") continue;
+        if (t.texto !== undefined && t.altura) {
+          if (t.altura * escala >= 4) textos.push(t);   // más chico no se lee
+          continue;
+        }
         const grosor = ctx.borrador ? 1 : Math.max(1, (t.grosor || 0) * 3.78 * 0.35);
         if (t.poligonos && t.poligonos.length) {
           c.fillStyle = colorDe(t.color);
@@ -201,10 +207,60 @@ const Visor = (() => {
         c.stroke();
       }
       c.setLineDash([]);
+      dibujarTextos(c, ctx, textos);
       if (typeof Cuerpos !== "undefined") Cuerpos.pintar(c, ctx.oscuro);
     } catch (e) {
       // El ciclo de pintado nunca muere.
       console.error("[visor] el cuadro tronó, el programa sigue:", e);
+    }
+  }
+
+  /** La rejilla, sobre el plano de trabajo y proyectada: girada se ve en
+   *  perspectiva, que es lo que dice dónde está el suelo. El paso se elige
+   *  para que las líneas queden a 12 px o más; más juntas son ruido. */
+  function dibujarRejilla(c, ctx) {
+    if (ctx.rejilla === false) return;
+    const { aPX, escala } = ctx;
+    const pasos = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const paso = pasos.find((p) => p * escala >= 12) || 10000;
+    const lim = ctx.extension || { x0: -500, y0: -500, x1: 500, y1: 500 };
+    const x0 = Math.floor(lim.x0 / paso) * paso, x1 = Math.ceil(lim.x1 / paso) * paso;
+    const y0 = Math.floor(lim.y0 / paso) * paso, y1 = Math.ceil(lim.y1 / paso) * paso;
+    if ((x1 - x0) / paso > 400 || (y1 - y0) / paso > 400) return;   // un plano enorme: sin rejilla
+    c.save();
+    c.lineWidth = 1;
+    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
+    c.beginPath();
+    for (let x = x0; x <= x1; x += paso) { const a = aPX(x, y0, 0), b = aPX(x, y1, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
+    for (let y = y0; y <= y1; y += paso) { const a = aPX(x0, y, 0), b = aPX(x1, y, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
+    c.stroke();
+    // Los ejes, un poco más marcados: sin ellos no se sabe dónde está el cero.
+    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.2)";
+    c.beginPath();
+    let a = aPX(x0, 0, 0), b = aPX(x1, 0, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
+    a = aPX(0, y0, 0); b = aPX(0, y1, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
+    c.stroke();
+    c.restore();
+  }
+
+  /** Los textos, como los pintaba el lienzo viejo: en su punto, con su altura,
+   *  su ángulo y su alineación. Girada la vista se pintan de frente a quien
+   *  mira (no tumbados sobre el plano): se leen, que es para lo que están. */
+  function dibujarTextos(c, ctx, textos) {
+    const { aPX, colorDe, escala } = ctx;
+    const girada = !!(ctx.rx || ctx.rz);
+    for (const t of textos) {
+      const alturaPX = t.altura * escala;
+      const q = aPX(t.p[0], t.p[1], 0);
+      c.save();
+      c.translate(q[0], q[1]);
+      if (t.rotacion && !girada) c.rotate(-t.rotacion * Math.PI / 180);
+      c.fillStyle = colorDe(t.color);
+      c.font = `${alturaPX}px Cifras, Raleway, sans-serif`;
+      c.textAlign = t.alineacion === "CENTRO" ? "center" : t.alineacion === "DER" ? "right" : "left";
+      const lineas = String(t.texto).split("\n");
+      for (let i = 0; i < lineas.length; i++) c.fillText(lineas[i], 0, i * alturaPX * 1.25);
+      c.restore();
     }
   }
 
@@ -218,6 +274,7 @@ const Visor = (() => {
     }
     if (!isFinite(x0)) { x0 = -500; y0 = -500; x1 = 500; y1 = 500; }
     const mx = (x1 - x0) * 0.25 + 50, my = (y1 - y0) * 0.25 + 50;
+    ctx.extension = { x0: x0 - mx, y0: y0 - my, x1: x1 + mx, y1: y1 + my };
     const esquinas = [[x0 - mx, y0 - my], [x1 + mx, y0 - my], [x1 + mx, y1 + my], [x0 - mx, y1 + my]];
     c.save();
     c.fillStyle = ctx.oscuro ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";

@@ -757,11 +757,14 @@ function dibujarPlano(c, fondo = true) {
   const oscuro = estado.modo === "papel" ? false : T.oscuro;
   // Girada, pinta el visor nuevo: un solo espacio, sin los atajos de planta.
   // En planta sigue todo lo de abajo, intacto, con sus cachés y sus pruebas.
-  if ((estado.vista.rx || estado.vista.rz) && typeof Visor !== "undefined") {
+  // El visor pinta siempre. Sólo el modo papel —las hojas, de donde sale el
+  // PDF— se queda con el pintado viejo: es otro oficio y no tiene 3D.
+  if (estado.modo !== "papel" && typeof Visor !== "undefined") {
     return Visor.pintarPlano(c, {
       ancho: lienzo.clientWidth, alto: lienzo.clientHeight, fondo,
       lienzoColor: T.lienzo, oscuro, escala: estado.vista.escala, trazos: estado.trazos,
       borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
+      rx: estado.vista.rx || 0, rz: estado.vista.rz || 0,
       colorDe: (hex) => colorDeTrazo(hex, oscuro),
     });
   }
@@ -1401,6 +1404,8 @@ function esPan(e) {
 lienzo.addEventListener("mousedown", (e) => {
   // Botón derecho: la rueda si se arrastra, Enter si se suelta sin mover.
   if (e.button === 2) { Radial.abajo(e); e.preventDefault(); return; }
+  // Alt + botón central: orbitar. Sin Alt, el central sigue siendo pan.
+  if (e.button === 1 && e.altKey && typeof Camara !== "undefined") { Camara.arrastrar(e); e.preventDefault(); return; }
   if (esPan(e)) {
     if (e.button === 0) window.__espacioArrastro = true;   // que el espacio no confirme al soltar
     arrastrePan = { px: e.clientX, py: e.clientY, vx: estado.vista.x, vy: estado.vista.y };

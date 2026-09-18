@@ -117,7 +117,26 @@ const Camara = (() => {
     Comandos.eco("cámara: " + (enPlanta() ? "planta" : `girada ${Math.round(estado.vista.rz / GRADO)}°`));
   }
 
-  return { poner, ver, enPlanta, empezarAOrbitar, terminar, VISTAS };
+  /** Orbitar arrastrando desde un botón del ratón, sin entrar en un modo:
+   *  Alt + botón central, idea de Mike (17-sep). Se suelta el botón y se
+   *  acabó. Lo llama el lienzo desde su propio mousedown. */
+  function arrastrar(e) {
+    const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
+    const mover = (ev) => {
+      poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
+            a.rz + (ev.clientX - a.x) * 0.008);
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    const soltar = () => {
+      window.removeEventListener("mousemove", mover, true);
+      window.removeEventListener("mouseup", soltar, true);
+    };
+    window.addEventListener("mousemove", mover, true);
+    window.addEventListener("mouseup", soltar, true);
+  }
+
+  return { poner, ver, enPlanta, empezarAOrbitar, terminar, arrastrar, VISTAS };
 })();
 
 window.Camara = Camara;

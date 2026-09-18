@@ -21,13 +21,27 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 FECHA = "2026-09-18"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.8.0",
+        "fecha": "2026-09-18",
+        "cambios": [
+            "Ya no hay un plano 2D aparte: el dibujo vive sobre el suelo del 3D y el visor "
+            "nuevo pinta siempre, también en planta. Dos pintores para el mismo espacio era lo "
+            "que hacía lento girar. Las hojas de impresión siguen como estaban.",
+            "Orbitar es Alt + botón central del ratón, arrastrando. ORBITAR sigue existiendo "
+            "para quien no tenga botón central.",
+            "La rejilla se ve también girada, en perspectiva, con los ejes marcados para "
+            "saber dónde está el cero. Los textos vuelven a verse girados, de frente a quien "
+            "mira.",
+        ],
+    },
     {
         "version": "0.7.0",
         "fecha": "2026-09-18",
