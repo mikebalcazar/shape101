@@ -96,17 +96,17 @@ const Camara = (() => {
     const tecla = (e) => { if (e.key === "Escape" || e.key === "Enter") terminar(); };
 
     orbitando = { arrastre: null, quitar: () => {
-      el.removeEventListener("pointerdown", abajo, true);
-      window.removeEventListener("pointermove", mover, true);
-      window.removeEventListener("pointerup", arriba, true);
+      el.removeEventListener("mousedown", abajo, true);
+      window.removeEventListener("mousemove", mover, true);
+      window.removeEventListener("mouseup", arriba, true);
       window.removeEventListener("keydown", tecla, true);
       el.style.cursor = "";
     } };
     // En captura, para ganarle a la selección y al pan: mientras se orbita, el
     // ratón es de la cámara y de nadie más.
-    el.addEventListener("pointerdown", abajo, true);
-    window.addEventListener("pointermove", mover, true);
-    window.addEventListener("pointerup", arriba, true);
+    el.addEventListener("mousedown", abajo, true);
+    window.addEventListener("mousemove", mover, true);
+    window.addEventListener("mouseup", arriba, true);
     window.addEventListener("keydown", tecla, true);
   }
 

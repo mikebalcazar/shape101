@@ -2,18 +2,16 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-17T23:32:49+00:00
-- recado: 0.6.1, repintar, girar las líneas y no morir al pintar
+- corrido: 2026-09-18T00:09:56+00:00
+- recado: 0.7.0, el visor toma el mando girado
 
 ```
-ui/vista.js (repintado expuesto): parchado
-ui/vista.js (la llave del plano): parchado
-ui/vista.js (las líneas por la cámara): parchado
-ui/vista.js (el ciclo de pintado nunca muere): parchado
-ui/camara.js (repintar de verdad): parchado
-ui/cuerpos.js (repintar de verdad): parchado
-ui/tresd.js (repintar de verdad): parchado
-versión 0.6.0 → 0.6.1
+ui/vista.js (girada pinta el visor): parchado
+ui/vista.js (zoom en el espacio de la cámara): parchado
+ui/camara.js (mismos eventos que el lienzo): parchado
+ui/cuerpos.js (la pieza cambió: se invalida el plano): parchado
+ui/index.html (carga el visor): parchado
+versión 0.6.1 → 0.7.0
 los cuatro archivos tocados pasan node --check
-ya nadie pide repintar por Vista.pintar
+la órbita escucha mouse, como el lienzo
 ```

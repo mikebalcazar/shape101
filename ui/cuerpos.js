@@ -49,6 +49,7 @@ const Cuerpos = (() => {
     } finally {
       pidiendo = false;
     }
+    if (window.invalidarPlano) window.invalidarPlano();
     if (window.pintar) window.pintar();
   }
 
@@ -58,6 +59,7 @@ const Cuerpos = (() => {
     try {
       mallas.set(id, await pedir(`/api/cuerpo/${id}/malla`));
     } catch (e) { /* se queda la anterior, que es mejor que nada */ }
+    if (window.invalidarPlano) window.invalidarPlano();
     if (window.pintar) window.pintar();
   }
 
@@ -157,6 +159,7 @@ const Cuerpos = (() => {
 
   function senalar(cual) {
     senalada = cual ? { id: cual.id, cara: cual.cara } : null;
+    if (window.invalidarPlano) window.invalidarPlano();
     if (window.pintar) window.pintar();
     return senalada;
   }

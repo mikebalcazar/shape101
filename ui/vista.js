@@ -114,10 +114,14 @@ function encuadrarCaja(x0, y0, x1, y1) {
 }
 
 function zoomEn(px, py, factor) {
-  const [mx, my] = aMM(px, py);
-  estado.vista.escala = Math.min(500, Math.max(0.002, estado.vista.escala * factor));
-  estado.vista.x = mx - px / estado.vista.escala;     // el punto bajo el cursor
-  estado.vista.y = my + py / estado.vista.escala;     // se queda quieto
+  // En el espacio de la cámara, no en el del plano: vista.x y vista.y viven
+  // ahí. En planta son lo mismo; girado, mezclar los dos descentra el zoom
+  // media pantalla en cada tic de la rueda.
+  const v = estado.vista;
+  const ux = px / v.escala + v.x, vy = v.y - py / v.escala;
+  v.escala = Math.min(500, Math.max(0.002, v.escala * factor));
+  v.x = ux - px / v.escala;                            // el punto bajo el cursor
+  v.y = vy + py / v.escala;                            // se queda quieto
   Regen.gesto();
   pintar();
 }
@@ -751,6 +755,16 @@ function dibujarPlano(c, fondo = true) {
   // blanco y la nota que se acaba de escribir sería invisible. Es la misma
   // traducción que hace el plóter, y la que ya hacía el PDF.
   const oscuro = estado.modo === "papel" ? false : T.oscuro;
+  // Girada, pinta el visor nuevo: un solo espacio, sin los atajos de planta.
+  // En planta sigue todo lo de abajo, intacto, con sus cachés y sus pruebas.
+  if ((estado.vista.rx || estado.vista.rz) && typeof Visor !== "undefined") {
+    return Visor.pintarPlano(c, {
+      ancho: lienzo.clientWidth, alto: lienzo.clientHeight, fondo,
+      lienzoColor: T.lienzo, oscuro, escala: estado.vista.escala, trazos: estado.trazos,
+      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
+      colorDe: (hex) => colorDeTrazo(hex, oscuro),
+    });
+  }
   const esc = estado.vista.escala;
   const vx = estado.vista.x, vy = estado.vista.y;
   const anchoPX = lienzo.clientWidth, altoPX = lienzo.clientHeight;
