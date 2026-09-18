@@ -61,23 +61,23 @@ def _ida_y_vuelta(r: comun.Reporte, tmp) -> None:
     r.igual(len(aud.errors), 0, "el auditor de ezdxf no encuentra errores")
     r.igual(doc_dxf.dxfversion, "AC1027", "el DXF sale en R2013 (AC1027)")
 
-    r.igual(doc_dxf.header.get("$INSUNITS"), 5,
-            "el DXF declara la unidad en la que se dibujó (5 = cm)")
+    r.igual(doc_dxf.header.get("$INSUNITS"), 4,
+            "el DXF declara la unidad en la que se dibujó (4 = mm)")
 
     vuelto, informe = leer(ruta)
     tipos = sorted(e.tipo for e in vuelto.lista())
     r.igual(tipos, sorted(["linea", "polilinea", "circulo", "arco", "texto", "textom"]),
             "vuelven las seis, y del mismo tipo cada una")
 
-    # **Todo se compara en milímetros de verdad, no en números.** Un dibujo
-    # nuevo nace en centímetros y al abrir un archivo se convierte a la unidad
-    # que declara su encabezado: 1 200 cm vuelven como 12 000 mm, que es el
-    # mismo mueble. Comparar los números pelados haría fallar la prueba por
-    # una conversión correcta, y —peor— la haría pasar el día que la
-    # conversión se pierda.
+    # **Todo se compara en milímetros de verdad, no en números.** En shape101
+    # un dibujo nuevo nace en milímetros —decisión de Mike del primer día; en
+    # draw101 nacía en centímetros— y al abrir un archivo se convierte a la
+    # unidad que declara su encabezado. Comparar los números pelados haría
+    # fallar la prueba por una conversión correcta, y —peor— la haría pasar el
+    # día que la conversión se pierda.
     ki = doc.mm_por_unidad()
     kv = vuelto.mm_por_unidad()
-    r.casi(ki, 10.0, "el dibujo nuevo nace en centímetros")
+    r.casi(ki, 1.0, "el dibujo nuevo nace en milímetros")
     r.casi(kv, 1.0, "el archivo vuelve en la unidad que declara (mm)")
 
     def mm(v):
@@ -89,7 +89,7 @@ def _ida_y_vuelta(r: comun.Reporte, tmp) -> None:
     if r.cierto(linea is not None, "vuelve la línea"):
         r.punto(mm(linea.p1), [0, 0], "la línea vuelve con su primer punto")
         r.punto(mm(linea.p2), [1200 * ki, 0],
-                "la línea vuelve midiendo lo mismo (12 000 mm)")
+                "la línea vuelve midiendo lo mismo")
 
     pol = por_tipo.get("polilinea")
     if r.cierto(pol is not None, "vuelve la polilínea"):
