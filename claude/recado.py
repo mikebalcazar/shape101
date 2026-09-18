@@ -1,24 +1,20 @@
-"""El mandadero · recado 19: 0.7.0 — el visor toma el mando girado.
+"""El mandadero · recado 20: 0.8.0 — el visor pinta siempre.
 
-Lo que Mike vio en la 0.6.1, y su causa, cada una encontrada en el código:
+Mike, tras probar la 0.7.0 (todo funcionó): «ya no ocupemos un plano 2D, sólo
+entorpece el workflow. Dibujemos el 2D directo sobre el suelo del 3D». Y que
+orbitar sea Alt + botón central.
 
-1. **Lento, y las líneas se quedaban en 2D.** El recado 17 giró el bucle de los
-   rellenos (`t.poligonos`) y no el de las líneas (`t.puntos`), que va aparte
-   con la cuenta a mano. Parché el bucle equivocado. Y aun bien parchado, el
-   pintado viejo redibuja el plano entero con sus cachés peleando contra la
-   cámara. Solución: **cuando la cámara está girada, pinta el visor nuevo**
-   (`ui/visor.js`), sin lotes ni foto ni recorte. En planta sigue el pintado
-   de siempre, intacto, con sus 470 comprobaciones.
-2. **Orbitar raro al topar, y el pan se dispara solo.** La órbita escuchaba
-   eventos `pointer` y el lienzo escucha `mouse`: frenar unos no frena los
-   otros, así que los dos gestos corrían a la vez. Ahora la órbita escucha
-   los mismos `mouse` que el lienzo y se queda con ellos.
-3. **Zoom descentrado girado.** `zoomEn` convertía el cursor a coordenadas del
-   plano y las mezclaba con `vista.x`, que vive en el espacio de la cámara.
-   En planta son lo mismo; girado, se van por media pantalla. Ahora la cuenta
-   va en el espacio de la cámara: en planta da lo mismo de siempre.
-4. **Los sólidos no se redibujaban tras jalar.** La caché del plano no sabía
-   que la pieza cambió. Ahora, cuando una pieza cambia, se invalida el plano.
+Dos pintores para el mismo espacio —el viejo con cachés de planta, el visor sin
+ellas, y la app cambiando de uno a otro según el ángulo— era la frontera lenta.
+Ahora pinta el visor siempre. El modo **papel** (las hojas de impresión, de
+donde sale el PDF) sigue con el viejo: es otro oficio y no tiene 3D.
+
+Para que el visor pueda pintar en planta le faltaban dos cosas del viejo:
+la **rejilla** (ahora proyectada: girada se ve en perspectiva, con los ejes
+marcados para saber dónde está el cero) y los **textos** (en su punto, con su
+altura, ángulo y alineación; girados se pintan de frente a quien mira, para
+que se lean). Las dos van aquí como parches al visor, los mismos que se
+probaron en la máquina del chat con un lienzo de mentira.
 """
 from __future__ import annotations
 
@@ -31,8 +27,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/el-visor-toma-el-mando"
-VERSION = "0.7.0"
+RAMA = "claude/el-visor-pinta-siempre"
+VERSION = "0.8.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -85,20 +81,91 @@ def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
     anotar(f"{donde}: parchado")
 
 
+REJILLA_Y_TEXTOS = '''  /** La rejilla, sobre el plano de trabajo y proyectada: girada se ve en
+   *  perspectiva, que es lo que dice dónde está el suelo. El paso se elige
+   *  para que las líneas queden a 12 px o más; más juntas son ruido. */
+  function dibujarRejilla(c, ctx) {
+    if (ctx.rejilla === false) return;
+    const { aPX, escala } = ctx;
+    const pasos = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const paso = pasos.find((p) => p * escala >= 12) || 10000;
+    const lim = ctx.extension || { x0: -500, y0: -500, x1: 500, y1: 500 };
+    const x0 = Math.floor(lim.x0 / paso) * paso, x1 = Math.ceil(lim.x1 / paso) * paso;
+    const y0 = Math.floor(lim.y0 / paso) * paso, y1 = Math.ceil(lim.y1 / paso) * paso;
+    if ((x1 - x0) / paso > 400 || (y1 - y0) / paso > 400) return;   // un plano enorme: sin rejilla
+    c.save();
+    c.lineWidth = 1;
+    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
+    c.beginPath();
+    for (let x = x0; x <= x1; x += paso) { const a = aPX(x, y0, 0), b = aPX(x, y1, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
+    for (let y = y0; y <= y1; y += paso) { const a = aPX(x0, y, 0), b = aPX(x1, y, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
+    c.stroke();
+    // Los ejes, un poco más marcados: sin ellos no se sabe dónde está el cero.
+    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.2)";
+    c.beginPath();
+    let a = aPX(x0, 0, 0), b = aPX(x1, 0, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
+    a = aPX(0, y0, 0); b = aPX(0, y1, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
+    c.stroke();
+    c.restore();
+  }
+
+  /** Los textos, como los pintaba el lienzo viejo: en su punto, con su altura,
+   *  su ángulo y su alineación. Girada la vista se pintan de frente a quien
+   *  mira (no tumbados sobre el plano): se leen, que es para lo que están. */
+  function dibujarTextos(c, ctx, textos) {
+    const { aPX, colorDe, escala } = ctx;
+    const girada = !!(ctx.rx || ctx.rz);
+    for (const t of textos) {
+      const alturaPX = t.altura * escala;
+      const q = aPX(t.p[0], t.p[1], 0);
+      c.save();
+      c.translate(q[0], q[1]);
+      if (t.rotacion && !girada) c.rotate(-t.rotacion * Math.PI / 180);
+      c.fillStyle = colorDe(t.color);
+      c.font = `${alturaPX}px Cifras, Raleway, sans-serif`;
+      c.textAlign = t.alineacion === "CENTRO" ? "center" : t.alineacion === "DER" ? "right" : "left";
+      const lineas = String(t.texto).split("\\n");
+      for (let i = 0; i < lineas.length; i++) c.fillText(lineas[i], 0, i * alturaPX * 1.25);
+      c.restore();
+    }
+  }
+
+  function dibujarSuelo(c, ctx) {'''
+
+ORBITA_ARRASTRE = '''  /** Orbitar arrastrando desde un botón del ratón, sin entrar en un modo:
+   *  Alt + botón central, idea de Mike (17-sep). Se suelta el botón y se
+   *  acabó. Lo llama el lienzo desde su propio mousedown. */
+  function arrastrar(e) {
+    const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
+    const mover = (ev) => {
+      poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
+            a.rz + (ev.clientX - a.x) * 0.008);
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    const soltar = () => {
+      window.removeEventListener("mousemove", mover, true);
+      window.removeEventListener("mouseup", soltar, true);
+    };
+    window.addEventListener("mousemove", mover, true);
+    window.addEventListener("mouseup", soltar, true);
+  }
+
+  return { poner, ver, enPlanta, empezarAOrbitar, terminar, arrastrar, VISTAS };'''
+
 BITACORA = '''BITACORA: list[dict] = [
     {
         "version": "%s",
         "fecha": "%s",
         "cambios": [
-            "Con la vista girada pinta un visor nuevo, pensado en 3D: las líneas del dibujo y "
-            "las piezas en un mismo espacio, sin los atajos de planta que hacían que las "
-            "líneas se quedaran en 2D y que girar fuera lento. En planta todo sigue igual.",
-            "Orbitar ya no se pelea con el pan: mientras giras, el ratón es de la cámara.",
-            "El zoom con la rueda girado ya no se descentra: lo que está bajo el cursor se "
-            "queda bajo el cursor, desde cualquier ángulo.",
-            "Después de jalar una cara, la pieza se redibuja de inmediato.",
-            "Girado se ve el plano de trabajo, apenas insinuado, para saber dónde está el "
-            "suelo. Textos y cotas todavía no se pintan girados; en planta sí.",
+            "Ya no hay un plano 2D aparte: el dibujo vive sobre el suelo del 3D y el visor "
+            "nuevo pinta siempre, también en planta. Dos pintores para el mismo espacio era lo "
+            "que hacía lento girar. Las hojas de impresión siguen como estaban.",
+            "Orbitar es Alt + botón central del ratón, arrastrando. ORBITAR sigue existiendo "
+            "para quien no tenga botón central.",
+            "La rejilla se ve también girada, en perspectiva, con los ejes marcados para "
+            "saber dónde está el cero. Los textos vuelven a verse girados, de frente a quien "
+            "mira.",
         ],
     },
 '''
@@ -109,7 +176,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado19")
+    tmp = pathlib.Path("/tmp/recado20")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -119,60 +186,53 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
+    # 1 · el visor gana rejilla y textos
+    parchar(shape / "ui" / "visor.js", [
+        ("""      dibujarSuelo(c, ctx);
+      for (const t of ctx.trazos || []) {
+        if (t.clase === "imagen") continue;""",
+         """      dibujarSuelo(c, ctx);
+      dibujarRejilla(c, ctx);
+      const textos = [];
+      for (const t of ctx.trazos || []) {
+        if (t.clase === "imagen") continue;
+        if (t.texto !== undefined && t.altura) {
+          if (t.altura * escala >= 4) textos.push(t);   // más chico no se lee
+          continue;
+        }"""),
+        ("""      c.setLineDash([]);
+      if (typeof Cuerpos !== "undefined") Cuerpos.pintar(c, ctx.oscuro);""",
+         """      c.setLineDash([]);
+      dibujarTextos(c, ctx, textos);
+      if (typeof Cuerpos !== "undefined") Cuerpos.pintar(c, ctx.oscuro);"""),
+        ("  function dibujarSuelo(c, ctx) {", REJILLA_Y_TEXTOS),
+        ("""    if (!isFinite(x0)) { x0 = -500; y0 = -500; x1 = 500; y1 = 500; }
+    const mx = (x1 - x0) * 0.25 + 50, my = (y1 - y0) * 0.25 + 50;""",
+         """    if (!isFinite(x0)) { x0 = -500; y0 = -500; x1 = 500; y1 = 500; }
+    const mx = (x1 - x0) * 0.25 + 50, my = (y1 - y0) * 0.25 + 50;
+    ctx.extension = { x0: x0 - mx, y0: y0 - my, x1: x1 + mx, y1: y1 + my };"""),
+    ], "function dibujarRejilla", "ui/visor.js (rejilla y textos)")
+
+    # 2 · el visor pinta siempre (menos en papel), y Alt + central orbita
     vista = shape / "ui" / "vista.js"
-    # 1 · girada, pinta el visor
     parchar(vista, [
-        ('  const oscuro = estado.modo === "papel" ? false : T.oscuro;\n  const esc = estado.vista.escala;',
-         '  const oscuro = estado.modo === "papel" ? false : T.oscuro;\n'
-         '  // Girada, pinta el visor nuevo: un solo espacio, sin los atajos de planta.\n'
-         '  // En planta sigue todo lo de abajo, intacto, con sus cachés y sus pruebas.\n'
-         '  if ((estado.vista.rx || estado.vista.rz) && typeof Visor !== "undefined") {\n'
-         '    return Visor.pintarPlano(c, {\n'
-         '      ancho: lienzo.clientWidth, alto: lienzo.clientHeight, fondo,\n'
-         '      lienzoColor: T.lienzo, oscuro, escala: estado.vista.escala, trazos: estado.trazos,\n'
-         '      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,\n'
-         '      colorDe: (hex) => colorDeTrazo(hex, oscuro),\n'
-         '    });\n'
-         '  }\n'
-         '  const esc = estado.vista.escala;'),
-    ], "Visor.pintarPlano(c, {", "ui/vista.js (girada pinta el visor)")
-    # 3 · zoom en el espacio de la cámara
-    parchar(vista, [
-        ("""function zoomEn(px, py, factor) {
-  const [mx, my] = aMM(px, py);
-  estado.vista.escala = Math.min(500, Math.max(0.002, estado.vista.escala * factor));
-  estado.vista.x = mx - px / estado.vista.escala;     // el punto bajo el cursor
-  estado.vista.y = my + py / estado.vista.escala;     // se queda quieto""",
-         """function zoomEn(px, py, factor) {
-  // En el espacio de la cámara, no en el del plano: vista.x y vista.y viven
-  // ahí. En planta son lo mismo; girado, mezclar los dos descentra el zoom
-  // media pantalla en cada tic de la rueda.
-  const v = estado.vista;
-  const ux = px / v.escala + v.x, vy = v.y - py / v.escala;
-  v.escala = Math.min(500, Math.max(0.002, v.escala * factor));
-  v.x = ux - px / v.escala;                            // el punto bajo el cursor
-  v.y = vy + py / v.escala;                            // se queda quieto"""),
-    ], "const ux = px / v.escala + v.x, vy = v.y - py / v.escala;", "ui/vista.js (zoom en el espacio de la cámara)")
-
-    # 2 · la órbita escucha los mismos eventos que el lienzo
+        ('  if ((estado.vista.rx || estado.vista.rz) && typeof Visor !== "undefined") {',
+         '  // El visor pinta siempre. Sólo el modo papel —las hojas, de donde sale el\n'
+         '  // PDF— se queda con el pintado viejo: es otro oficio y no tiene 3D.\n'
+         '  if (estado.modo !== "papel" && typeof Visor !== "undefined") {'),
+        ("      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,",
+         "      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,\n"
+         "      rx: estado.vista.rx || 0, rz: estado.vista.rz || 0,"),
+        ("  if (esPan(e)) {",
+         "  // Alt + botón central: orbitar. Sin Alt, el central sigue siendo pan.\n"
+         "  if (e.button === 1 && e.altKey && typeof Camara !== \"undefined\") { Camara.arrastrar(e); e.preventDefault(); return; }\n"
+         "  if (esPan(e)) {"),
+    ], "Camara.arrastrar(e)", "ui/vista.js (el visor pinta siempre; Alt + central orbita)")
     parchar(shape / "ui" / "camara.js", [
-        ('"pointerdown"', '"mousedown"', 0),
-        ('"pointermove"', '"mousemove"', 0),
-        ('"pointerup"', '"mouseup"', 0),
-    ], '"mousedown"', "ui/camara.js (mismos eventos que el lienzo)")
+        ("  return { poner, ver, enPlanta, empezarAOrbitar, terminar, VISTAS };", ORBITA_ARRASTRE),
+    ], "function arrastrar(e)", "ui/camara.js (orbitar arrastrando)")
 
-    # 4 · cuando una pieza cambia, el plano se invalida
-    parchar(shape / "ui" / "cuerpos.js", [
-        ("if (window.pintar) window.pintar();",
-         "if (window.invalidarPlano) window.invalidarPlano();\n    if (window.pintar) window.pintar();", 0),
-    ], "window.invalidarPlano", "ui/cuerpos.js (la pieza cambió: se invalida el plano)")
-
-    # la pantalla carga el visor
-    parchar(shape / "ui" / "index.html", [
-        ('<script src="camara.js"></script>', '<script src="camara.js"></script>\n<script src="visor.js"></script>'),
-    ], "visor.js", "ui/index.html (carga el visor)")
-
-    # la versión
+    # 3 · la versión
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
     t = ver.read_text(encoding="utf-8")
@@ -191,28 +251,24 @@ def main() -> int:
                        encoding="utf-8")
         anotar(f"versión {actual} → {VERSION}")
 
-    for js in ("vista.js", "camara.js", "cuerpos.js", "visor.js"):
+    for js in ("vista.js", "camara.js", "visor.js"):
         correr(["node", "--check", str(shape / "ui" / js)])
-    anotar("los cuatro archivos tocados pasan node --check")
-    if "pointerdown" in (shape / "ui" / "camara.js").read_text(encoding="utf-8"):
-        raise RuntimeError("camara.js sigue escuchando pointer")
-    anotar("la órbita escucha mouse, como el lienzo")
+    anotar("los tres archivos tocados pasan node --check")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, el visor toma el mando girado\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, el visor pinta siempre\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            f"{VERSION}: el visor toma el mando cuando la cámara está girada\n\n"
-            "Lo que Mike vio en 0.6.1: líneas que se quedaban en 2D (se giró el bucle de\n"
-            "los rellenos y no el de las líneas), órbita que se peleaba con el pan (eventos\n"
-            "pointer contra mouse), zoom descentrado girado (coordenadas del plano mezcladas\n"
-            "con las de la cámara) y piezas que no se redibujaban (la caché del plano no\n"
-            "sabía que cambiaron).\n\n"
-            "Girada, pinta el visor nuevo: un solo espacio, sin lotes ni foto ni recorte.\n"
-            "En planta sigue el pintado de siempre, intacto, con sus 470 comprobaciones."],
+            f"{VERSION}: el visor pinta siempre; Alt + botón central orbita\n\n"
+            "Mike, tras probar la 0.7.0: «ya no ocupemos un plano 2D, sólo entorpece el\n"
+            "workflow; dibujemos el 2D directo sobre el suelo del 3D». Dos pintores para el\n"
+            "mismo espacio era la frontera lenta. Ahora pinta el visor siempre; el modo\n"
+            "papel, de donde sale el PDF, sigue con el viejo.\n\n"
+            "El visor gana la rejilla proyectada con sus ejes y los textos, de frente a\n"
+            "quien mira cuando la vista está girada."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
@@ -221,7 +277,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado19/shape101")
+    shape = pathlib.Path("/tmp/recado20/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
