@@ -50,20 +50,20 @@ if (typeof ResizeObserver !== "undefined") {
 // osnap dejaría de pegar donde debe y nadie sabría por qué.
 const aPX = (x, y, z) => {
   const v = estado.vista;
-  if (!v.rx && !v.rz) return [(x - v.x) * v.escala, (v.y - y) * v.escala];
+  if (!v.rx && !v.rz) return [(x - v.x) * v.escala + (v.ox || 0), (v.y - y) * v.escala + (v.oy || 0)];
   const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
   const ux = x * cz - y * sz;
   const uy = x * sz + y * cz;
   const vy = uy * Math.cos(v.rx) - (z || 0) * Math.sin(v.rx);
-  return [(ux - v.x) * v.escala, (v.y - vy) * v.escala];
+  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0)];
 };
 // Al revés se cae **sobre el plano de trabajo** (z = 0): es donde vive el
 // dibujo, así que el punto que sueltas es el que estabas viendo.
 const aMM = (px, py) => {
   const v = estado.vista;
-  if (!v.rx && !v.rz) return [px / v.escala + v.x, v.y - py / v.escala];
-  const ux = px / v.escala + v.x;
-  const vy = v.y - py / v.escala;
+  if (!v.rx && !v.rz) return [(px - (v.ox || 0)) / v.escala + v.x, v.y - (py - (v.oy || 0)) / v.escala];
+  const ux = (px - (v.ox || 0)) / v.escala + v.x;
+  const vy = v.y - (py - (v.oy || 0)) / v.escala;
   const cx = Math.cos(v.rx);
   const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;
   const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
@@ -118,10 +118,11 @@ function zoomEn(px, py, factor) {
   // ahí. En planta son lo mismo; girado, mezclar los dos descentra el zoom
   // media pantalla en cada tic de la rueda.
   const v = estado.vista;
-  const ux = px / v.escala + v.x, vy = v.y - py / v.escala;
+  const ox = v.ox || 0, oy = v.oy || 0;                // la ventana empieza donde empieza
+  const ux = (px - ox) / v.escala + v.x, vy = v.y - (py - oy) / v.escala;
   v.escala = Math.min(500, Math.max(0.002, v.escala * factor));
-  v.x = ux - px / v.escala;                            // el punto bajo el cursor
-  v.y = vy + py / v.escala;                            // se queda quieto
+  v.x = ux - (px - ox) / v.escala;                     // el punto bajo el cursor
+  v.y = vy + (py - oy) / v.escala;                     // se queda quieto
   Regen.gesto();
   pintar();
 }
@@ -748,6 +749,18 @@ function pintar() {
  * pintar la rejilla—, que es como se dibuja sobre una hoja: primero la hoja,
  * luego lo que se puso sobre ella.
  */
+/** Las cuatro esquinas de lo que hay dibujado, en el plano de trabajo. Es lo
+ *  que se le da a las ventanas para que se encuadren solas. */
+function puntosDelDibujo() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of estado.trazos || []) for (const p of (t.puntos || [])) {
+    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+  }
+  if (!isFinite(x0)) return [];
+  return [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+}
+
 function dibujarPlano(c, fondo = true) {
   const T = tema();
   // Sobre una hoja el fondo es **papel blanco**, aunque la app esté en tema
@@ -759,14 +772,22 @@ function dibujarPlano(c, fondo = true) {
   // En planta sigue todo lo de abajo, intacto, con sus cachés y sus pruebas.
   // El visor pinta siempre. Sólo el modo papel —las hojas, de donde sale el
   // PDF— se queda con el pintado viejo: es otro oficio y no tiene 3D.
-  if (estado.modo !== "papel" && typeof Visor !== "undefined") {
-    return Visor.pintarPlano(c, {
-      ancho: lienzo.clientWidth, alto: lienzo.clientHeight, fondo,
-      lienzoColor: T.lienzo, oscuro, escala: estado.vista.escala, trazos: estado.trazos,
+  if (estado.modo !== "papel" && typeof Visor !== "undefined" && typeof Ventanas !== "undefined") {
+    // Las cuatro ventanas, cada una con su cámara y recortada a su sitio. La
+    // primera vez, la cámara de siempre pasa a ser la ventana superior y las
+    // otras tres se encuadran a lo que hay.
+    const w = lienzo.clientWidth, h = lienzo.clientHeight;
+    Ventanas.repartir(w, h);
+    Ventanas.adoptar(puntosDelDibujo());
+    if (fondo) { c.clearRect(0, 0, w, h); c.fillStyle = T.lienzo; c.fillRect(0, 0, w, h); }
+    Ventanas.pintarTodas(c, (cc, v) => Visor.pintarPlano(cc, {
+      ancho: v.w, alto: v.h, fondo: false, lienzoColor: T.lienzo, oscuro,
+      escala: v.escala, trazos: estado.trazos,
       borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
-      rx: estado.vista.rx || 0, rz: estado.vista.rz || 0,
+      rx: v.rx || 0, rz: v.rz || 0,
       colorDe: (hex) => colorDeTrazo(hex, oscuro),
-    });
+    }), oscuro);
+    return;
   }
   const esc = estado.vista.escala;
   const vx = estado.vista.x, vy = estado.vista.y;
@@ -1402,6 +1423,20 @@ function esPan(e) {
 }
 
 lienzo.addEventListener("mousedown", (e) => {
+  // Cuatro ventanas: clic en una la activa; doble clic en su título la
+  // maximiza o la devuelve. Se decide antes que nada, porque todo lo demás
+  // trabaja sobre la ventana activa.
+  if (typeof Ventanas !== "undefined") {
+    const cajaV = lienzo.getBoundingClientRect();
+    const vx0 = e.clientX - cajaV.left, vy0 = e.clientY - cajaV.top;
+    const t = Ventanas.enTitulo(vx0, vy0);
+    if (t >= 0) {
+      if (e.detail >= 2) Ventanas.maximizar(t); else Ventanas.activar(t);
+      invalidarPlano(); pintar(); e.preventDefault(); return;
+    }
+    const i = Ventanas.bajo(vx0, vy0);
+    if (i >= 0 && i !== Ventanas.activa) { Ventanas.activar(i); invalidarPlano(); pintar(); }
+  }
   // Botón derecho: la rueda si se arrastra, Enter si se suelta sin mover.
   if (e.button === 2) { Radial.abajo(e); e.preventDefault(); return; }
   // Alt + botón central: orbitar. Sin Alt, el central sigue siendo pan.

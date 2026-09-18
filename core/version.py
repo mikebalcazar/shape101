@@ -21,13 +21,28 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.8.2"
+VERSION = "0.9.0"
 FECHA = "2026-09-18"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.9.0",
+        "fecha": "2026-09-18",
+        "cambios": [
+            "Cuatro ventanas, como Rhino: superior, perspectiva, frontal y lateral, cada una "
+            "con su cámara. Clic en una la activa; doble clic en su título la maximiza y otro "
+            "doble clic la devuelve. Todo —dibujar, zoom, pan, orbitar— trabaja sobre la "
+            "ventana activa, que se ve con el borde marcado.",
+            "Al abrir, la ventana superior conserva lo que estabas mirando y las otras tres se "
+            "encuadran solas a lo que hay.",
+            "Todavía se dibuja sobre el suelo (XY) en las cuatro: en la frontal y la lateral "
+            "el plano se ve de canto. Dibujar sobre el plano de cada ventana es el paso "
+            "siguiente. La perspectiva de la cuarta ventana es aún isométrica.",
+        ],
+    },
     {
         "version": "0.8.2",
         "fecha": "2026-09-18",
