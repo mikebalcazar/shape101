@@ -21,13 +21,24 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 FECHA = "2026-09-18"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.8.1",
+        "fecha": "2026-09-18",
+        "cambios": [
+            "El motor de sólidos se carga al abrir el programa, en segundo plano, en vez de "
+            "la primera vez que extruyes. En 0.8.0 esa primera extrusión tardaba medio "
+            "minuto: eran 350 MB de bibliotecas leyéndose por primera vez.",
+            "Al extruir, la consola dice cuánto tardó el motor. Si algo vuelve a tardar, "
+            "sabremos dónde.",
+        ],
+    },
     {
         "version": "0.8.0",
         "fecha": "2026-09-18",

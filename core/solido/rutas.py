@@ -80,10 +80,15 @@ def extruir(entrada: Extruir):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
+    import time
+    t0 = time.perf_counter()
     nuevo = Cuerpo(operaciones=ops, capa=entidades[0].get("capa", "0"))
     with doc.transaccion("extruir"):
         doc.agregar(nuevo)
-    return _malla(nuevo)
+    salida = _malla(nuevo)
+    # Cuánto tardó de verdad, para que la pantalla lo diga y nadie adivine.
+    salida["ms"] = round((time.perf_counter() - t0) * 1000)
+    return salida
 
 
 @router.get("/lista")

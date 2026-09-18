@@ -46,6 +46,26 @@ UI = RAIZ / "ui"
 
 app = FastAPI(title=config.APP_NOMBRE)
 
+# --- El kernel de sólidos se calienta en segundo plano --------------------
+# Son 350 MB de bibliotecas que Windows lee, y su antivirus escanea, la
+# primera vez que se importan: medio minuto medido por Mike en la 0.8.0 al
+# extruir por primera vez. Aquí se importa al arrancar, en un hilo que no
+# bloquea nada, para que cuando el usuario extruya ya esté cargado.
+import threading as _hilos  # noqa: E402
+
+
+def _calentar_kernel():
+    import time as _t
+    t0 = _t.perf_counter()
+    try:
+        import build123d  # noqa: F401
+        print(f"[3d] kernel listo en {_t.perf_counter() - t0:.1f} s", flush=True)
+    except Exception as e:  # sin kernel no hay 3D, pero el 2D sigue
+        print(f"[3d] el kernel no cargó: {e}", flush=True)
+
+
+_hilos.Thread(target=_calentar_kernel, name="calentar-kernel", daemon=True).start()
+
 
 class Sesion:
     """Un documento abierto: el dibujo, de dónde salió y su candado."""

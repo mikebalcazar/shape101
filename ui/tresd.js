@@ -218,7 +218,8 @@ Comandos.registrar({
       // parecería que no pasó nada. Si el usuario ya había girado la vista, se
       // respeta la suya.
       if (typeof Camara !== "undefined" && Camara.enPlanta()) Camara.ver("ISO");
-      Comandos.eco(`pieza de ${m.caja[0]} × ${m.caja[1]} × ${m.caja[2]} mm · ${(m.volumen_mm3 / 1000).toFixed(1)} cm³`);
+      Comandos.eco(`pieza de ${m.caja[0]} × ${m.caja[1]} × ${m.caja[2]} mm · ${(m.volumen_mm3 / 1000).toFixed(1)} cm³`
+        + (m.ms !== undefined ? ` · el motor tardó ${m.ms} ms` : ""));
     } catch (e) { Comandos.eco("No se pudo extruir: " + e.message, "malo"); }
   },
 });
