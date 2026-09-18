@@ -1,30 +1,38 @@
-"""El mandadero · recado 25: 0.9.0, segundo intento — encuadrar en la ventana.
+"""El mandadero · recado 26: 0.10.0 — el paquete completo de las cuatro vistas.
 
-El armado de 0.9.0 se detuvo en tres pruebas que dibujan con el ratón: «una
-línea trazada con dos clics llega al motor: se obtuvo 0». Las otras 456
-pasaron. La causa se ve leyendo `vista.js`:
+Mike probó la 0.9.0 y pidió todo junto:
 
-1. **`encuadrar` usaba el lienzo entero** para centrar el dibujo, y la ventana
-   activa ahora es un cuarto. El dibujo quedaba a caballo entre las cuatro y los
-   clics caían en la ventana equivocada. A cualquiera le habría pasado con Z E.
-2. **Cuatro sitios reemplazaban el objeto de la cámara** por una copia
-   (`estado.vista = {…}`): encuadrar sin dibujo, vista previa, un comando y el
-   marco. Con una vista daba igual; con cuatro, cada uno desconecta la ventana
-   activa de su cámara. Ahora se copia **dentro** del objeto, no encima.
-3. Y Z E en una ventana girada la encuadra desde su ángulo, no desde arriba.
+1. **La selección dentro de cada ventana.** Selección, hule y fantasmas se
+   pintaban una sola vez con la cámara activa, encima de todo el lienzo: en la
+   Superior aparecían desfasados y en la Perspectiva no aparecían. Ahora esa
+   capa se pinta ventana por ventana, con la cámara de cada una.
+2. **Órbita alrededor de lo que está bajo el cursor** al empezar a arrastrar,
+   no del centro de la pantalla.
+3. **Perspectiva: central = orbitar, Alt + central = pan.** En las otras tres el
+   central sigue siendo pan y Alt + central orbita.
+4. **La ventana se activa con mouse over**, para zoom, pan y órbita.
+5. **Perspectiva de verdad** sólo en la Perspectiva; las otras tres ortogonales.
+   Matemática probada sin pantalla: ida y vuelta sobre el suelo con error de
+   10⁻¹³ mm, y un mismo canto se ve más grande cerca del ojo que lejos.
+6. **Extruir interactivo** (`ui/extruir.js`): arrastras y el fantasma crece con
+   la cota; clic confirma; Enter teclea el valor; Escape cancela.
+
+Fuera de este paquete, dicho a Mike: dibujar sobre el plano de cada ventana y
+los handles de vértices y aristas de sólidos. Tocan el documento y el kernel.
 """
 from __future__ import annotations
 
 import datetime as dt
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/encuadrar-en-la-ventana"
-VERSION = "0.9.0"
+RAMA = "claude/cuatro-vistas-completas"
+VERSION = "0.10.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -75,78 +83,145 @@ def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
     anotar(f"{donde}: parchado")
 
 
-ENCUADRAR_VIEJO = """function encuadrar(recordar = true) {
-  const caja = estado.resumen && estado.resumen.extension;
-  const ancho = lienzo.clientWidth || 800;
-  const alto = lienzo.clientHeight || 600;
-  if (recordar) recordarVista();
-  if (!caja) {
-    estado.vista = { x: -ancho / 4, y: alto / 4, escala: 1 };
-    return pintar();
+APX_VIEJO = """  const vy = uy * Math.cos(v.rx) - (z || 0) * Math.sin(v.rx);
+  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0)];"""
+
+APX_NUEVO = """  const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
+  const vy = uy * cx - (z || 0) * sx;
+  let px = (ux - v.x) * v.escala + (v.ox || 0), py = (v.y - vy) * v.escala + (v.oy || 0);
+  if (v.persp) {
+    // Perspectiva: lo cercano al ojo se aleja del centro de la ventana y lo
+    // lejano se acerca. Sólo la ventana Perspectiva la lleva; las otras tres
+    // son ortogonales, que es donde se mide.
+    const prof = uy * sx + (z || 0) * cx;
+    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
+    const k = 1 / Math.max(0.1, 1 - prof / (v.dist || 4000));
+    px = cxs + (px - cxs) * k;
+    py = cys + (py - cys) * k;
   }
-  const [x0, y0, x1, y1] = caja;
-  const escala = Math.min(
-    (ancho * 0.92) / Math.max(x1 - x0, 1e-6),
-    (alto * 0.92) / Math.max(y1 - y0, 1e-6)
-  );
-  estado.vista.escala = Math.min(escala, 200);
-  estado.vista.x = (x0 + x1) / 2 - ancho / 2 / estado.vista.escala;
-  estado.vista.y = (y0 + y1) / 2 + alto / 2 / estado.vista.escala;
-  pintar();
-}"""
+  return [px, py];"""
 
-ENCUADRAR_NUEVO = """/** El tamaño útil de la ventana activa: su ancho y su alto sin la franja del
- *  título. Con una sola vista es el lienzo entero. */
-function tamanoActivo() {
-  const v = estado.vista;
-  const titulo = v.w && typeof Ventanas !== "undefined" ? Ventanas.TITULO : 0;
-  return { ancho: v.w || lienzo.clientWidth || 800, alto: (v.h || lienzo.clientHeight || 600) - titulo, titulo };
-}
+AMM_VIEJO = """  const ux = (px - (v.ox || 0)) / v.escala + v.x;
+  const vy = v.y - (py - (v.oy || 0)) / v.escala;
+  const cx = Math.cos(v.rx);
+  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;"""
 
-/** Cambiar la cámara **dentro** del objeto, nunca encima: la ventana activa ES
- *  ese objeto, y reemplazarlo la desconecta de su cámara. */
-function ponerVista(v) {
-  Object.assign(estado.vista, { x: v.x, y: v.y, escala: v.escala, rx: v.rx || 0, rz: v.rz || 0 });
-}
-
-function encuadrar(recordar = true) {
-  const caja = estado.resumen && estado.resumen.extension;
-  const { ancho, alto, titulo } = tamanoActivo();
-  if (recordar) recordarVista();
-  // Girada, se encuadra desde su ángulo: la caja en planta no dice dónde caen
-  // las cosas vistas de frente.
-  if ((estado.vista.rx || estado.vista.rz) && typeof Ventanas !== "undefined" && estado.vista.w) {
-    Ventanas.encuadrarUna(estado.vista.i, puntosDelDibujo());
-    return pintar();
+AMM_NUEVO = """  let ux = (px - (v.ox || 0)) / v.escala + v.x;
+  let vy = v.y - (py - (v.oy || 0)) / v.escala;
+  const cx = Math.cos(v.rx);
+  if (v.persp && Math.abs(cx) > 1e-9) {
+    // Deshacer la perspectiva sobre el suelo (z = 0): ahí la profundidad es
+    // lineal en la Y de la cámara, y la ecuación se resuelve exacta.
+    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
+    const t = (Math.sin(v.rx) / cx) / (v.dist || 4000);
+    const A = v.y * v.escala + (v.oy || 0) - cys, d = py - cys;
+    vy = (A - d) / (v.escala - d * t);
+    const k = 1 / Math.max(0.1, 1 - t * vy);
+    ux = v.x + ((px - cxs) / k + cxs - (v.ox || 0)) / v.escala;
   }
-  if (!caja) {
-    ponerVista({ x: -ancho / 4, y: alto / 4 + titulo, escala: 1 });
-    return pintar();
-  }
-  const [x0, y0, x1, y1] = caja;
-  const escala = Math.min(
-    (ancho * 0.92) / Math.max(x1 - x0, 1e-6),
-    (alto * 0.92) / Math.max(y1 - y0, 1e-6)
-  );
-  estado.vista.escala = Math.min(escala, 200);
-  estado.vista.x = (x0 + x1) / 2 - ancho / 2 / estado.vista.escala;
-  estado.vista.y = (y0 + y1) / 2 + (alto / 2 + titulo) / estado.vista.escala;
-  pintar();
-}"""
+  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;"""
 
-CAJA_VIEJA = """  recordarVista();
-  const ancho = lienzo.clientWidth, alto = lienzo.clientHeight;
-  estado.vista.escala = Math.min(500, Math.min(
-    ancho / Math.abs(x1 - x0), alto / Math.abs(y1 - y0)));
-  estado.vista.x = (x0 + x1) / 2 - ancho / 2 / estado.vista.escala;
-  estado.vista.y = (y0 + y1) / 2 + alto / 2 / estado.vista.escala;"""
+ENCIMA_VIEJO = """  if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(ctxE);
+  if (window.VentanasHoja) VentanasHoja.pintarEncima(ctxE);
+  pintarReferencia(ctxE);
+  pintarMira(ctxE);
+  pintarHule(ctxE);"""
 
-CAJA_NUEVA = """  recordarVista();
-  const { ancho, alto, titulo } = tamanoActivo();
-  estado.vista.escala = Math.min(500, Math.min(
-    ancho / Math.abs(x1 - x0), alto / Math.abs(y1 - y0)));
-  estado.vista.x = (x0 + x1) / 2 - ancho / 2 / estado.vista.escala;
-  estado.vista.y = (y0 + y1) / 2 + (alto / 2 + titulo) / estado.vista.escala;"""
+ENCIMA_NUEVO = """  if (typeof Ventanas !== "undefined" && estado.modo !== "papel") {
+    // La capa de encima también va ventana por ventana, con la cámara de cada
+    // una: si se pintara una sola vez con la activa, la selección saldría
+    // desfasada en las otras tres. Sólo la mira se queda en la activa.
+    Ventanas.pintarTodas(ctxE, (cc) => {
+      if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(cc);
+      pintarHule(cc);
+      if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
+      if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
+    }, tema().oscuro);
+    pintarReferencia(ctxE);
+    pintarMira(ctxE);
+  } else {
+    if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(ctxE);
+    if (window.VentanasHoja) VentanasHoja.pintarEncima(ctxE);
+    pintarReferencia(ctxE);
+    pintarMira(ctxE);
+    pintarHule(ctxE);
+  }"""
+
+PONER_VIEJO = """  function poner(rx, rz) {
+    const el = lienzo();
+    const v = estado.vista;
+    const w = el ? el.clientWidth : 0, h = el ? el.clientHeight : 0;
+    const centro = window.aMM ? window.aMM(w / 2, h / 2) : null;
+    v.rx = rx;
+    v.rz = rz;
+    if (centro && window.aPX) {
+      const q = window.aPX(centro[0], centro[1], 0);
+      // Ojo con el signo de la Y: en el dibujo crece hacia arriba y en la
+      // pantalla hacia abajo, así que la corrección va al revés que la de X.
+      v.x += (q[0] - w / 2) / v.escala;
+      v.y += (h / 2 - q[1]) / v.escala;
+    }
+    repintar();
+  }"""
+
+PONER_NUEVO = """  function poner(rx, rz, pivote) {
+    const el = lienzo();
+    const v = estado.vista;
+    const w = el ? el.clientWidth : 0, h = el ? el.clientHeight : 0;
+    // El pivote: lo que está bajo el cursor al empezar (lo pasa `arrastrar`),
+    // o el centro de la ventana activa. Ese punto se queda clavado en su sitio
+    // de la pantalla mientras todo lo demás gira alrededor.
+    const cx = (v.ox || 0) + (v.w || w) / 2, cy = (v.oy || 0) + (v.h || h) / 2;
+    const centro = pivote || (window.aMM ? window.aMM(cx, cy) : null);
+    const antes = centro && window.aPX ? window.aPX(centro[0], centro[1], 0) : null;
+    v.rx = rx;
+    v.rz = rz;
+    if (antes) {
+      const q = window.aPX(centro[0], centro[1], 0);
+      // Ojo con el signo de la Y: en el dibujo crece hacia arriba y en la
+      // pantalla hacia abajo, así que la corrección va al revés que la de X.
+      v.x += (q[0] - antes[0]) / v.escala;
+      v.y += (antes[1] - q[1]) / v.escala;
+    }
+    repintar();
+  }"""
+
+ARRASTRAR_VIEJO = """  function arrastrar(e) {
+    const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
+    const mover = (ev) => {
+      poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
+            a.rz + (ev.clientX - a.x) * 0.008);"""
+
+ARRASTRAR_NUEVO = """  function arrastrar(e) {
+    const r = lienzo().getBoundingClientRect();
+    // El pivote es lo que está bajo el cursor al apretar: es lo que la mano
+    // espera que se quede quieto mientras gira lo demás.
+    const pivote = window.aMM ? window.aMM(e.clientX - r.left, e.clientY - r.top) : null;
+    const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
+    const mover = (ev) => {
+      poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
+            a.rz + (ev.clientX - a.x) * 0.008, pivote);"""
+
+BITACORA = '''BITACORA: list[dict] = [
+    {
+        "version": "%s",
+        "fecha": "%s",
+        "cambios": [
+            "La selección, el hule y los fantasmas se ven en las cuatro ventanas, cada una "
+            "desde su ángulo. En 0.9.0 sólo se pintaban con la cámara de la activa y salían "
+            "desfasados en las demás.",
+            "La ventana Perspectiva tiene perspectiva de verdad; las otras tres siguen "
+            "ortogonales, que es donde se mide.",
+            "Orbitar gira alrededor de lo que está bajo el cursor al empezar a arrastrar. En la "
+            "Perspectiva, el botón central orbita y Alt + central hace pan; en las otras tres el "
+            "central es pan y Alt + central orbita.",
+            "La ventana se activa con solo pasar el mouse: zoom, pan y órbita van donde está el "
+            "cursor.",
+            "Extruir es interactivo: das EXTRUIR con el contorno seleccionado, arrastras y el "
+            "fantasma crece con la cota; clic confirma, Enter teclea el valor, Escape cancela.",
+        ],
+    },
+'''
 
 
 def main() -> int:
@@ -154,7 +229,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado25")
+    tmp = pathlib.Path("/tmp/recado26")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -164,57 +239,97 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    parchar(shape / "ui" / "vista.js", [
-        (ENCUADRAR_VIEJO, ENCUADRAR_NUEVO),
-        (CAJA_VIEJA, CAJA_NUEVA),
-        ("  if (!v) return avisar(\"No hay vista anterior.\", false, 2000);\n  estado.vista = v;",
-         "  if (!v) return avisar(\"No hay vista anterior.\", false, 2000);\n  ponerVista(v);"),
-    ], "function tamanoActivo()", "ui/vista.js (encuadrar en la ventana activa)")
-    parchar(shape / "ui" / "comandos.js", [
-        ("      estado.vista = v0;", "      Object.assign(estado.vista, { x: v0.x, y: v0.y, escala: v0.escala });"),
-    ], "Object.assign(estado.vista, { x: v0.x", "ui/comandos.js (no reemplazar la cámara)")
-    parchar(shape / "ui" / "marco.js", [
-        ("    if (v) { estado.vista = v; pintar(); } else encuadrar(false);",
-         "    if (v) { Object.assign(estado.vista, { x: v.x, y: v.y, escala: v.escala }); pintar(); } else encuadrar(false);"),
-    ], "Object.assign(estado.vista, { x: v.x", "ui/marco.js (no reemplazar la cámara)")
     parchar(shape / "ui" / "ventanas.js", [
-        ("  function encuadrarTodas(puntos, proyectarCon = proyectar) {\n    for (const v of ventanas) {\n      if (v.w <= 0 || v.h <= 0 || !puntos.length) continue;",
-         "  function encuadrarTodas(puntos, proyectarCon = proyectar, solo = null) {\n    for (const v of ventanas) {\n      if (solo !== null && v.i !== solo) continue;\n      if (v.w <= 0 || v.h <= 0 || !puntos.length) continue;"),
-        ("           adoptar, encuadrarTodas, pintarTodas, proyectar, TITULO,",
-         "           adoptar, encuadrarTodas, pintarTodas, proyectar, TITULO,\n           encuadrarUna: (i, puntos) => encuadrarTodas(puntos, proyectar, i),"),
-    ], "encuadrarUna", "ui/ventanas.js (encuadrar una sola)")
+        ('    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO },',
+         '    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO, persp: true, dist: 4000 },'),
+    ], "persp: true", "ui/ventanas.js (la Perspectiva lleva perspectiva)")
 
-    for js in ("vista.js", "comandos.js", "marco.js", "ventanas.js"):
+    vista = shape / "ui" / "vista.js"
+    parchar(vista, [(APX_VIEJO, APX_NUEVO), (AMM_VIEJO, AMM_NUEVO)],
+            "if (v.persp)", "ui/vista.js (perspectiva en las conversiones)")
+    parchar(vista, [
+        (ENCIMA_VIEJO, ENCIMA_NUEVO),
+        ("function pintarMira(c = ctx) {\n  if (typeof TresD !== \"undefined\") TresD.pintarFantasma(c);",
+         "function pintarMira(c = ctx) {"),
+    ], "Extrusion.pintar(cc)", "ui/vista.js (la capa de encima, ventana por ventana)")
+    parchar(vista, [
+        ('  if (e.button === 1 && e.altKey && typeof Camara !== "undefined") { Camara.arrastrar(e); e.preventDefault(); return; }',
+         '  // Botón central: en la Perspectiva orbita y Alt + central hace pan. En las\n'
+         '  // otras tres el central es pan, como siempre, y Alt + central orbita.\n'
+         '  if (e.button === 1 && typeof Camara !== "undefined" && (estado.vista.persp ? !e.altKey : e.altKey)) { Camara.arrastrar(e); e.preventDefault(); return; }'),
+    ], "estado.vista.persp ? !e.altKey : e.altKey", "ui/vista.js (central orbita en la Perspectiva)")
+    parchar(vista, [
+        ("  const px = e.clientX - caja.left, py = e.clientY - caja.top;\n  const [mx, my] = aMM(px, py);\n  estado.cursor = { px, py, x: mx, y: my };",
+         "  const px = e.clientX - caja.left, py = e.clientY - caja.top;\n"
+         "  // La ventana se activa con solo pasar el mouse: zoom, pan y órbita van\n"
+         "  // donde está el cursor. No mientras se arrastra algo.\n"
+         "  if (typeof Ventanas !== \"undefined\" && e.buttons === 0 && !(typeof Extrusion !== \"undefined\" && Extrusion.activa())) {\n"
+         "    const iv = Ventanas.bajo(px, py);\n"
+         "    if (iv >= 0 && iv !== Ventanas.activa) { Ventanas.activar(iv); invalidarPlano(); }\n"
+         "  }\n"
+         "  const [mx, my] = aMM(px, py);\n  estado.cursor = { px, py, x: mx, y: my };"),
+    ], "La ventana se activa con solo pasar el mouse", "ui/vista.js (mouse over activa)")
+
+    parchar(shape / "ui" / "camara.js", [(PONER_VIEJO, PONER_NUEVO), (ARRASTRAR_VIEJO, ARRASTRAR_NUEVO)],
+            "function poner(rx, rz, pivote)", "ui/camara.js (pivote bajo el cursor)")
+
+    parchar(shape / "ui" / "tresd.js", [
+        ('      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {',
+         '      // Sin argumento, extruir es interactivo: el fantasma sigue al ratón.\n'
+         '      if (typeof Extrusion !== "undefined" && Extrusion.empezar(ids)) return;\n'
+         '      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {'),
+    ], "Extrusion.empezar(ids)", "ui/tresd.js (EXTRUIR interactivo)")
+
+    parchar(shape / "ui" / "index.html", [
+        ('<script src="ventanas.js"></script>', '<script src="ventanas.js"></script>\n<script src="extruir.js"></script>'),
+    ], "extruir.js", "ui/index.html (carga extruir)")
+
+    hoy = dt.date.today().isoformat()
+    ver = shape / "core" / "version.py"
+    t = ver.read_text(encoding="utf-8")
+    actual = re.search(r'VERSION = "([^"]+)"', t).group(1)
+    if actual != VERSION:
+        t = cambiar(t, f'VERSION = "{actual}"', f'VERSION = "{VERSION}"', "version.py")
+        t = re.sub(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
+        ver.write_text(cambiar(t, "BITACORA: list[dict] = [\n", BITACORA % (VERSION, hoy), "version.py"),
+                       encoding="utf-8")
+        paq = shape / "package.json"
+        t = paq.read_text(encoding="utf-8")
+        t = cambiar(t, f'"version": "{actual}"', f'"version": "{VERSION}"', "package.json")
+        t = cambiar(t, f'"_versionApp": "{actual} —', f'"_versionApp": "{VERSION} —', "package.json")
+        paq.write_text(cambiar(t, f'"artifactName": "shape101-{actual}-setup.${{ext}}"',
+                               f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"', "package.json"),
+                       encoding="utf-8")
+        anotar(f"versión {actual} → {VERSION}")
+
+    for js in ("vista.js", "camara.js", "tresd.js", "ventanas.js", "extruir.js"):
         correr(["node", "--check", str(shape / "ui" / js)])
-    anotar("los cuatro archivos pasan node --check")
-    if "estado.vista = {" in (shape / "ui" / "vista.js").read_text(encoding="utf-8"):
-        raise RuntimeError("vista.js sigue reemplazando el objeto de la cámara")
-    anotar("ya nadie en vista.js reemplaza el objeto de la cámara")
+    anotar("los cinco archivos pasan node --check")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, segundo intento: encuadrar en la ventana\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, el paquete completo de las cuatro vistas\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Encuadrar en la ventana activa, y nunca reemplazar el objeto de la cámara\n\n"
-            "El armado de 0.9.0 se detuvo en tres pruebas que dibujan con el ratón: encuadrar\n"
-            "usaba el lienzo entero y la ventana activa es un cuarto, así que el dibujo\n"
-            "quedaba a caballo entre las cuatro y los clics caían en la equivocada.\n\n"
-            "Además, cuatro sitios reemplazaban el objeto de la cámara por una copia. Con\n"
-            "una vista daba igual; con cuatro, cada uno desconecta la ventana activa de su\n"
-            "cámara. Ahora se copia dentro del objeto, no encima. Y Z E en una ventana\n"
-            "girada la encuadra desde su ángulo."],
+            f"{VERSION}: el paquete completo de las cuatro vistas\n\n"
+            "Lo que Mike pidió tras probar la 0.9.0, todo junto: la selección, el hule y los\n"
+            "fantasmas pintados ventana por ventana con su cámara; órbita alrededor de lo\n"
+            "que está bajo el cursor; en la Perspectiva central = orbitar y Alt + central =\n"
+            "pan; la ventana se activa con mouse over; perspectiva de verdad sólo en la\n"
+            "Perspectiva; y extruir interactivo, con el fantasma creciendo con la cota.\n\n"
+            "La perspectiva se probó sin pantalla: ida y vuelta sobre el suelo con error de\n"
+            "1e-13 mm, y un mismo canto se ve más grande cerca del ojo que lejos."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
-    anotar(f"main actualizado y {DESTINO} movida: el armado de {VERSION} arranca de nuevo")
+    anotar(f"main actualizado y {DESTINO} creada: el armado de {VERSION} arranca")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado25/shape101")
+    shape = pathlib.Path("/tmp/recado26/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
