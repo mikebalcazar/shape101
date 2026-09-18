@@ -78,17 +78,36 @@ function recordarVista() {
 function vistaPrevia() {
   const v = historialVista.pop();
   if (!v) return avisar("No hay vista anterior.", false, 2000);
-  estado.vista = v;
+  ponerVista(v);
   pintar();
+}
+
+/** El tamaño útil de la ventana activa: su ancho y su alto sin la franja del
+ *  título. Con una sola vista es el lienzo entero. */
+function tamanoActivo() {
+  const v = estado.vista;
+  const titulo = v.w && typeof Ventanas !== "undefined" ? Ventanas.TITULO : 0;
+  return { ancho: v.w || lienzo.clientWidth || 800, alto: (v.h || lienzo.clientHeight || 600) - titulo, titulo };
+}
+
+/** Cambiar la cámara **dentro** del objeto, nunca encima: la ventana activa ES
+ *  ese objeto, y reemplazarlo la desconecta de su cámara. */
+function ponerVista(v) {
+  Object.assign(estado.vista, { x: v.x, y: v.y, escala: v.escala, rx: v.rx || 0, rz: v.rz || 0 });
 }
 
 function encuadrar(recordar = true) {
   const caja = estado.resumen && estado.resumen.extension;
-  const ancho = lienzo.clientWidth || 800;
-  const alto = lienzo.clientHeight || 600;
+  const { ancho, alto, titulo } = tamanoActivo();
   if (recordar) recordarVista();
+  // Girada, se encuadra desde su ángulo: la caja en planta no dice dónde caen
+  // las cosas vistas de frente.
+  if ((estado.vista.rx || estado.vista.rz) && typeof Ventanas !== "undefined" && estado.vista.w) {
+    Ventanas.encuadrarUna(estado.vista.i, puntosDelDibujo());
+    return pintar();
+  }
   if (!caja) {
-    estado.vista = { x: -ancho / 4, y: alto / 4, escala: 1 };
+    ponerVista({ x: -ancho / 4, y: alto / 4 + titulo, escala: 1 });
     return pintar();
   }
   const [x0, y0, x1, y1] = caja;
@@ -98,18 +117,18 @@ function encuadrar(recordar = true) {
   );
   estado.vista.escala = Math.min(escala, 200);
   estado.vista.x = (x0 + x1) / 2 - ancho / 2 / estado.vista.escala;
-  estado.vista.y = (y0 + y1) / 2 + alto / 2 / estado.vista.escala;
+  estado.vista.y = (y0 + y1) / 2 + (alto / 2 + titulo) / estado.vista.escala;
   pintar();
 }
 
 function encuadrarCaja(x0, y0, x1, y1) {
   if (Math.abs(x1 - x0) < 1e-9 || Math.abs(y1 - y0) < 1e-9) return;
   recordarVista();
-  const ancho = lienzo.clientWidth, alto = lienzo.clientHeight;
+  const { ancho, alto, titulo } = tamanoActivo();
   estado.vista.escala = Math.min(500, Math.min(
     ancho / Math.abs(x1 - x0), alto / Math.abs(y1 - y0)));
   estado.vista.x = (x0 + x1) / 2 - ancho / 2 / estado.vista.escala;
-  estado.vista.y = (y0 + y1) / 2 + alto / 2 / estado.vista.escala;
+  estado.vista.y = (y0 + y1) / 2 + (alto / 2 + titulo) / estado.vista.escala;
   pintar();
 }
 

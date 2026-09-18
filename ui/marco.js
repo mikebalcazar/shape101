@@ -101,7 +101,7 @@ const Marco = (() => {
     await recargarTrazos();
     await Papel.pintarPestanas();
     const v = vistas.get(indice);
-    if (v) { estado.vista = v; pintar(); } else encuadrar(false);
+    if (v) { Object.assign(estado.vista, { x: v.x, y: v.y, escala: v.escala }); pintar(); } else encuadrar(false);
   }
 
   async function activarDoc(i) {

@@ -407,7 +407,7 @@ Comandos.registrar({
       Regen.gesto();
       const v0 = { ...estado.vista };
       r.push(`navegar sobre la foto (pan): ${medir(5, () => { estado.vista.x += 3 / esc; pintarYa(); })}`);
-      estado.vista = v0;
+      Object.assign(estado.vista, { x: v0.x, y: v0.y, escala: v0.escala });
       Regen.terminarGesto();
     }
     r.push(`índice: rehacer ${medir(1, () => Indice.rehacer())}`);

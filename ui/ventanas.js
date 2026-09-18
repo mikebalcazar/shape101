@@ -115,8 +115,9 @@ const Ventanas = (() => {
 
   /** Encuadra todas las ventanas a los mismos puntos [x, y, z]. Cada una desde
    *  su ángulo, con su tamaño. */
-  function encuadrarTodas(puntos, proyectarCon = proyectar) {
+  function encuadrarTodas(puntos, proyectarCon = proyectar, solo = null) {
     for (const v of ventanas) {
+      if (solo !== null && v.i !== solo) continue;
       if (v.w <= 0 || v.h <= 0 || !puntos.length) continue;
       const guardada = { x: v.x, y: v.y, escala: v.escala };
       v.x = 0; v.y = 0; v.escala = 1;
@@ -180,6 +181,7 @@ const Ventanas = (() => {
 
   return { ventanas, repartir, la, laActiva, bajo, enTitulo, activar, maximizar,
            adoptar, encuadrarTodas, pintarTodas, proyectar, TITULO,
+           encuadrarUna: (i, puntos) => encuadrarTodas(puntos, proyectar, i),
            get activa() { return activa; }, get maximizada() { return maximizada; } };
 })();
 
