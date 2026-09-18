@@ -51,7 +51,7 @@ MM_POR_NOMBRE = {"mm": 1.0, "cm": 10.0, "m": 1000.0}
 INSUNITS_POR_NOMBRE = {"mm": 4, "cm": 5, "m": 6}
 NOMBRE_POR_INSUNITS = {4: "mm", 5: "cm", 6: "m"}
 #: Decimales que pide una cota en cada unidad: 600 mm, 60.0 cm, 0.600 m.
-DECIMALES_POR_NOMBRE = {"mm": 0, "cm": 1, "m": 3}
+DECIMALES_POR_NOMBRE = {"mm": 2, "cm": 1, "m": 3}
 
 NOMBRE = {
     1: "pulgadas", 2: "pies", 4: "milímetros", 5: "centímetros",

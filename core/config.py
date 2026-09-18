@@ -88,4 +88,4 @@ HISTORIAL_MAX = 500  # operaciones de deshacer
 # Unidad de trabajo de un dibujo **nuevo** (Mike, 9-sep-2026: «quiero que las
 # medidas por default de shape101 sean cm»). Los archivos abiertos conservan
 # la suya; un DXF ajeno se trae a milímetros como siempre. Ver core/unidades.py.
-UNIDADES_OMISION = "cm"
+UNIDADES_OMISION = "mm"

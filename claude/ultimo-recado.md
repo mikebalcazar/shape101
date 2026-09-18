@@ -2,13 +2,14 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-18T01:35:02+00:00
-- recado: 0.8.1, el kernel se calienta al abrir
+- corrido: 2026-09-18T01:58:45+00:00
+- recado: 0.8.2, las unidades en serio
 
 ```
-server.py (el kernel se calienta al abrir): parchado
-core/solido/rutas.py (cronómetro): parchado
-ui/tresd.js (la pantalla dice cuánto tardó): parchado
-versión 0.8.0 → 0.8.1
-server.py y rutas.py siguen siendo Python válido; tresd.js pasa node --check
+core/config.py (arranca en milímetros): parchado
+core/unidades.py (mm con centésimas): parchado
+core/solido/rutas.py (volumen y STEP a tamaño real): parchado
+ui/tresd.js (el espesor va en la unidad del dibujo): parchado
+versión 0.8.1 → 0.8.2
+los tres archivos de Python siguen válidos; tresd.js pasa node --check
 ```

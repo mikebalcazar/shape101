@@ -21,13 +21,24 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.8.1"
+VERSION = "0.8.2"
 FECHA = "2026-09-18"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.8.2",
+        "fecha": "2026-09-18",
+        "cambios": [
+            "Los dibujos nuevos arrancan en milímetros con centésimas, como se decidió el "
+            "primer día. Hasta ahora arrancaban en centímetros, heredados de draw101.",
+            "Si un dibujo está en centímetros o metros, el motor lo sabe: el volumen sale "
+            "bien y el STEP y el STL a tamaño real. Antes una pieza dibujada en cm se "
+            "exportaba diez veces más chica, y ese error se ve ya cortado.",
+        ],
+    },
     {
         "version": "0.8.1",
         "fecha": "2026-09-18",

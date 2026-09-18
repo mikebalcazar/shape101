@@ -45,14 +45,28 @@ def _cuerpo(id_: str):
     return ent
 
 
+def _factor_mm() -> float:
+    """Milímetros por unidad del dibujo. El kernel trabaja en mm y toma los
+    números tal cual; si el dibujo está en cm, todo lo que salga del kernel
+    hacia fuera —volumen, STEP, STL— se corrige con esto. Lo que se pinta no:
+    la pantalla usa los números del dibujo y la pieza va encima de su contorno."""
+    from core.unidades import MM_POR_NOMBRE
+    return float(MM_POR_NOMBRE.get(getattr(_doc(), "unidades", "mm"), 1.0))
+
+
 def _malla(cuerpo):
     from core.solido import cuerpo as mod
     try:
-        return mod.malla(cuerpo)
+        m = mod.malla(cuerpo)
     except Exception as e:
         # El kernel habla en inglés y con nombres de clase. Aquí se contesta en
         # el idioma del taller, y el cuerpo se queda como estaba.
         raise HTTPException(400, f"no se pudo construir la pieza: {e}") from e
+    f = _factor_mm()
+    if f != 1.0 and "volumen_mm3" in m:
+        m["volumen_mm3"] = round(m["volumen_mm3"] * f ** 3, 1)
+    m["unidades"] = getattr(_doc(), "unidades", "mm")
+    return m
 
 
 class Extruir(BaseModel):
@@ -195,10 +209,14 @@ def exportar(id_: str, entrada: Exportar):
     destino = pathlib.Path(entrada.ruta)
     destino.parent.mkdir(parents=True, exist_ok=True)
     formato = entrada.formato.lower()
+    # A tamaño real: si el dibujo está en cm, la pieza sale diez veces más
+    # grande que los números del kernel, que es lo que mide de verdad.
+    f = _factor_mm()
+    solido = reg.solido.scale(f) if f != 1.0 else reg.solido
     if formato == "step":
-        export_step(reg.solido, str(destino))
+        export_step(solido, str(destino))
     elif formato == "stl":
-        export_stl(reg.solido, str(destino))
+        export_stl(solido, str(destino))
     else:
         raise HTTPException(400, f"no conozco el formato «{entrada.formato}»: step o stl")
     return {"ruta": str(destino), "bytes": destino.stat().st_size}

@@ -204,7 +204,7 @@ Comandos.registrar({
         Comandos.eco("EXTRUIR necesita un espesor.", "malo");
         return;
       }
-      mm = await Entrada.pedirNumero({ mensaje: "Espesor en mm", valor: 18, clave: "extruir-espesor" });
+      mm = await Entrada.pedirNumero({ mensaje: "Espesor (en las unidades del dibujo)", valor: 18, clave: "extruir-espesor" });
     }
     if (!isFinite(mm) || mm === 0) { Comandos.eco("EXTRUIR necesita un espesor distinto de cero.", "malo"); return; }
     try {
