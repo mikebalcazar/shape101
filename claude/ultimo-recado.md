@@ -1,26 +1,24 @@
-# Último recado
+# Último recado · FALLÓ
 
-*Lo escribe `claude/recado.py` al correr en Actions.*
-
-- corrido: 2026-09-18T15:45:25+00:00
-- recado: 0.11.0, planos por ventana y activación híbrida
+- corrido: 2026-09-18T16:47:05+00:00
 
 ```
-core/entidades.py (cada línea sabe su plano): parchado
-core/dibujo.py (los trazos llevan el plano): parchado
-core/solido/rutas.py (la pieza se rota al salir): parchado
-pruebas/t024_planos.py escrita
-ui/ventanas.js (navegar sin activar): parchado
-ui/vista.js (central navega; orbitar sólo en la Perspectiva): parchado
-ui/vista.js (el mouse over ya no activa): parchado
-ui/vista.js (rueda y soltar): parchado
-ui/vista.js (aMM por plano): parchado
-ui/vista.js (pintarParte por plano): 12 conversiones pasan por el plano
-ui/visor.js (pinta cada trazo en su plano): parchado
-ui/dibujar.js (lo nuevo nace en el plano de la ventana): parchado
-ui/extruir.js (el fantasma en su plano): parchado
-ui/index.html (carga los planos): parchado
-versión 0.10.0 → 0.11.0
-seis archivos de la pantalla pasan node --check; cuatro de Python siguen válidos
-planos.js y el motor hacen la misma cuenta
+ui/seleccion.js (selección por cámara y por plano): parchado
+ui/vista.js (la llave mira las cuatro): parchado
+ui/vista.js (sin foto con cuatro ventanas): parchado
+ui/vista.js (perspectiva en píxeles): parchado
+ui/ventanas.js (foco en píxeles): parchado
+ui/camara.js (girar va a la Perspectiva): parchado
+ui/radial.js (rueda 3D con Shift): parchado
+versión 0.11.0 → 0.12.0
+
+ERROR: RuntimeError: falló node: /tmp/recado28/shape101/ui/vista.js:728
+  return `${todas}#`${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
+                    ^
+
+SyntaxError: Unexpected identifier '$'
+    at wrapSafe (node:internal/modules/cjs/loader:1713:18)
+    at checkSyntax (node:internal/main/check_syntax:78:3)
+
+Node.js v22.23.2
 ```
