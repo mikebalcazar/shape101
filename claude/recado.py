@@ -1,24 +1,37 @@
-"""El mandadero · recado 23: 0.8.2, segundo intento — las pruebas aprenden que se nace en mm.
+"""El mandadero · recado 24: 0.9.0 — las cuatro ventanas.
 
-El armado de 0.8.2 se detuvo, y bien: dos comprobaciones de `t001_dxf` seguían
-esperando que un dibujo nuevo naciera en centímetros, que es como nace draw101.
-shape101 nace en milímetros por decisión de Mike del primer día, y las pruebas
-lo cazaron. Es justo para lo que están.
+Decisión de Mike (17-sep): como Rhino, cuatro ventanas 2×2 —superior, frontal,
+lateral y perspectiva— con cámara fija cada una; clic activa, doble clic en el
+título maximiza. `ui/ventanas.js` ya está en `main`, probado con node; aquí se
+engancha al lienzo con cuatro parches:
 
-Aquí se actualizan esas dos expectativas y se vuelve a disparar el armado.
+1. **Las dos conversiones** suman y restan el origen de la ventana activa. Cada
+   cámara trae `ox`, `oy`; en la de siempre valen cero y nada cambia.
+2. **El zoom con la rueda** también: el cursor llega en coordenadas del lienzo,
+   y la ventana empieza donde empieza.
+3. **El pintado** recorre las cuatro, cada una recortada, con su título y el
+   borde de la activa. La primera vez adopta la cámara de siempre como ventana
+   superior y encuadra las otras tres a lo que hay.
+4. **El ratón**: clic en una ventana la activa; doble clic en su título la
+   maximiza o la devuelve.
+
+En 0.9.0 se dibuja sobre XY en las cuatro: en la frontal y la lateral el plano
+se ve de canto. El plano por ventana es el paso siguiente, porque cada línea
+del dibujo tiene que saber en qué plano vive, y eso toca el documento.
 """
 from __future__ import annotations
 
 import datetime as dt
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/pruebas-en-mm"
-VERSION = "0.8.2"
+RAMA = "claude/cuatro-ventanas"
+VERSION = "0.9.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -44,13 +57,109 @@ def correr(orden, cwd=None) -> str:
     return h.stdout
 
 
-def cambiar(texto: str, viejo: str, nuevo: str, donde: str) -> str:
-    fin = "\r\n" if "\r\n" in texto else "\n"
+def fin_de(t: str) -> str:
+    return "\r\n" if "\r\n" in t else "\n"
+
+
+def cambiar(texto: str, viejo: str, nuevo: str, donde: str, veces: int = 1) -> str:
+    fin = fin_de(texto)
     viejo, nuevo = viejo.replace("\n", fin), nuevo.replace("\n", fin)
     n = texto.count(viejo)
-    if n != 1:
-        raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba 1")
+    if veces and n != veces:
+        raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba {veces}")
+    if not veces and n == 0:
+        raise RuntimeError(f"{donde}: «{viejo[:60]}…» no aparece")
     return texto.replace(viejo, nuevo)
+
+
+def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
+    t = ruta.read_text(encoding="utf-8")
+    if ya in t:
+        anotar(f"{donde}: ya estaba, no se toca")
+        return
+    for c in cambios:
+        veces = c[2] if len(c) > 2 else 1
+        t = cambiar(t, c[0], c[1], donde, veces)
+    ruta.write_text(t, encoding="utf-8", newline="")
+    anotar(f"{donde}: parchado")
+
+
+PINTAR_VIEJO = """  if (estado.modo !== "papel" && typeof Visor !== "undefined") {
+    return Visor.pintarPlano(c, {
+      ancho: lienzo.clientWidth, alto: lienzo.clientHeight, fondo,
+      lienzoColor: T.lienzo, oscuro, escala: estado.vista.escala, trazos: estado.trazos,
+      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
+      rx: estado.vista.rx || 0, rz: estado.vista.rz || 0,
+      colorDe: (hex) => colorDeTrazo(hex, oscuro),
+    });
+  }"""
+
+PINTAR_NUEVO = """  if (estado.modo !== "papel" && typeof Visor !== "undefined" && typeof Ventanas !== "undefined") {
+    // Las cuatro ventanas, cada una con su cámara y recortada a su sitio. La
+    // primera vez, la cámara de siempre pasa a ser la ventana superior y las
+    // otras tres se encuadran a lo que hay.
+    const w = lienzo.clientWidth, h = lienzo.clientHeight;
+    Ventanas.repartir(w, h);
+    Ventanas.adoptar(puntosDelDibujo());
+    if (fondo) { c.clearRect(0, 0, w, h); c.fillStyle = T.lienzo; c.fillRect(0, 0, w, h); }
+    Ventanas.pintarTodas(c, (cc, v) => Visor.pintarPlano(cc, {
+      ancho: v.w, alto: v.h, fondo: false, lienzoColor: T.lienzo, oscuro,
+      escala: v.escala, trazos: estado.trazos,
+      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
+      rx: v.rx || 0, rz: v.rz || 0,
+      colorDe: (hex) => colorDeTrazo(hex, oscuro),
+    }), oscuro);
+    return;
+  }"""
+
+PUNTOS = """/** Las cuatro esquinas de lo que hay dibujado, en el plano de trabajo. Es lo
+ *  que se le da a las ventanas para que se encuadren solas. */
+function puntosDelDibujo() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of estado.trazos || []) for (const p of (t.puntos || [])) {
+    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+  }
+  if (!isFinite(x0)) return [];
+  return [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+}
+
+function dibujarPlano(c, fondo = true) {"""
+
+RATON = """lienzo.addEventListener("mousedown", (e) => {
+  // Cuatro ventanas: clic en una la activa; doble clic en su título la
+  // maximiza o la devuelve. Se decide antes que nada, porque todo lo demás
+  // trabaja sobre la ventana activa.
+  if (typeof Ventanas !== "undefined") {
+    const cajaV = lienzo.getBoundingClientRect();
+    const vx0 = e.clientX - cajaV.left, vy0 = e.clientY - cajaV.top;
+    const t = Ventanas.enTitulo(vx0, vy0);
+    if (t >= 0) {
+      if (e.detail >= 2) Ventanas.maximizar(t); else Ventanas.activar(t);
+      invalidarPlano(); pintar(); e.preventDefault(); return;
+    }
+    const i = Ventanas.bajo(vx0, vy0);
+    if (i >= 0 && i !== Ventanas.activa) { Ventanas.activar(i); invalidarPlano(); pintar(); }
+  }
+  // Botón derecho: la rueda si se arrastra, Enter si se suelta sin mover."""
+
+BITACORA = '''BITACORA: list[dict] = [
+    {
+        "version": "%s",
+        "fecha": "%s",
+        "cambios": [
+            "Cuatro ventanas, como Rhino: superior, perspectiva, frontal y lateral, cada una "
+            "con su cámara. Clic en una la activa; doble clic en su título la maximiza y otro "
+            "doble clic la devuelve. Todo —dibujar, zoom, pan, orbitar— trabaja sobre la "
+            "ventana activa, que se ve con el borde marcado.",
+            "Al abrir, la ventana superior conserva lo que estabas mirando y las otras tres se "
+            "encuadran solas a lo que hay.",
+            "Todavía se dibuja sobre el suelo (XY) en las cuatro: en la frontal y la lateral "
+            "el plano se ve de canto. Dibujar sobre el plano de cada ventana es el paso "
+            "siguiente. La perspectiva de la cuarta ventana es aún isométrica.",
+        ],
+    },
+'''
 
 
 def main() -> int:
@@ -58,7 +167,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado23")
+    tmp = pathlib.Path("/tmp/recado24")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -68,66 +177,90 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    ruta = shape / "pruebas" / "t001_dxf.py"
-    t = ruta.read_text(encoding="utf-8")
-    if "nace en milímetros" in t:
-        anotar("t001_dxf ya esperaba milímetros: no se toca")
-    else:
-        t = cambiar(t, '''    r.igual(doc_dxf.header.get("$INSUNITS"), 5,
-            "el DXF declara la unidad en la que se dibujó (5 = cm)")''',
-                    '''    r.igual(doc_dxf.header.get("$INSUNITS"), 4,
-            "el DXF declara la unidad en la que se dibujó (4 = mm)")''', "t001 (INSUNITS)")
-        t = cambiar(t, '''    # **Todo se compara en milímetros de verdad, no en números.** Un dibujo
-    # nuevo nace en centímetros y al abrir un archivo se convierte a la unidad
-    # que declara su encabezado: 1 200 cm vuelven como 12 000 mm, que es el
-    # mismo mueble. Comparar los números pelados haría fallar la prueba por
-    # una conversión correcta, y —peor— la haría pasar el día que la
-    # conversión se pierda.
-    ki = doc.mm_por_unidad()
-    kv = vuelto.mm_por_unidad()
-    r.casi(ki, 10.0, "el dibujo nuevo nace en centímetros")''',
-                    '''    # **Todo se compara en milímetros de verdad, no en números.** En shape101
-    # un dibujo nuevo nace en milímetros —decisión de Mike del primer día; en
-    # draw101 nacía en centímetros— y al abrir un archivo se convierte a la
-    # unidad que declara su encabezado. Comparar los números pelados haría
-    # fallar la prueba por una conversión correcta, y —peor— la haría pasar el
-    # día que la conversión se pierda.
-    ki = doc.mm_por_unidad()
-    kv = vuelto.mm_por_unidad()
-    r.casi(ki, 1.0, "el dibujo nuevo nace en milímetros")''', "t001 (nace en mm)")
-        t = cambiar(t, '''        r.punto(mm(linea.p2), [1200 * ki, 0],
-                "la línea vuelve midiendo lo mismo (12 000 mm)")''',
-                    '''        r.punto(mm(linea.p2), [1200 * ki, 0],
-                "la línea vuelve midiendo lo mismo")''', "t001 (etiqueta)")
-        ruta.write_text(t, encoding="utf-8", newline="")
-        anotar("pruebas/t001_dxf.py: espera milímetros, como shape101")
+    vista = shape / "ui" / "vista.js"
+    # 1 · las conversiones con el origen de la ventana
+    parchar(vista, [
+        ("  if (!v.rx && !v.rz) return [(x - v.x) * v.escala, (v.y - y) * v.escala];",
+         "  if (!v.rx && !v.rz) return [(x - v.x) * v.escala + (v.ox || 0), (v.y - y) * v.escala + (v.oy || 0)];"),
+        ("  return [(ux - v.x) * v.escala, (v.y - vy) * v.escala];",
+         "  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0)];"),
+        ("  if (!v.rx && !v.rz) return [px / v.escala + v.x, v.y - py / v.escala];",
+         "  if (!v.rx && !v.rz) return [(px - (v.ox || 0)) / v.escala + v.x, v.y - (py - (v.oy || 0)) / v.escala];"),
+        ("  const ux = px / v.escala + v.x;\n  const vy = v.y - py / v.escala;",
+         "  const ux = (px - (v.ox || 0)) / v.escala + v.x;\n  const vy = v.y - (py - (v.oy || 0)) / v.escala;"),
+    ], "(v.ox || 0)", "ui/vista.js (conversiones con el origen de la ventana)")
+    # 2 · el zoom con la rueda
+    parchar(vista, [
+        ("  const ux = px / v.escala + v.x, vy = v.y - py / v.escala;\n"
+         "  v.escala = Math.min(500, Math.max(0.002, v.escala * factor));\n"
+         "  v.x = ux - px / v.escala;                            // el punto bajo el cursor\n"
+         "  v.y = vy + py / v.escala;                            // se queda quieto",
+         "  const ox = v.ox || 0, oy = v.oy || 0;                // la ventana empieza donde empieza\n"
+         "  const ux = (px - ox) / v.escala + v.x, vy = v.y - (py - oy) / v.escala;\n"
+         "  v.escala = Math.min(500, Math.max(0.002, v.escala * factor));\n"
+         "  v.x = ux - (px - ox) / v.escala;                     // el punto bajo el cursor\n"
+         "  v.y = vy + (py - oy) / v.escala;                     // se queda quieto"),
+    ], "la ventana empieza donde empieza", "ui/vista.js (zoom con el origen de la ventana)")
+    # 3 · el pintado recorre las cuatro
+    parchar(vista, [
+        (PINTAR_VIEJO, PINTAR_NUEVO),
+        ("function dibujarPlano(c, fondo = true) {", PUNTOS),
+    ], "Ventanas.pintarTodas", "ui/vista.js (pintar las cuatro)")
+    # 4 · el ratón activa y maximiza
+    parchar(vista, [
+        ('lienzo.addEventListener("mousedown", (e) => {\n  // Botón derecho: la rueda si se arrastra, Enter si se suelta sin mover.', RATON),
+    ], "Ventanas.enTitulo", "ui/vista.js (clic activa, doble clic maximiza)")
 
-    correr([sys.executable, "-c",
-            "import ast, pathlib; ast.parse(pathlib.Path('pruebas/t001_dxf.py').read_text(encoding='utf-8'))"], cwd=shape)
-    anotar("t001_dxf.py sigue siendo Python válido")
+    parchar(shape / "ui" / "index.html", [
+        ('<script src="visor.js"></script>', '<script src="visor.js"></script>\n<script src="ventanas.js"></script>'),
+    ], "ventanas.js", "ui/index.html (carga las ventanas)")
+
+    hoy = dt.date.today().isoformat()
+    ver = shape / "core" / "version.py"
+    t = ver.read_text(encoding="utf-8")
+    actual = re.search(r'VERSION = "([^"]+)"', t).group(1)
+    if actual != VERSION:
+        t = cambiar(t, f'VERSION = "{actual}"', f'VERSION = "{VERSION}"', "version.py")
+        t = re.sub(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
+        ver.write_text(cambiar(t, "BITACORA: list[dict] = [\n", BITACORA % (VERSION, hoy), "version.py"),
+                       encoding="utf-8")
+        paq = shape / "package.json"
+        t = paq.read_text(encoding="utf-8")
+        t = cambiar(t, f'"version": "{actual}"', f'"version": "{VERSION}"', "package.json")
+        t = cambiar(t, f'"_versionApp": "{actual} —', f'"_versionApp": "{VERSION} —', "package.json")
+        paq.write_text(cambiar(t, f'"artifactName": "shape101-{actual}-setup.${{ext}}"',
+                               f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"', "package.json"),
+                       encoding="utf-8")
+        anotar(f"versión {actual} → {VERSION}")
+
+    for js in ("vista.js", "ventanas.js"):
+        correr(["node", "--check", str(shape / "ui" / js)])
+    anotar("vista.js y ventanas.js pasan node --check")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, segundo intento: las pruebas aprenden que se nace en mm\n\n```\n"
-        + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, las cuatro ventanas\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Las pruebas del DXF aprenden que shape101 nace en milímetros\n\n"
-            "El armado de 0.8.2 se detuvo porque dos comprobaciones de t001 esperaban que un\n"
-            "dibujo nuevo naciera en centímetros, como en draw101. shape101 nace en mm por\n"
-            "decisión de Mike del primer día. Las pruebas cazaron el cambio, que es justo\n"
-            "para lo que están; aquí se actualizan las dos expectativas."],
+            f"{VERSION}: las cuatro ventanas\n\n"
+            "Como Rhino: superior, perspectiva, frontal y lateral, cada una con su cámara.\n"
+            "La ventana activa ES estado.vista, así que dibujar, zoom, pan y orbitar siguen\n"
+            "funcionando sobre la activa sin enterarse de que hay tres más. Las dos\n"
+            "conversiones y el zoom suman y restan el origen de la ventana; en la de siempre\n"
+            "valen cero.\n\n"
+            "Todavía se dibuja sobre XY en las cuatro: el plano por ventana es el paso\n"
+            "siguiente, porque toca el documento."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
-    anotar(f"main actualizado y {DESTINO} movida: el armado de {VERSION} arranca de nuevo")
+    anotar(f"main actualizado y {DESTINO} creada: el armado de {VERSION} arranca")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado23/shape101")
+    shape = pathlib.Path("/tmp/recado24/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
