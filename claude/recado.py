@@ -1,24 +1,25 @@
-"""El mandadero · recado 26: 0.10.0 — el paquete completo de las cuatro vistas.
+"""El mandadero · recado 27: 0.11.0 — planos por ventana y el híbrido de activación.
 
-Mike probó la 0.9.0 y pidió todo junto:
+Lo que Mike pidió tras la 0.10.0, más lo pendiente, todo junto:
 
-1. **La selección dentro de cada ventana.** Selección, hule y fantasmas se
-   pintaban una sola vez con la cámara activa, encima de todo el lienzo: en la
-   Superior aparecían desfasados y en la Perspectiva no aparecían. Ahora esa
-   capa se pinta ventana por ventana, con la cámara de cada una.
-2. **Órbita alrededor de lo que está bajo el cursor** al empezar a arrastrar,
-   no del centro de la pantalla.
-3. **Perspectiva: central = orbitar, Alt + central = pan.** En las otras tres el
-   central sigue siendo pan y Alt + central orbita.
-4. **La ventana se activa con mouse over**, para zoom, pan y órbita.
-5. **Perspectiva de verdad** sólo en la Perspectiva; las otras tres ortogonales.
-   Matemática probada sin pantalla: ida y vuelta sobre el suelo con error de
-   10⁻¹³ mm, y un mismo canto se ve más grande cerca del ojo que lejos.
-6. **Extruir interactivo** (`ui/extruir.js`): arrastras y el fantasma crece con
-   la cota; clic confirma; Enter teclea el valor; Escape cancela.
-
-Fuera de este paquete, dicho a Mike: dibujar sobre el plano de cada ventana y
-los handles de vértices y aristas de sólidos. Tocan el documento y el kernel.
+1. **Orbitar sólo en la Perspectiva**, con el botón central; **Shift + central**
+   hace pan ahí. En las tres ortogonales el central es pan y nada más.
+2. **Activación híbrida**: la ventana activa se elige con clic y se queda para
+   los comandos; el mouse over sólo manda para pan, zoom y órbita, que van a
+   la ventana bajo el cursor sin cambiar la activa. Esto quita además el
+   fallo de la 0.10.0: el mouse over cambiaba la ventana a mitad del comando,
+   la línea se calculaba con una cámara y se pintaba con otra, y la
+   Perspectiva brincaba.
+3. **Plano por ventana.** Cada línea del dibujo sabe en qué plano vive
+   (`plano`: XY, XZ o YZ); nace con el plano de la ventana activa; los archivos
+   viejos valen XY. La Frontal dibuja sobre XZ y la Lateral sobre YZ. El visor,
+   el hule, la selección y el fantasma de extruir lo respetan en las cuatro.
+4. **El kernel sigue en XY** —donde los nombres de caras están probados— y la
+   pieza se rota al salir: a la pantalla y al STEP. Un contorno en la Frontal
+   se extruye hacia quien mira; en la Lateral, hacia +X. Los tres mapeos son
+   rotaciones, no espejos, y `ui/planos.js` hace la misma cuenta.
+5. Una prueba nueva, `t024_planos`, extruye un contorno en XZ y comprueba que
+   la pieza sale a donde debe.
 """
 from __future__ import annotations
 
@@ -31,8 +32,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/cuatro-vistas-completas"
-VERSION = "0.10.0"
+RAMA = "claude/planos-por-ventana"
+VERSION = "0.11.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -68,6 +69,8 @@ def cambiar(texto: str, viejo: str, nuevo: str, donde: str, veces: int = 1) -> s
     n = texto.count(viejo)
     if veces and n != veces:
         raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba {veces}")
+    if not veces and n == 0:
+        raise RuntimeError(f"{donde}: «{viejo[:60]}…» no aparece")
     return texto.replace(viejo, nuevo)
 
 
@@ -83,142 +86,124 @@ def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
     anotar(f"{donde}: parchado")
 
 
-APX_VIEJO = """  const vy = uy * Math.cos(v.rx) - (z || 0) * Math.sin(v.rx);
-  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0)];"""
+PLANO_MOTOR = '''def _a_mundo(plano: str, p):
+    """(u, v, w) del kernel → (x, y, z) del mundo. Rotaciones, no espejos:
+    XZ → (u, −w, v), hacia quien mira la Frontal; YZ → (w, u, v), hacia +X.
+    `ui/planos.js` hace exactamente la misma cuenta."""
+    u, v, w = p[0], p[1], p[2] if len(p) > 2 else 0.0
+    if plano == "XZ":
+        return [u, -w, v]
+    if plano == "YZ":
+        return [w, u, v]
+    return [u, v, w]
 
-APX_NUEVO = """  const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
-  const vy = uy * cx - (z || 0) * sx;
-  let px = (ux - v.x) * v.escala + (v.ox || 0), py = (v.y - vy) * v.escala + (v.oy || 0);
-  if (v.persp) {
-    // Perspectiva: lo cercano al ojo se aleja del centro de la ventana y lo
-    // lejano se acerca. Sólo la ventana Perspectiva la lleva; las otras tres
-    // son ortogonales, que es donde se mide.
-    const prof = uy * sx + (z || 0) * cx;
-    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
-    const k = 1 / Math.max(0.1, 1 - prof / (v.dist || 4000));
-    px = cxs + (px - cxs) * k;
-    py = cys + (py - cys) * k;
-  }
-  return [px, py];"""
 
-AMM_VIEJO = """  const ux = (px - (v.ox || 0)) / v.escala + v.x;
-  const vy = v.y - (py - (v.oy || 0)) / v.escala;
-  const cx = Math.cos(v.rx);
-  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;"""
+def _al_mundo(m: dict, plano: str) -> dict:
+    """La malla del kernel, ya en el mundo. El kernel siempre trabaja en XY:
+    ahí los nombres de caras están probados. La pieza se rota al salir."""
+    if plano in (None, "", "XY"):
+        return m
+    for cara in m.get("caras", []):
+        v = cara.get("v") or []
+        nuevo = []
+        for k in range(0, len(v), 3):
+            nuevo.extend(_a_mundo(plano, (v[k], v[k + 1], v[k + 2])))
+        cara["v"] = nuevo
+    m["aristas"] = [[_a_mundo(plano, p) for p in a] for a in m.get("aristas", [])]
+    return m
 
-AMM_NUEVO = """  let ux = (px - (v.ox || 0)) / v.escala + v.x;
-  let vy = v.y - (py - (v.oy || 0)) / v.escala;
-  const cx = Math.cos(v.rx);
-  if (v.persp && Math.abs(cx) > 1e-9) {
-    // Deshacer la perspectiva sobre el suelo (z = 0): ahí la profundidad es
-    // lineal en la Y de la cámara, y la ecuación se resuelve exacta.
-    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
-    const t = (Math.sin(v.rx) / cx) / (v.dist || 4000);
-    const A = v.y * v.escala + (v.oy || 0) - cys, d = py - cys;
-    vy = (A - d) / (v.escala - d * t);
-    const k = 1 / Math.max(0.1, 1 - t * vy);
-    ux = v.x + ((px - cxs) / k + cxs - (v.ox || 0)) / v.escala;
-  }
-  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;"""
 
-ENCIMA_VIEJO = """  if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(ctxE);
-  if (window.VentanasHoja) VentanasHoja.pintarEncima(ctxE);
-  pintarReferencia(ctxE);
-  pintarMira(ctxE);
-  pintarHule(ctxE);"""
+def _rotar(solido, plano: str):
+    """Lo mismo para el sólido que se exporta: la rotación que lleva el plano
+    del kernel al del mundo."""
+    from build123d import Axis
+    if plano == "XZ":
+        return solido.rotate(Axis.X, 90)
+    if plano == "YZ":
+        return solido.rotate(Axis((0, 0, 0), (1, 1, 1)), 120)
+    return solido
 
-ENCIMA_NUEVO = """  if (typeof Ventanas !== "undefined" && estado.modo !== "papel") {
-    // La capa de encima también va ventana por ventana, con la cámara de cada
-    // una: si se pintara una sola vez con la activa, la selección saldría
-    // desfasada en las otras tres. Sólo la mira se queda en la activa.
-    Ventanas.pintarTodas(ctxE, (cc) => {
-      if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(cc);
-      pintarHule(cc);
-      if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
-      if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
-    }, tema().oscuro);
-    pintarReferencia(ctxE);
-    pintarMira(ctxE);
-  } else {
-    if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(ctxE);
-    if (window.VentanasHoja) VentanasHoja.pintarEncima(ctxE);
-    pintarReferencia(ctxE);
-    pintarMira(ctxE);
-    pintarHule(ctxE);
-  }"""
 
-PONER_VIEJO = """  function poner(rx, rz) {
-    const el = lienzo();
-    const v = estado.vista;
-    const w = el ? el.clientWidth : 0, h = el ? el.clientHeight : 0;
-    const centro = window.aMM ? window.aMM(w / 2, h / 2) : null;
-    v.rx = rx;
-    v.rz = rz;
-    if (centro && window.aPX) {
-      const q = window.aPX(centro[0], centro[1], 0);
-      // Ojo con el signo de la Y: en el dibujo crece hacia arriba y en la
-      // pantalla hacia abajo, así que la corrección va al revés que la de X.
-      v.x += (q[0] - w / 2) / v.escala;
-      v.y += (h / 2 - q[1]) / v.escala;
-    }
-    repintar();
-  }"""
+def _malla(cuerpo):'''
 
-PONER_NUEVO = """  function poner(rx, rz, pivote) {
-    const el = lienzo();
-    const v = estado.vista;
-    const w = el ? el.clientWidth : 0, h = el ? el.clientHeight : 0;
-    // El pivote: lo que está bajo el cursor al empezar (lo pasa `arrastrar`),
-    // o el centro de la ventana activa. Ese punto se queda clavado en su sitio
-    // de la pantalla mientras todo lo demás gira alrededor.
-    const cx = (v.ox || 0) + (v.w || w) / 2, cy = (v.oy || 0) + (v.h || h) / 2;
-    const centro = pivote || (window.aMM ? window.aMM(cx, cy) : null);
-    const antes = centro && window.aPX ? window.aPX(centro[0], centro[1], 0) : null;
-    v.rx = rx;
-    v.rz = rz;
-    if (antes) {
-      const q = window.aPX(centro[0], centro[1], 0);
-      // Ojo con el signo de la Y: en el dibujo crece hacia arriba y en la
-      // pantalla hacia abajo, así que la corrección va al revés que la de X.
-      v.x += (q[0] - antes[0]) / v.escala;
-      v.y += (antes[1] - q[1]) / v.escala;
-    }
-    repintar();
-  }"""
+T024 = '''"""Planos por ventana · un contorno dibujado en la Frontal se extruye hacia quien mira.
 
-ARRASTRAR_VIEJO = """  function arrastrar(e) {
-    const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
-    const mover = (ev) => {
-      poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
-            a.rz + (ev.clientX - a.x) * 0.008);"""
+Mike (17-sep): «cuando dibujas en la ventana de la vista superior, dibuja
+sobre X-Y en Z = 0, y así según la vista». Cada línea sabe en qué plano vive y
+la pieza sale a donde debe. El kernel sigue trabajando en XY —donde los
+nombres de caras están probados— y la pieza se rota al salir.
+"""
+from __future__ import annotations
 
-ARRASTRAR_NUEVO = """  function arrastrar(e) {
-    const r = lienzo().getBoundingClientRect();
-    // El pivote es lo que está bajo el cursor al apretar: es lo que la mano
-    // espera que se quede quieto mientras gira lo demás.
-    const pivote = window.aMM ? window.aMM(e.clientX - r.left, e.clientY - r.top) : null;
-    const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
-    const mover = (ev) => {
-      poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
-            a.rz + (ev.clientX - a.x) * 0.008, pivote);"""
+from core import entidades as E
+from core.documento import Documento
+from core.solido import rutas
+from pruebas import comun
+
+DESCRIPCION = "extruir sobre XZ y YZ: la pieza sale a donde debe"
+
+ANCHO, ALTO, ESPESOR = 900.0, 600.0, 18.0
+
+
+def caja(malla):
+    xs, ys, zs = [], [], []
+    for c in malla["caras"]:
+        v = c["v"]
+        for k in range(0, len(v), 3):
+            xs.append(v[k]); ys.append(v[k + 1]); zs.append(v[k + 2])
+    return (min(xs), max(xs)), (min(ys), max(ys)), (min(zs), max(zs))
+
+
+def correr(r: comun.Reporte):
+    from core.solido import cuerpo as mod
+    doc = Documento.nuevo()
+    rutas.enchufar(lambda: doc)
+    mod.olvidar()
+
+    # Dibujado en la Frontal: (u, v) son (x, z). Se extruye hacia −Y.
+    frontal = E.Polilinea(puntos=[[0, 0, 0], [ANCHO, 0, 0], [ANCHO, ALTO, 0], [0, ALTO, 0]], cerrada=True)
+    frontal.plano = "XZ"
+    doc.agregar(frontal)
+    m = rutas.extruir(rutas.Extruir(ids=[frontal.id], mm=ESPESOR))
+    r.igual(doc.entidades[m["id"]].plano, "XZ", "la pieza recuerda el plano del contorno")
+    (x0, x1), (y0, y1), (z0, z1) = caja(m)
+    r.casi(x1 - x0, ANCHO, "en la Frontal el ancho va sobre X", 1e-6)
+    r.casi(z1 - z0, ALTO, "en la Frontal el alto va sobre Z", 1e-6)
+    r.casi(y1 - y0, ESPESOR, "el espesor va sobre Y", 1e-6)
+    r.casi(y1, 0.0, "y crece hacia quien mira: la pieza queda en Y negativa", 1e-6)
+    r.casi(m["volumen_mm3"], ANCHO * ALTO * ESPESOR, "el volumen no cambia por rotar", 1.0)
+
+    # Dibujado en la Lateral: (u, v) son (y, z). Se extruye hacia +X.
+    lateral = E.Polilinea(puntos=[[0, 0, 0], [ANCHO, 0, 0], [ANCHO, ALTO, 0], [0, ALTO, 0]], cerrada=True)
+    lateral.plano = "YZ"
+    doc.agregar(lateral)
+    m2 = rutas.extruir(rutas.Extruir(ids=[lateral.id], mm=ESPESOR))
+    (x0, x1), (y0, y1), (z0, z1) = caja(m2)
+    r.casi(y1 - y0, ANCHO, "en la Lateral el ancho va sobre Y", 1e-6)
+    r.casi(z1 - z0, ALTO, "en la Lateral el alto va sobre Z", 1e-6)
+    r.casi(x1 - x0, ESPESOR, "el espesor va sobre X", 1e-6)
+    r.casi(x0, 0.0, "y crece hacia +X", 1e-6)
+
+    # Un archivo viejo no trae plano y vale XY.
+    vieja = E.de_dict({"tipo": "linea", "p1": [0, 0], "p2": [100, 0]})
+    r.igual(getattr(vieja, "plano", None), "XY", "una entidad sin plano vale XY")
+'''
 
 BITACORA = '''BITACORA: list[dict] = [
     {
         "version": "%s",
         "fecha": "%s",
         "cambios": [
-            "La selección, el hule y los fantasmas se ven en las cuatro ventanas, cada una "
-            "desde su ángulo. En 0.9.0 sólo se pintaban con la cámara de la activa y salían "
-            "desfasados en las demás.",
-            "La ventana Perspectiva tiene perspectiva de verdad; las otras tres siguen "
-            "ortogonales, que es donde se mide.",
-            "Orbitar gira alrededor de lo que está bajo el cursor al empezar a arrastrar. En la "
-            "Perspectiva, el botón central orbita y Alt + central hace pan; en las otras tres el "
-            "central es pan y Alt + central orbita.",
-            "La ventana se activa con solo pasar el mouse: zoom, pan y órbita van donde está el "
-            "cursor.",
-            "Extruir es interactivo: das EXTRUIR con el contorno seleccionado, arrastras y el "
-            "fantasma crece con la cota; clic confirma, Enter teclea el valor, Escape cancela.",
+            "Cada ventana dibuja sobre su plano: la Superior sobre el suelo, la Frontal sobre "
+            "XZ y la Lateral sobre YZ. Cada línea recuerda en qué plano vive y se ve en las "
+            "cuatro ventanas desde su ángulo, con su selección y su hule.",
+            "Extruir empuja en la dirección del plano: un contorno de la Frontal se levanta "
+            "hacia quien mira; uno de la Lateral, hacia el lado. STEP y STL salen ya rotados.",
+            "La ventana activa se elige con clic y se queda para los comandos. Pan, zoom y "
+            "órbita van a la ventana bajo el cursor sin cambiarla: es lo que quita el brinco "
+            "de la Perspectiva y el hule mal pintado de la 0.10.0.",
+            "Orbitar sólo existe en la Perspectiva, con el botón central. Shift + central hace "
+            "pan ahí. En las ortogonales el central es pan.",
         ],
     },
 '''
@@ -229,7 +214,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado26")
+    tmp = pathlib.Path("/tmp/recado27")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -239,51 +224,144 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
+    # --- el motor -----------------------------------------------------------
+    parchar(shape / "core" / "entidades.py", [
+        ('    grupo: str = ""',
+         '    grupo: str = ""\n'
+         '    # En qué plano vive: XY (el suelo), XZ (la Frontal) o YZ (la Lateral).\n'
+         '    # Los archivos viejos no lo traen y valen XY. Ver ui/planos.js.\n'
+         '    plano: str = "XY"'),
+    ], 'plano: str = "XY"', "core/entidades.py (cada línea sabe su plano)")
+    parchar(shape / "core" / "dibujo.py", [
+        ('        "capa": e.capa,', '        "capa": e.capa,\n        "plano": getattr(e, "plano", "XY"),', 0),
+    ], '"plano": getattr(e, "plano", "XY")', "core/dibujo.py (los trazos llevan el plano)")
+    parchar(shape / "core" / "solido" / "rutas.py", [
+        ("def _malla(cuerpo):", PLANO_MOTOR),
+        ('    nuevo = Cuerpo(operaciones=ops, capa=entidades[0].get("capa", "0"))',
+         '    nuevo = Cuerpo(operaciones=ops, capa=entidades[0].get("capa", "0"),\n'
+         '                   plano=entidades[0].get("plano", "XY"))'),
+        ('    f = _factor_mm()\n    if f != 1.0 and "volumen_mm3" in m:',
+         '    m = _al_mundo(m, getattr(cuerpo, "plano", "XY"))\n    f = _factor_mm()\n    if f != 1.0 and "volumen_mm3" in m:'),
+        ('    solido = reg.solido.scale(f) if f != 1.0 else reg.solido',
+         '    solido = reg.solido.scale(f) if f != 1.0 else reg.solido\n    solido = _rotar(solido, getattr(c, "plano", "XY"))'),
+    ], "_al_mundo", "core/solido/rutas.py (la pieza se rota al salir)")
+    (shape / "pruebas" / "t024_planos.py").write_text(T024, encoding="utf-8")
+    anotar("pruebas/t024_planos.py escrita")
+
+    # --- la pantalla --------------------------------------------------------
     parchar(shape / "ui" / "ventanas.js", [
-        ('    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO },',
-         '    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO, persp: true, dist: 4000 },'),
-    ], "persp: true", "ui/ventanas.js (la Perspectiva lleva perspectiva)")
+        ("  /** Activar: la cámara de esa ventana pasa a ser `estado.vista`. */",
+         "  /** Navegar —pan, zoom, órbita— en la ventana bajo el cursor sin cambiar\n"
+         "   *  la activa: la activa es de los comandos, y se elige con clic. Mike lo\n"
+         "   *  quiso así: híbrido. Dura lo que dura el gesto. */\n"
+         "  let navegando = null;\n"
+         "  function navegarEn(px, py) {\n"
+         "    const i = bajo(px, py);\n"
+         "    if (i < 0 || i === activa || typeof estado === \"undefined\") return false;\n"
+         "    navegando = i;\n"
+         "    estado.vista = ventanas[i];\n"
+         "    return true;\n"
+         "  }\n"
+         "  function terminarNavegacion() {\n"
+         "    if (navegando === null || typeof estado === \"undefined\") return;\n"
+         "    navegando = null;\n"
+         "    estado.vista = ventanas[activa];\n"
+         "  }\n\n"
+         "  /** Activar: la cámara de esa ventana pasa a ser `estado.vista`. */"),
+        ("           adoptar, encuadrarTodas, pintarTodas, proyectar, TITULO,",
+         "           adoptar, encuadrarTodas, pintarTodas, proyectar, TITULO,\n           navegarEn, terminarNavegacion,"),
+    ], "function navegarEn", "ui/ventanas.js (navegar sin activar)")
 
     vista = shape / "ui" / "vista.js"
-    parchar(vista, [(APX_VIEJO, APX_NUEVO), (AMM_VIEJO, AMM_NUEVO)],
-            "if (v.persp)", "ui/vista.js (perspectiva en las conversiones)")
+    # 1 · activar sólo con el botón izquierdo; navegar con el central sin activar
     parchar(vista, [
-        (ENCIMA_VIEJO, ENCIMA_NUEVO),
-        ("function pintarMira(c = ctx) {\n  if (typeof TresD !== \"undefined\") TresD.pintarFantasma(c);",
-         "function pintarMira(c = ctx) {"),
-    ], "Extrusion.pintar(cc)", "ui/vista.js (la capa de encima, ventana por ventana)")
+        ("    const i = Ventanas.bajo(vx0, vy0);\n    if (i >= 0 && i !== Ventanas.activa) { Ventanas.activar(i); invalidarPlano(); pintar(); }",
+         "    const i = Ventanas.bajo(vx0, vy0);\n"
+         "    if (e.button === 0 && i >= 0 && i !== Ventanas.activa) { Ventanas.activar(i); invalidarPlano(); pintar(); }\n"
+         "    if (e.button === 1) Ventanas.navegarEn(vx0, vy0);      // pan u órbita donde está el cursor"),
+        ('  if (e.button === 1 && typeof Camara !== "undefined" && (estado.vista.persp ? !e.altKey : e.altKey)) { Camara.arrastrar(e); e.preventDefault(); return; }',
+         '  if (e.button === 1 && typeof Camara !== "undefined" && estado.vista.persp && !e.shiftKey) { Camara.arrastrar(e); e.preventDefault(); return; }'),
+    ], "Ventanas.navegarEn(vx0, vy0)", "ui/vista.js (central navega; orbitar sólo en la Perspectiva)")
+    # 2 · fuera el mouse over que activaba
     parchar(vista, [
-        ('  if (e.button === 1 && e.altKey && typeof Camara !== "undefined") { Camara.arrastrar(e); e.preventDefault(); return; }',
-         '  // Botón central: en la Perspectiva orbita y Alt + central hace pan. En las\n'
-         '  // otras tres el central es pan, como siempre, y Alt + central orbita.\n'
-         '  if (e.button === 1 && typeof Camara !== "undefined" && (estado.vista.persp ? !e.altKey : e.altKey)) { Camara.arrastrar(e); e.preventDefault(); return; }'),
-    ], "estado.vista.persp ? !e.altKey : e.altKey", "ui/vista.js (central orbita en la Perspectiva)")
-    parchar(vista, [
-        ("  const px = e.clientX - caja.left, py = e.clientY - caja.top;\n  const [mx, my] = aMM(px, py);\n  estado.cursor = { px, py, x: mx, y: my };",
-         "  const px = e.clientX - caja.left, py = e.clientY - caja.top;\n"
-         "  // La ventana se activa con solo pasar el mouse: zoom, pan y órbita van\n"
+        ("  // La ventana se activa con solo pasar el mouse: zoom, pan y órbita van\n"
          "  // donde está el cursor. No mientras se arrastra algo.\n"
          "  if (typeof Ventanas !== \"undefined\" && e.buttons === 0 && !(typeof Extrusion !== \"undefined\" && Extrusion.activa())) {\n"
          "    const iv = Ventanas.bajo(px, py);\n"
          "    if (iv >= 0 && iv !== Ventanas.activa) { Ventanas.activar(iv); invalidarPlano(); }\n"
-         "  }\n"
-         "  const [mx, my] = aMM(px, py);\n  estado.cursor = { px, py, x: mx, y: my };"),
-    ], "La ventana se activa con solo pasar el mouse", "ui/vista.js (mouse over activa)")
+         "  }\n", ""),
+    ], "__sin_mouse_over__", "ui/vista.js (el mouse over ya no activa)")
+    # 3 · la rueda navega en la ventana bajo el cursor; al soltar se vuelve a la activa
+    parchar(vista, [
+        ("  zoomEn(e.clientX - caja.left, e.clientY - caja.top, e.deltaY < 0 ? f : 1 / f);",
+         "  if (typeof Ventanas !== \"undefined\") Ventanas.navegarEn(e.clientX - caja.left, e.clientY - caja.top);\n"
+         "  zoomEn(e.clientX - caja.left, e.clientY - caja.top, e.deltaY < 0 ? f : 1 / f);\n"
+         "  if (typeof Ventanas !== \"undefined\") Ventanas.terminarNavegacion();"),
+        ('window.addEventListener("mouseup", (e) => {',
+         'window.addEventListener("mouseup", (e) => {\n  if (typeof Ventanas !== "undefined") Ventanas.terminarNavegacion();'),
+    ], "Ventanas.terminarNavegacion()", "ui/vista.js (rueda y soltar)")
+    # 4 · aMM devuelve coordenadas del plano de la ventana
+    parchar(vista, [
+        ("  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;\n  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);\n  return [ux * cz + uy * sz, -ux * sz + uy * cz];",
+         "  // En la Frontal y la Lateral lo que se devuelve son las coordenadas del\n"
+         "  // plano de la ventana —(x, z) o (y, z)—, que es donde se dibuja ahí.\n"
+         "  if (v.plano === \"XZ\" || v.plano === \"YZ\") return [ux, vy];\n"
+         "  const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;\n  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);\n  return [ux * cz + uy * sz, -ux * sz + uy * cz];"),
+    ], 'if (v.plano === "XZ" || v.plano === "YZ") return [ux, vy];', "ui/vista.js (aMM por plano)")
+    # 5 · pintarParte por el plano de la parte o de la ventana
+    t = vista.read_text(encoding="utf-8")
+    if "const P = (x, y) =>" not in t:
+        ini = t.index("function pintarParte(h, c = ctx) {")
+        fin_f = t.index("\nfunction ", ini + 10)
+        cuerpo = t[ini:fin_f]
+        n = cuerpo.count("aPX(")
+        cuerpo = cuerpo.replace("aPX(", "P(")
+        eol = fin_de(t)
+        cuerpo = cuerpo.replace("function pintarParte(h, c = ctx) {",
+                                "function pintarParte(h, c = ctx) {" + eol
+                                + "  // Cada parte va por su plano, o por el de la ventana activa si no lo trae." + eol
+                                + "  const P = (x, y) => { const m = typeof Planos !== \"undefined\" ? Planos.aMundo(h.plano || estado.vista.plano || \"XY\", x, y, 0) : [x, y, 0]; return aPX(m[0], m[1], m[2]); };", 1)
+        t = t[:ini] + cuerpo + t[fin_f:]
+        vista.write_text(t, encoding="utf-8", newline="")
+        anotar(f"ui/vista.js (pintarParte por plano): {n} conversiones pasan por el plano")
 
-    parchar(shape / "ui" / "camara.js", [(PONER_VIEJO, PONER_NUEVO), (ARRASTRAR_VIEJO, ARRASTRAR_NUEVO)],
-            "function poner(rx, rz, pivote)", "ui/camara.js (pivote bajo el cursor)")
+    parchar(shape / "ui" / "visor.js", [
+        ("              const q = aPX(pol[i][0], pol[i][1], 0);",
+         "              const mp = Planos.aMundo(t.plano || \"XY\", pol[i][0], pol[i][1], 0);\n              const q = aPX(mp[0], mp[1], mp[2]);"),
+        ("          const q = aPX(pts[i][0], pts[i][1], 0);",
+         "          const mp = Planos.aMundo(t.plano || \"XY\", pts[i][0], pts[i][1], 0);\n          const q = aPX(mp[0], mp[1], mp[2]);"),
+        ("      const q = aPX(t.p[0], t.p[1], 0);",
+         "      const mp = Planos.aMundo(t.plano || \"XY\", t.p[0], t.p[1], 0);\n      const q = aPX(mp[0], mp[1], mp[2]);"),
+    ], "Planos.aMundo(t.plano", "ui/visor.js (pinta cada trazo en su plano)")
 
-    parchar(shape / "ui" / "tresd.js", [
-        ('      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {',
-         '      // Sin argumento, extruir es interactivo: el fantasma sigue al ratón.\n'
-         '      if (typeof Extrusion !== "undefined" && Extrusion.empezar(ids)) return;\n'
-         '      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {'),
-    ], "Extrusion.empezar(ids)", "ui/tresd.js (EXTRUIR interactivo)")
+    parchar(shape / "ui" / "dibujar.js", [
+        ("async function crearEntidad(entidad, accion) {",
+         "async function crearEntidad(entidad, accion) {\n"
+         "  // Lo nuevo nace en el plano de la ventana activa.\n"
+         "  if (entidad && !entidad.plano && estado.vista && estado.vista.plano) entidad.plano = estado.vista.plano;"),
+        ("async function crearVarias(entidades, accion) {",
+         "async function crearVarias(entidades, accion) {\n"
+         "  for (const en of entidades || []) if (en && !en.plano && estado.vista && estado.vista.plano) en.plano = estado.vista.plano;"),
+    ], "Lo nuevo nace en el plano", "ui/dibujar.js (lo nuevo nace en el plano de la ventana)")
+
+    parchar(shape / "ui" / "extruir.js", [
+        ("      out.push(t.puntos.map((p) => [p[0], p[1]]));",
+         "      out.push({ plano: t.plano || \"XY\", pts: t.puntos.map((p) => [p[0], p[1]]) });"),
+        ("    const q0 = window.aPX(0, 0, 0), q1 = window.aPX(0, 0, 1);",
+         "    const n = Planos.normal(a.contornos[0].plano);\n    const q0 = window.aPX(0, 0, 0), q1 = window.aPX(n[0], n[1], n[2]);"),
+        ("    for (const pts of a.contornos) {", "    for (const { plano, pts } of a.contornos) {"),
+        ("      pts.forEach((p, i) => { const q = window.aPX(p[0], p[1], a.mm); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });",
+         "      pts.forEach((p, i) => { const m = Planos.aMundo(plano, p[0], p[1], a.mm); const q = window.aPX(m[0], m[1], m[2]); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });"),
+        ("        const q0 = window.aPX(p[0], p[1], 0), q1 = window.aPX(p[0], p[1], a.mm);",
+         "        const m0 = Planos.aMundo(plano, p[0], p[1], 0), m1 = Planos.aMundo(plano, p[0], p[1], a.mm);\n"
+         "        const q0 = window.aPX(m0[0], m0[1], m0[2]), q1 = window.aPX(m1[0], m1[1], m1[2]);"),
+    ], "Planos.normal(a.contornos[0].plano)", "ui/extruir.js (el fantasma en su plano)")
 
     parchar(shape / "ui" / "index.html", [
-        ('<script src="ventanas.js"></script>', '<script src="ventanas.js"></script>\n<script src="extruir.js"></script>'),
-    ], "extruir.js", "ui/index.html (carga extruir)")
+        ('<script src="extruir.js"></script>', '<script src="extruir.js"></script>\n<script src="planos.js"></script>'),
+    ], "planos.js", "ui/index.html (carga los planos)")
 
+    # --- la versión -----------------------------------------------------------
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
     t = ver.read_text(encoding="utf-8")
@@ -302,25 +380,36 @@ def main() -> int:
                        encoding="utf-8")
         anotar(f"versión {actual} → {VERSION}")
 
-    for js in ("vista.js", "camara.js", "tresd.js", "ventanas.js", "extruir.js"):
+    for js in ("vista.js", "ventanas.js", "visor.js", "dibujar.js", "extruir.js", "planos.js"):
         correr(["node", "--check", str(shape / "ui" / js)])
-    anotar("los cinco archivos pasan node --check")
+    correr([sys.executable, "-c",
+            "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(encoding='utf-8')) for p in "
+            "('core/entidades.py', 'core/dibujo.py', 'core/solido/rutas.py', 'pruebas/t024_planos.py')]"], cwd=shape)
+    anotar("seis archivos de la pantalla pasan node --check; cuatro de Python siguen válidos")
+    # La misma cuenta en las dos lenguas: si difiere, la pieza sale a otro sitio.
+    js = correr(["node", "-e",
+                 "const P=require('./ui/planos.js');console.log(JSON.stringify([P.aMundo('XZ',1,2,3),P.aMundo('YZ',1,2,3),P.aMundo('XY',1,2,3)]))"], cwd=shape).strip()
+    if js != "[[1,-3,2],[3,1,2],[1,2,3]]":
+        raise RuntimeError(f"planos.js no mapea como el motor: {js}")
+    anotar("planos.js y el motor hacen la misma cuenta")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, el paquete completo de las cuatro vistas\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, planos por ventana y activación híbrida\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            f"{VERSION}: el paquete completo de las cuatro vistas\n\n"
-            "Lo que Mike pidió tras probar la 0.9.0, todo junto: la selección, el hule y los\n"
-            "fantasmas pintados ventana por ventana con su cámara; órbita alrededor de lo\n"
-            "que está bajo el cursor; en la Perspectiva central = orbitar y Alt + central =\n"
-            "pan; la ventana se activa con mouse over; perspectiva de verdad sólo en la\n"
-            "Perspectiva; y extruir interactivo, con el fantasma creciendo con la cota.\n\n"
-            "La perspectiva se probó sin pantalla: ida y vuelta sobre el suelo con error de\n"
-            "1e-13 mm, y un mismo canto se ve más grande cerca del ojo que lejos."],
+            f"{VERSION}: planos por ventana y activación híbrida\n\n"
+            "Cada línea sabe en qué plano vive y nace con el plano de la ventana activa; la\n"
+            "Frontal dibuja sobre XZ y la Lateral sobre YZ. El kernel sigue en XY, donde los\n"
+            "nombres de caras están probados, y la pieza se rota al salir: a la pantalla y al\n"
+            "STEP. Los tres mapeos son rotaciones, no espejos, y ui/planos.js hace la misma\n"
+            "cuenta que el motor; el recado lo comprueba.\n\n"
+            "La ventana activa se elige con clic y se queda para los comandos; pan, zoom y\n"
+            "órbita van a la ventana bajo el cursor sin cambiarla. Eso quita el brinco de la\n"
+            "Perspectiva y el hule mal pintado de la 0.10.0. Orbitar sólo en la Perspectiva,\n"
+            "con el central; Shift + central hace pan ahí."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
@@ -329,7 +418,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado26/shape101")
+    shape = pathlib.Path("/tmp/recado27/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
