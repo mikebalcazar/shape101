@@ -54,17 +54,39 @@ const aPX = (x, y, z) => {
   const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
   const ux = x * cz - y * sz;
   const uy = x * sz + y * cz;
-  const vy = uy * Math.cos(v.rx) - (z || 0) * Math.sin(v.rx);
-  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0)];
+  const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
+  const vy = uy * cx - (z || 0) * sx;
+  let px = (ux - v.x) * v.escala + (v.ox || 0), py = (v.y - vy) * v.escala + (v.oy || 0);
+  if (v.persp) {
+    // Perspectiva: lo cercano al ojo se aleja del centro de la ventana y lo
+    // lejano se acerca. Sólo la ventana Perspectiva la lleva; las otras tres
+    // son ortogonales, que es donde se mide.
+    const prof = uy * sx + (z || 0) * cx;
+    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
+    const k = 1 / Math.max(0.1, 1 - prof / (v.dist || 4000));
+    px = cxs + (px - cxs) * k;
+    py = cys + (py - cys) * k;
+  }
+  return [px, py];
 };
 // Al revés se cae **sobre el plano de trabajo** (z = 0): es donde vive el
 // dibujo, así que el punto que sueltas es el que estabas viendo.
 const aMM = (px, py) => {
   const v = estado.vista;
   if (!v.rx && !v.rz) return [(px - (v.ox || 0)) / v.escala + v.x, v.y - (py - (v.oy || 0)) / v.escala];
-  const ux = (px - (v.ox || 0)) / v.escala + v.x;
-  const vy = v.y - (py - (v.oy || 0)) / v.escala;
+  let ux = (px - (v.ox || 0)) / v.escala + v.x;
+  let vy = v.y - (py - (v.oy || 0)) / v.escala;
   const cx = Math.cos(v.rx);
+  if (v.persp && Math.abs(cx) > 1e-9) {
+    // Deshacer la perspectiva sobre el suelo (z = 0): ahí la profundidad es
+    // lineal en la Y de la cámara, y la ecuación se resuelve exacta.
+    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
+    const t = (Math.sin(v.rx) / cx) / (v.dist || 4000);
+    const A = v.y * v.escala + (v.oy || 0) - cys, d = py - cys;
+    vy = (A - d) / (v.escala - d * t);
+    const k = 1 / Math.max(0.1, 1 - t * vy);
+    ux = v.x + ((px - cxs) / k + cxs - (v.ox || 0)) / v.escala;
+  }
   const uy = Math.abs(cx) < 1e-9 ? 0 : vy / cx;
   const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
   return [ux * cz + uy * sz, -ux * sz + uy * cz];
@@ -1062,11 +1084,25 @@ function _pintarYaCrudo() {
   ctxE.save();
   ctxE.clearRect(0, 0, encima.width, encima.height);
   // El ResizeObserver puede pedir un cuadro antes de que cargue seleccion.js.
-  if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(ctxE);
-  if (window.VentanasHoja) VentanasHoja.pintarEncima(ctxE);
-  pintarReferencia(ctxE);
-  pintarMira(ctxE);
-  pintarHule(ctxE);
+  if (typeof Ventanas !== "undefined" && estado.modo !== "papel") {
+    // La capa de encima también va ventana por ventana, con la cámara de cada
+    // una: si se pintara una sola vez con la activa, la selección saldría
+    // desfasada en las otras tres. Sólo la mira se queda en la activa.
+    Ventanas.pintarTodas(ctxE, (cc) => {
+      if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(cc);
+      pintarHule(cc);
+      if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
+      if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
+    }, tema().oscuro);
+    pintarReferencia(ctxE);
+    pintarMira(ctxE);
+  } else {
+    if (typeof Seleccion !== "undefined") Seleccion.pintarSeleccion(ctxE);
+    if (window.VentanasHoja) VentanasHoja.pintarEncima(ctxE);
+    pintarReferencia(ctxE);
+    pintarMira(ctxE);
+    pintarHule(ctxE);
+  }
   ctxE.restore();
 
   const zoomTxt = Math.round(estado.vista.escala * 100) + "%";
@@ -1362,7 +1398,6 @@ function pintarReferencia(c = ctx) {
 let _cursorIconoPuesto = null;
 
 function pintarMira(c = ctx) {
-  if (typeof TresD !== "undefined") TresD.pintarFantasma(c);
   // El puntero del sistema se esconde mientras una herramienta lleva icono
   // propio; si no, la flecha compite con la tijera.
   const icono = estado.cursorIcono || null;
@@ -1459,7 +1494,9 @@ lienzo.addEventListener("mousedown", (e) => {
   // Botón derecho: la rueda si se arrastra, Enter si se suelta sin mover.
   if (e.button === 2) { Radial.abajo(e); e.preventDefault(); return; }
   // Alt + botón central: orbitar. Sin Alt, el central sigue siendo pan.
-  if (e.button === 1 && e.altKey && typeof Camara !== "undefined") { Camara.arrastrar(e); e.preventDefault(); return; }
+  // Botón central: en la Perspectiva orbita y Alt + central hace pan. En las
+  // otras tres el central es pan, como siempre, y Alt + central orbita.
+  if (e.button === 1 && typeof Camara !== "undefined" && (estado.vista.persp ? !e.altKey : e.altKey)) { Camara.arrastrar(e); e.preventDefault(); return; }
   if (esPan(e)) {
     if (e.button === 0) window.__espacioArrastro = true;   // que el espacio no confirme al soltar
     arrastrePan = { px: e.clientX, py: e.clientY, vx: estado.vista.x, vy: estado.vista.y };
@@ -1527,6 +1564,12 @@ lienzo.addEventListener("mousemove", (e) => {
   if (typeof TresD !== "undefined" && TresD.mover(e)) return;
   const caja = lienzo.getBoundingClientRect();
   const px = e.clientX - caja.left, py = e.clientY - caja.top;
+  // La ventana se activa con solo pasar el mouse: zoom, pan y órbita van
+  // donde está el cursor. No mientras se arrastra algo.
+  if (typeof Ventanas !== "undefined" && e.buttons === 0 && !(typeof Extrusion !== "undefined" && Extrusion.activa())) {
+    const iv = Ventanas.bajo(px, py);
+    if (iv >= 0 && iv !== Ventanas.activa) { Ventanas.activar(iv); invalidarPlano(); }
+  }
   const [mx, my] = aMM(px, py);
   estado.cursor = { px, py, x: mx, y: my };
   // El ratón sabe si Shift está apretado aunque el teclado se haya perdido un

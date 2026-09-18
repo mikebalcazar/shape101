@@ -33,19 +33,24 @@ const Camara = (() => {
    *  mirando**: se anota qué punto del plano está en el centro, se gira, y se
    *  vuelve a poner ese punto en el centro. Sin esto, cada giro manda el
    *  dibujo a otra parte y hay que encuadrar de nuevo cada vez. */
-  function poner(rx, rz) {
+  function poner(rx, rz, pivote) {
     const el = lienzo();
     const v = estado.vista;
     const w = el ? el.clientWidth : 0, h = el ? el.clientHeight : 0;
-    const centro = window.aMM ? window.aMM(w / 2, h / 2) : null;
+    // El pivote: lo que está bajo el cursor al empezar (lo pasa `arrastrar`),
+    // o el centro de la ventana activa. Ese punto se queda clavado en su sitio
+    // de la pantalla mientras todo lo demás gira alrededor.
+    const cx = (v.ox || 0) + (v.w || w) / 2, cy = (v.oy || 0) + (v.h || h) / 2;
+    const centro = pivote || (window.aMM ? window.aMM(cx, cy) : null);
+    const antes = centro && window.aPX ? window.aPX(centro[0], centro[1], 0) : null;
     v.rx = rx;
     v.rz = rz;
-    if (centro && window.aPX) {
+    if (antes) {
       const q = window.aPX(centro[0], centro[1], 0);
       // Ojo con el signo de la Y: en el dibujo crece hacia arriba y en la
       // pantalla hacia abajo, así que la corrección va al revés que la de X.
-      v.x += (q[0] - w / 2) / v.escala;
-      v.y += (h / 2 - q[1]) / v.escala;
+      v.x += (q[0] - antes[0]) / v.escala;
+      v.y += (antes[1] - q[1]) / v.escala;
     }
     repintar();
   }
@@ -121,10 +126,14 @@ const Camara = (() => {
    *  Alt + botón central, idea de Mike (17-sep). Se suelta el botón y se
    *  acabó. Lo llama el lienzo desde su propio mousedown. */
   function arrastrar(e) {
+    const r = lienzo().getBoundingClientRect();
+    // El pivote es lo que está bajo el cursor al apretar: es lo que la mano
+    // espera que se quede quieto mientras gira lo demás.
+    const pivote = window.aMM ? window.aMM(e.clientX - r.left, e.clientY - r.top) : null;
     const a = { x: e.clientX, y: e.clientY, rx: estado.vista.rx, rz: estado.vista.rz };
     const mover = (ev) => {
       poner(Math.max(-Math.PI / 2, Math.min(0, a.rx + (ev.clientY - a.y) * 0.008)),
-            a.rz + (ev.clientX - a.x) * 0.008);
+            a.rz + (ev.clientX - a.x) * 0.008, pivote);
       ev.preventDefault();
       ev.stopPropagation();
     };

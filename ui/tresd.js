@@ -200,6 +200,8 @@ Comandos.registrar({
       // Electron no tiene la ventanita de preguntar del navegador: usarla deja
       // el comando muerto. La app ya pide medidas con la cajita de siempre,
       // que acepta coma o punto y recuerda lo último que se tecleó.
+      // Sin argumento, extruir es interactivo: el fantasma sigue al ratón.
+      if (typeof Extrusion !== "undefined" && Extrusion.empezar(ids)) return;
       if (typeof Entrada === "undefined" || !Entrada.pedirNumero) {
         Comandos.eco("EXTRUIR necesita un espesor.", "malo");
         return;
