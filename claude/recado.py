@@ -1,18 +1,24 @@
-"""El mandadero · recado 17 (relanzado): 0.6.1 — lo que Mike vio en la 0.6.0.
+"""El mandadero · recado 19: 0.7.0 — el visor toma el mando girado.
 
-Los dos disparos anteriores se quedaron mudos porque GitHub exigía 2FA en la
-cuenta y, mientras no estuviera puesto, detenía los trabajos en silencio. Mike
-lo activó el 16-sep. Este es el mismo recado, sin cambios.
+Lo que Mike vio en la 0.6.1, y su causa, cada una encontrada en el código:
 
-1. **Nadie repintaba.** La cámara, los cuerpos y el gesto pedían repintar por
-   `Vista.pintar`, que **no existe**. Ahora `pintar` e `invalidarPlano` están
-   expuestos y se usan.
-2. **La llave del plano no sabía de la cámara.** Ahora incluye los ángulos.
-3. **Las líneas se pintaban en planta siempre.** Con la cámara girada pasan
-   por `aPX`; en planta sigue el camino rápido, intacto. Sin recorte por
-   ventana girada y sin rejilla girada.
-4. **El ciclo de pintado nunca muere.** Si un cuadro truena, se anota en
-   consola, se pinta lo que se pudo y el programa sigue vivo.
+1. **Lento, y las líneas se quedaban en 2D.** El recado 17 giró el bucle de los
+   rellenos (`t.poligonos`) y no el de las líneas (`t.puntos`), que va aparte
+   con la cuenta a mano. Parché el bucle equivocado. Y aun bien parchado, el
+   pintado viejo redibuja el plano entero con sus cachés peleando contra la
+   cámara. Solución: **cuando la cámara está girada, pinta el visor nuevo**
+   (`ui/visor.js`), sin lotes ni foto ni recorte. En planta sigue el pintado
+   de siempre, intacto, con sus 470 comprobaciones.
+2. **Orbitar raro al topar, y el pan se dispara solo.** La órbita escuchaba
+   eventos `pointer` y el lienzo escucha `mouse`: frenar unos no frena los
+   otros, así que los dos gestos corrían a la vez. Ahora la órbita escucha
+   los mismos `mouse` que el lienzo y se queda con ellos.
+3. **Zoom descentrado girado.** `zoomEn` convertía el cursor a coordenadas del
+   plano y las mezclaba con `vista.x`, que vive en el espacio de la cámara.
+   En planta son lo mismo; girado, se van por media pantalla. Ahora la cuenta
+   va en el espacio de la cámara: en planta da lo mismo de siempre.
+4. **Los sólidos no se redibujaban tras jalar.** La caché del plano no sabía
+   que la pieza cambió. Ahora, cuando una pieza cambia, se invalida el plano.
 """
 from __future__ import annotations
 
@@ -25,8 +31,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/repintar-y-girar-las-lineas"
-VERSION = "0.6.1"
+RAMA = "claude/el-visor-toma-el-mando"
+VERSION = "0.7.0"
 DESTINO = f"claude/publicar-{VERSION}"
 
 lineas: list[str] = []
@@ -73,9 +79,8 @@ def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
         anotar(f"{donde}: ya estaba, no se toca")
         return
     for c in cambios:
-        viejo, nuevo = c[0], c[1]
         veces = c[2] if len(c) > 2 else 1
-        t = cambiar(t, viejo, nuevo, donde, veces)
+        t = cambiar(t, c[0], c[1], donde, veces)
     ruta.write_text(t, encoding="utf-8", newline="")
     anotar(f"{donde}: parchado")
 
@@ -85,14 +90,15 @@ BITACORA = '''BITACORA: list[dict] = [
         "version": "%s",
         "fecha": "%s",
         "cambios": [
-            "La pieza ya nace pegada al dibujo. En 0.6.0 las líneas del plano se seguían "
-            "pintando desde arriba aunque la cámara girara, así que la pieza giraba sola y "
-            "se veía despegada.",
-            "Orbitar se ve en tiempo real y ya no brinca: la cámara pedía repintar por un "
-            "nombre que no existía, y el cuadro llegaba tarde.",
-            "Un error al pintar ya no deja el programa muerto: se anota, se pinta lo que se "
-            "pudo y sigue vivo. Es lo que pasó en 0.6.0 al hacer zoom con la vista girada.",
-            "Con la vista girada no se pinta la rejilla, que ahí no significa nada.",
+            "Con la vista girada pinta un visor nuevo, pensado en 3D: las líneas del dibujo y "
+            "las piezas en un mismo espacio, sin los atajos de planta que hacían que las "
+            "líneas se quedaran en 2D y que girar fuera lento. En planta todo sigue igual.",
+            "Orbitar ya no se pelea con el pan: mientras giras, el ratón es de la cámara.",
+            "El zoom con la rueda girado ya no se descentra: lo que está bajo el cursor se "
+            "queda bajo el cursor, desde cualquier ángulo.",
+            "Después de jalar una cara, la pieza se redibuja de inmediato.",
+            "Girado se ve el plano de trabajo, apenas insinuado, para saber dónde está el "
+            "suelo. Textos y cotas todavía no se pintan girados; en planta sí.",
         ],
     },
 '''
@@ -103,7 +109,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado17")
+    tmp = pathlib.Path("/tmp/recado19")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -114,54 +120,59 @@ def main() -> int:
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
     vista = shape / "ui" / "vista.js"
+    # 1 · girada, pinta el visor
     parchar(vista, [
-        ("window.aPX = aPX;\nwindow.aMM = aMM;",
-         "window.aPX = aPX;\nwindow.aMM = aMM;\n"
-         "// Y el repintado, para la cámara, los cuerpos y el gesto del 3D. En 0.6.0\n"
-         "// pedían repintar por un nombre que no existía y el cuadro llegaba tarde.\n"
-         "window.pintar = pintar;\nwindow.invalidarPlano = invalidarPlano;"),
-    ], "window.pintar = pintar;", "ui/vista.js (repintado expuesto)")
+        ('  const oscuro = estado.modo === "papel" ? false : T.oscuro;\n  const esc = estado.vista.escala;',
+         '  const oscuro = estado.modo === "papel" ? false : T.oscuro;\n'
+         '  // Girada, pinta el visor nuevo: un solo espacio, sin los atajos de planta.\n'
+         '  // En planta sigue todo lo de abajo, intacto, con sus cachés y sus pruebas.\n'
+         '  if ((estado.vista.rx || estado.vista.rz) && typeof Visor !== "undefined") {\n'
+         '    return Visor.pintarPlano(c, {\n'
+         '      ancho: lienzo.clientWidth, alto: lienzo.clientHeight, fondo,\n'
+         '      lienzoColor: T.lienzo, oscuro, escala: estado.vista.escala, trazos: estado.trazos,\n'
+         '      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,\n'
+         '      colorDe: (hex) => colorDeTrazo(hex, oscuro),\n'
+         '    });\n'
+         '  }\n'
+         '  const esc = estado.vista.escala;'),
+    ], "Visor.pintarPlano(c, {", "ui/vista.js (girada pinta el visor)")
+    # 3 · zoom en el espacio de la cámara
     parchar(vista, [
-        ("  return `${v.x}|${v.y}|${v.escala}|${lienzo.width}|${lienzo.height}|`",
-         "  return `${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|`"),
-    ], "${v.rx || 0}|${v.rz || 0}", "ui/vista.js (la llave del plano)")
-    parchar(vista, [
-        ("""  const margen = 20 / esc;
-  const mx0 = vx - margen, mx1 = vx + anchoPX / esc + margen;""",
-         """  // Con la cámara girada la ventana en milímetros no dice la verdad: lo que en
-  // planta queda fuera puede estar en pantalla. Se pinta todo, y las líneas
-  // pasan por aPX en vez del camino rápido, que sólo sabe de planta.
-  const girada = !!(estado.vista.rx || estado.vista.rz);
-  const margen = girada ? 1e12 : 20 / esc;
-  const mx0 = vx - margen, mx1 = vx + anchoPX / esc + margen;"""),
-        ("    if ((bb[2] - bb[0]) * esc < MINIMO_PX && (bb[3] - bb[1]) * esc < MINIMO_PX) {",
-         "    if (!girada && (bb[2] - bb[0]) * esc < MINIMO_PX && (bb[3] - bb[1]) * esc < MINIMO_PX) {"),
-        ("""        const px = (pol[i][0] - vx) * esc, py = (vy - pol[i][1]) * esc;
-        i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);""",
-         """        let px, py;
-        if (girada) { const q = aPX(pol[i][0], pol[i][1], 0); px = q[0]; py = q[1]; }
-        else { px = (pol[i][0] - vx) * esc; py = (vy - pol[i][1]) * esc; }
-        i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);"""),
-        ("    pintarRejilla(c);",
-         "    if (!(estado.vista.rx || estado.vista.rz)) pintarRejilla(c);   // girada no significa nada"),
-    ], "const girada = !!(estado.vista.rx || estado.vista.rz);", "ui/vista.js (las líneas por la cámara)")
-    parchar(vista, [
-        ("function pintarYa() {",
-         "function pintarYa() {\n"
-         "  // Si un cuadro truena, se anota y el programa sigue vivo. En 0.6.0 un\n"
-         "  // error de dibujo se repetía en cada cuadro y dejó a Mike sin programa.\n"
-         "  try { _pintarYaCrudo(); }\n"
-         "  catch (e) { console.error(\"[vista] el cuadro tronó, el programa sigue:\", e); }\n"
-         "}\n"
-         "function _pintarYaCrudo() {"),
-    ], "_pintarYaCrudo", "ui/vista.js (el ciclo de pintado nunca muere)")
+        ("""function zoomEn(px, py, factor) {
+  const [mx, my] = aMM(px, py);
+  estado.vista.escala = Math.min(500, Math.max(0.002, estado.vista.escala * factor));
+  estado.vista.x = mx - px / estado.vista.escala;     // el punto bajo el cursor
+  estado.vista.y = my + py / estado.vista.escala;     // se queda quieto""",
+         """function zoomEn(px, py, factor) {
+  // En el espacio de la cámara, no en el del plano: vista.x y vista.y viven
+  // ahí. En planta son lo mismo; girado, mezclar los dos descentra el zoom
+  // media pantalla en cada tic de la rueda.
+  const v = estado.vista;
+  const ux = px / v.escala + v.x, vy = v.y - py / v.escala;
+  v.escala = Math.min(500, Math.max(0.002, v.escala * factor));
+  v.x = ux - px / v.escala;                            // el punto bajo el cursor
+  v.y = vy + py / v.escala;                            // se queda quieto"""),
+    ], "const ux = px / v.escala + v.x, vy = v.y - py / v.escala;", "ui/vista.js (zoom en el espacio de la cámara)")
 
-    for nombre in ("camara.js", "cuerpos.js", "tresd.js"):
-        parchar(shape / "ui" / nombre, [
-            ('if (typeof Vista !== "undefined" && Vista.pintar) Vista.pintar();',
-             'if (window.pintar) window.pintar();', 0),
-        ], "if (window.pintar) window.pintar();", f"ui/{nombre} (repintar de verdad)")
+    # 2 · la órbita escucha los mismos eventos que el lienzo
+    parchar(shape / "ui" / "camara.js", [
+        ('"pointerdown"', '"mousedown"', 0),
+        ('"pointermove"', '"mousemove"', 0),
+        ('"pointerup"', '"mouseup"', 0),
+    ], '"mousedown"', "ui/camara.js (mismos eventos que el lienzo)")
 
+    # 4 · cuando una pieza cambia, el plano se invalida
+    parchar(shape / "ui" / "cuerpos.js", [
+        ("if (window.pintar) window.pintar();",
+         "if (window.invalidarPlano) window.invalidarPlano();\n    if (window.pintar) window.pintar();", 0),
+    ], "window.invalidarPlano", "ui/cuerpos.js (la pieza cambió: se invalida el plano)")
+
+    # la pantalla carga el visor
+    parchar(shape / "ui" / "index.html", [
+        ('<script src="camara.js"></script>', '<script src="camara.js"></script>\n<script src="visor.js"></script>'),
+    ], "visor.js", "ui/index.html (carga el visor)")
+
+    # la versión
     hoy = dt.date.today().isoformat()
     ver = shape / "core" / "version.py"
     t = ver.read_text(encoding="utf-8")
@@ -180,28 +191,28 @@ def main() -> int:
                        encoding="utf-8")
         anotar(f"versión {actual} → {VERSION}")
 
-    for js in ("vista.js", "camara.js", "cuerpos.js", "tresd.js"):
+    for js in ("vista.js", "camara.js", "cuerpos.js", "visor.js"):
         correr(["node", "--check", str(shape / "ui" / js)])
     anotar("los cuatro archivos tocados pasan node --check")
-    if "Vista.pintar" in (shape / "ui" / "camara.js").read_text(encoding="utf-8"):
-        raise RuntimeError("camara.js sigue pidiendo repintar por un nombre que no existe")
-    anotar("ya nadie pide repintar por Vista.pintar")
+    if "pointerdown" in (shape / "ui" / "camara.js").read_text(encoding="utf-8"):
+        raise RuntimeError("camara.js sigue escuchando pointer")
+    anotar("la órbita escucha mouse, como el lienzo")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, repintar, girar las líneas y no morir al pintar\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, el visor toma el mando girado\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            f"{VERSION}: la pieza nace pegada, la órbita se ve en tiempo real y un cuadro roto no mata el programa\n\n"
-            "Mike vio en la 0.6.0 que la pieza no nacía pegada, que orbitar brincaba y que\n"
-            "el programa se le murió al hacer zoom con la vista girada. Los dos primeros\n"
-            "tenían causa común: se pedía repintar por Vista.pintar, que no existe, y el\n"
-            "pintado por lotes multiplicaba por la escala sin pasar por la cámara.\n\n"
-            "El tercero tiene la pinta de un error de dibujo repitiéndose en cada cuadro.\n"
-            "Ahora el ciclo de pintado nunca muere: si un cuadro truena, se anota, se pinta\n"
-            "lo que se pudo y el programa sigue vivo."],
+            f"{VERSION}: el visor toma el mando cuando la cámara está girada\n\n"
+            "Lo que Mike vio en 0.6.1: líneas que se quedaban en 2D (se giró el bucle de\n"
+            "los rellenos y no el de las líneas), órbita que se peleaba con el pan (eventos\n"
+            "pointer contra mouse), zoom descentrado girado (coordenadas del plano mezcladas\n"
+            "con las de la cámara) y piezas que no se redibujaban (la caché del plano no\n"
+            "sabía que cambiaron).\n\n"
+            "Girada, pinta el visor nuevo: un solo espacio, sin lotes ni foto ni recorte.\n"
+            "En planta sigue el pintado de siempre, intacto, con sus 470 comprobaciones."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
@@ -210,7 +221,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado17/shape101")
+    shape = pathlib.Path("/tmp/recado19/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
