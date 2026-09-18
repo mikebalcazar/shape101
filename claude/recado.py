@@ -1,31 +1,23 @@
-"""El mandadero · recado 22: 0.8.2 — las unidades, en serio.
+"""El mandadero · recado 23: 0.8.2, segundo intento — las pruebas aprenden que se nace en mm.
 
-La captura de Mike (18-sep): «Rectangle of 222 × 230 cm … pieza de 222 × 230 ×
-50 mm · 2553 cm³». El dibujo estaba en centímetros —la unidad con que arranca
-draw101, heredada en el trasplante— y el kernel trabaja en milímetros y toma
-los números tal cual. Una pieza de 2.22 m queda como una de 222 mm. En pantalla
-no se nota, porque dibujo y pieza usan los mismos números; se nota en el
-volumen (mil veces menos) y en el STEP, que abre en otro CAD diez veces más
-chico. Ese error se ve ya cortado.
+El armado de 0.8.2 se detuvo, y bien: dos comprobaciones de `t001_dxf` seguían
+esperando que un dibujo nuevo naciera en centímetros, que es como nace draw101.
+shape101 nace en milímetros por decisión de Mike del primer día, y las pruebas
+lo cazaron. Es justo para lo que están.
 
-1. shape101 arranca en **milímetros con centésimas**: lo decidió Mike el primer
-   día. El programa mostraba cm por herencia.
-2. Si un dibujo está en cm o m, el motor lo sabe: el volumen se corrige y el
-   STEP y el STL salen a tamaño real. En pantalla no cambia nada: la pieza se
-   sigue pintando con los números del dibujo, encima de su contorno.
+Aquí se actualizan esas dos expectativas y se vuelve a disparar el armado.
 """
 from __future__ import annotations
 
 import datetime as dt
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-RAMA = "claude/unidades-en-serio"
+RAMA = "claude/pruebas-en-mm"
 VERSION = "0.8.2"
 DESTINO = f"claude/publicar-{VERSION}"
 
@@ -52,94 +44,13 @@ def correr(orden, cwd=None) -> str:
     return h.stdout
 
 
-def fin_de(t: str) -> str:
-    return "\r\n" if "\r\n" in t else "\n"
-
-
-def cambiar(texto: str, viejo: str, nuevo: str, donde: str, veces: int = 1) -> str:
-    fin = fin_de(texto)
+def cambiar(texto: str, viejo: str, nuevo: str, donde: str) -> str:
+    fin = "\r\n" if "\r\n" in texto else "\n"
     viejo, nuevo = viejo.replace("\n", fin), nuevo.replace("\n", fin)
     n = texto.count(viejo)
-    if veces and n != veces:
-        raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba {veces}")
-    if not veces and n == 0:
-        raise RuntimeError(f"{donde}: «{viejo[:60]}…» no aparece")
+    if n != 1:
+        raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba 1")
     return texto.replace(viejo, nuevo)
-
-
-def parchar(ruta: pathlib.Path, cambios, ya: str, donde: str) -> None:
-    t = ruta.read_text(encoding="utf-8")
-    if ya in t:
-        anotar(f"{donde}: ya estaba, no se toca")
-        return
-    for c in cambios:
-        veces = c[2] if len(c) > 2 else 1
-        t = cambiar(t, c[0], c[1], donde, veces)
-    ruta.write_text(t, encoding="utf-8", newline="")
-    anotar(f"{donde}: parchado")
-
-
-FACTOR = '''def _factor_mm() -> float:
-    """Milímetros por unidad del dibujo. El kernel trabaja en mm y toma los
-    números tal cual; si el dibujo está en cm, todo lo que salga del kernel
-    hacia fuera —volumen, STEP, STL— se corrige con esto. Lo que se pinta no:
-    la pantalla usa los números del dibujo y la pieza va encima de su contorno."""
-    from core.unidades import MM_POR_NOMBRE
-    return float(MM_POR_NOMBRE.get(getattr(_doc(), "unidades", "mm"), 1.0))
-
-
-def _malla(cuerpo):
-    from core.solido import cuerpo as mod
-    try:
-        m = mod.malla(cuerpo)
-    except Exception as e:
-        # El kernel habla en inglés y con nombres de clase. Aquí se contesta en
-        # el idioma del taller, y el cuerpo se queda como estaba.
-        raise HTTPException(400, f"no se pudo construir la pieza: {e}") from e
-    f = _factor_mm()
-    if f != 1.0 and "volumen_mm3" in m:
-        m["volumen_mm3"] = round(m["volumen_mm3"] * f ** 3, 1)
-    m["unidades"] = getattr(_doc(), "unidades", "mm")
-    return m'''
-
-MALLA_VIEJA = '''def _malla(cuerpo):
-    from core.solido import cuerpo as mod
-    try:
-        return mod.malla(cuerpo)
-    except Exception as e:
-        # El kernel habla en inglés y con nombres de clase. Aquí se contesta en
-        # el idioma del taller, y el cuerpo se queda como estaba.
-        raise HTTPException(400, f"no se pudo construir la pieza: {e}") from e'''
-
-EXPORT_VIEJO = '''    formato = entrada.formato.lower()
-    if formato == "step":
-        export_step(reg.solido, str(destino))
-    elif formato == "stl":
-        export_stl(reg.solido, str(destino))'''
-
-EXPORT_NUEVO = '''    formato = entrada.formato.lower()
-    # A tamaño real: si el dibujo está en cm, la pieza sale diez veces más
-    # grande que los números del kernel, que es lo que mide de verdad.
-    f = _factor_mm()
-    solido = reg.solido.scale(f) if f != 1.0 else reg.solido
-    if formato == "step":
-        export_step(solido, str(destino))
-    elif formato == "stl":
-        export_stl(solido, str(destino))'''
-
-BITACORA = '''BITACORA: list[dict] = [
-    {
-        "version": "%s",
-        "fecha": "%s",
-        "cambios": [
-            "Los dibujos nuevos arrancan en milímetros con centésimas, como se decidió el "
-            "primer día. Hasta ahora arrancaban en centímetros, heredados de draw101.",
-            "Si un dibujo está en centímetros o metros, el motor lo sabe: el volumen sale "
-            "bien y el STEP y el STL a tamaño real. Antes una pieza dibujada en cm se "
-            "exportaba diez veces más chica, y ese error se ve ya cortado.",
-        ],
-    },
-'''
 
 
 def main() -> int:
@@ -147,7 +58,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado22")
+    tmp = pathlib.Path("/tmp/recado23")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -157,66 +68,66 @@ def main() -> int:
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
     correr(["git", "checkout", "-B", RAMA], cwd=shape)
 
-    parchar(shape / "core" / "config.py", [('UNIDADES_OMISION = "cm"', 'UNIDADES_OMISION = "mm"')],
-            'UNIDADES_OMISION = "mm"', "core/config.py (arranca en milímetros)")
-    parchar(shape / "core" / "unidades.py", [
-        ('DECIMALES_POR_NOMBRE = {"mm": 0, "cm": 1, "m": 3}', 'DECIMALES_POR_NOMBRE = {"mm": 2, "cm": 1, "m": 3}'),
-    ], '{"mm": 2, "cm": 1, "m": 3}', "core/unidades.py (mm con centésimas)")
-    parchar(shape / "core" / "solido" / "rutas.py", [
-        (MALLA_VIEJA, FACTOR),
-        (EXPORT_VIEJO, EXPORT_NUEVO),
-    ], "_factor_mm", "core/solido/rutas.py (volumen y STEP a tamaño real)")
-    parchar(shape / "ui" / "tresd.js", [
-        ('mensaje: "Espesor en mm"', 'mensaje: "Espesor (en las unidades del dibujo)"'),
-    ], "unidades del dibujo", "ui/tresd.js (el espesor va en la unidad del dibujo)")
+    ruta = shape / "pruebas" / "t001_dxf.py"
+    t = ruta.read_text(encoding="utf-8")
+    if "nace en milímetros" in t:
+        anotar("t001_dxf ya esperaba milímetros: no se toca")
+    else:
+        t = cambiar(t, '''    r.igual(doc_dxf.header.get("$INSUNITS"), 5,
+            "el DXF declara la unidad en la que se dibujó (5 = cm)")''',
+                    '''    r.igual(doc_dxf.header.get("$INSUNITS"), 4,
+            "el DXF declara la unidad en la que se dibujó (4 = mm)")''', "t001 (INSUNITS)")
+        t = cambiar(t, '''    # **Todo se compara en milímetros de verdad, no en números.** Un dibujo
+    # nuevo nace en centímetros y al abrir un archivo se convierte a la unidad
+    # que declara su encabezado: 1 200 cm vuelven como 12 000 mm, que es el
+    # mismo mueble. Comparar los números pelados haría fallar la prueba por
+    # una conversión correcta, y —peor— la haría pasar el día que la
+    # conversión se pierda.
+    ki = doc.mm_por_unidad()
+    kv = vuelto.mm_por_unidad()
+    r.casi(ki, 10.0, "el dibujo nuevo nace en centímetros")''',
+                    '''    # **Todo se compara en milímetros de verdad, no en números.** En shape101
+    # un dibujo nuevo nace en milímetros —decisión de Mike del primer día; en
+    # draw101 nacía en centímetros— y al abrir un archivo se convierte a la
+    # unidad que declara su encabezado. Comparar los números pelados haría
+    # fallar la prueba por una conversión correcta, y —peor— la haría pasar el
+    # día que la conversión se pierda.
+    ki = doc.mm_por_unidad()
+    kv = vuelto.mm_por_unidad()
+    r.casi(ki, 1.0, "el dibujo nuevo nace en milímetros")''', "t001 (nace en mm)")
+        t = cambiar(t, '''        r.punto(mm(linea.p2), [1200 * ki, 0],
+                "la línea vuelve midiendo lo mismo (12 000 mm)")''',
+                    '''        r.punto(mm(linea.p2), [1200 * ki, 0],
+                "la línea vuelve midiendo lo mismo")''', "t001 (etiqueta)")
+        ruta.write_text(t, encoding="utf-8", newline="")
+        anotar("pruebas/t001_dxf.py: espera milímetros, como shape101")
 
-    hoy = dt.date.today().isoformat()
-    ver = shape / "core" / "version.py"
-    t = ver.read_text(encoding="utf-8")
-    actual = re.search(r'VERSION = "([^"]+)"', t).group(1)
-    if actual != VERSION:
-        t = cambiar(t, f'VERSION = "{actual}"', f'VERSION = "{VERSION}"', "version.py")
-        t = re.sub(r'FECHA = "[^"]+"', f'FECHA = "{hoy}"', t, count=1)
-        ver.write_text(cambiar(t, "BITACORA: list[dict] = [\n", BITACORA % (VERSION, hoy), "version.py"),
-                       encoding="utf-8")
-        paq = shape / "package.json"
-        t = paq.read_text(encoding="utf-8")
-        t = cambiar(t, f'"version": "{actual}"', f'"version": "{VERSION}"', "package.json")
-        t = cambiar(t, f'"_versionApp": "{actual} —', f'"_versionApp": "{VERSION} —', "package.json")
-        paq.write_text(cambiar(t, f'"artifactName": "shape101-{actual}-setup.${{ext}}"',
-                               f'"artifactName": "shape101-{VERSION}-setup.${{ext}}"', "package.json"),
-                       encoding="utf-8")
-        anotar(f"versión {actual} → {VERSION}")
-
-    correr(["node", "--check", str(shape / "ui" / "tresd.js")])
     correr([sys.executable, "-c",
-            "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(encoding='utf-8')) for p in ('core/config.py', 'core/unidades.py', 'core/solido/rutas.py')]"],
-           cwd=shape)
-    anotar("los tres archivos de Python siguen válidos; tresd.js pasa node --check")
+            "import ast, pathlib; ast.parse(pathlib.Path('pruebas/t001_dxf.py').read_text(encoding='utf-8'))"], cwd=shape)
+    anotar("t001_dxf.py sigue siendo Python válido")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        f"- recado: {VERSION}, las unidades en serio\n\n```\n" + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {VERSION}, segundo intento: las pruebas aprenden que se nace en mm\n\n```\n"
+        + "\n".join(lineas) + "\n```\n", encoding="utf-8")
 
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            f"{VERSION}: las unidades en serio\n\n"
-            "La captura de Mike lo enseñó: el dibujo en centímetros, la pieza en milímetros\n"
-            "con los mismos números. En pantalla no se nota; en el volumen y en el STEP sí,\n"
-            "y ese error se ve ya cortado.\n\n"
-            "Los dibujos nuevos arrancan en mm con centésimas, como se decidió el primer día.\n"
-            "Si un dibujo está en cm o m, el volumen se corrige y el STEP y el STL salen a\n"
-            "tamaño real; lo que se pinta no cambia."],
+            "Las pruebas del DXF aprenden que shape101 nace en milímetros\n\n"
+            "El armado de 0.8.2 se detuvo porque dos comprobaciones de t001 esperaban que un\n"
+            "dibujo nuevo naciera en centímetros, como en draw101. shape101 nace en mm por\n"
+            "decisión de Mike del primer día. Las pruebas cazaron el cambio, que es justo\n"
+            "para lo que están; aquí se actualizan las dos expectativas."],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
     correr(["git", "push", "-f", "origin", f"HEAD:{DESTINO}"], cwd=shape)
-    anotar(f"main actualizado y {DESTINO} creada: el armado de {VERSION} arranca")
+    anotar(f"main actualizado y {DESTINO} movida: el armado de {VERSION} arranca de nuevo")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado22/shape101")
+    shape = pathlib.Path("/tmp/recado23/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
