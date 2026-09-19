@@ -815,7 +815,13 @@ const Seleccion = (() => {
         if (!seVe(Indice.caja(id))) continue;
         for (const m of gripsMedios(id)) {
           if (Math.hypot(m.b[0] - m.a[0], m.b[1] - m.a[1]) * esc < 26) continue;
-          const px = (m.p[0] - vx) * esc, py = (vy - m.p[1]) * esc;
+          // Por `aPX` y por el plano de la entidad, como los de vértice de
+          // arriba. Hasta la 0.12.1 esta línea proyectaba a mano en planta y
+          // los grips del medio salían en otro sitio en cuanto la vista
+          // giraba: el mismo error que costó la 0.11.0, que quedó vivo aquí.
+          const mm = Planos.aMundo(planoDe(id), m.p[0], m.p[1], 0);
+          const qm = aPX(mm[0], mm[1], mm[2]);
+          const px = qm[0], py = qm[1];
           ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
           ctx.strokeRect(px - 2.5, py - 2.5, 5, 5);
         }

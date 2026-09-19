@@ -1,4 +1,4 @@
-"""De un boceto de draw101 (entidades 2D) a un sólido de build123d.
+"""De un boceto del dibujo (entidades 2D) a un sólido de build123d.
 
 Qué se acepta: líneas, arcos, círculos y polilíneas (cerradas o no, con
 bulges). Las cotas, textos y demás se ignoran: no son geometría.

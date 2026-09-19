@@ -18,6 +18,7 @@
 const Cuerpos = (() => {
   const mallas = new Map();        // id → lo que devolvió el motor
   let pidiendo = false;
+  let otraVez = false;           // llegó otra petición mientras ésta iba en camino
 
   // Colores de la madera. Tres tonos según a dónde mire la cara: sin eso, un
   // sólido se ve como una mancha y no se entiende la forma.
@@ -35,7 +36,11 @@ const Cuerpos = (() => {
   /** Trae del motor las piezas del dibujo. Se llama cuando el documento cambió,
    *  no en cada cuadro: la malla sólo cambia si cambió la pieza. */
   async function refrescar() {
-    if (pidiendo) return;
+    // Si ya hay una pregunta en vuelo, no se hacen dos: se apunta que al
+    // terminar hay que volver a preguntar. Devolverse sin más —como hasta la
+    // 0.12.1— perdía la petición buena: abrir un archivo justo mientras la
+    // anterior contestaba dejaba las piezas del dibujo nuevo sin pedir.
+    if (pidiendo) { otraVez = true; return; }
     pidiendo = true;
     try {
       const { ids } = await pedir("/api/cuerpo/lista");
@@ -51,6 +56,7 @@ const Cuerpos = (() => {
     }
     if (window.invalidarPlano) window.invalidarPlano();
     if (window.pintar) window.pintar();
+    if (otraVez) { otraVez = false; await refrescar(); }
   }
 
   /** Vuelve a traer una pieza concreta: después de jalarle una cara o de mover

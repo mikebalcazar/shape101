@@ -1105,6 +1105,9 @@ function _pintarYaCrudo() {
       pintarHule(cc);
       if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
       if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
+      // Los tiradores van al final: son lo que se agarra, y lo que se agarra
+      // se pinta encima de todo lo demás.
+      if (typeof Tiradores !== "undefined") Tiradores.pintar(cc);
     }, tema().oscuro);
     pintarReferencia(ctxE);
     pintarMira(ctxE);
@@ -1521,6 +1524,10 @@ lienzo.addEventListener("mousedown", (e) => {
   }
   // El 3D después del pan y antes de todo lo demás: si el clic cayó sobre la
   // cara de una pieza, es del 3D. Si no, sigue como siempre.
+  // Antes que la cara: un tirador se ve encima de ella y se agarra antes.
+  // Si el orden fuera el otro, jalar una esquina empezaría a jalar la cara que
+  // tiene debajo y no habría manera de llegar nunca a la esquina.
+  if (typeof Tiradores !== "undefined" && Tiradores.abajo(e)) { e.preventDefault(); return; }
   if (typeof TresD !== "undefined" && TresD.abajo(e)) { e.preventDefault(); return; }
   if (cajaZoom) {
     const caja = lienzo.getBoundingClientRect();
@@ -1551,6 +1558,7 @@ lienzo.addEventListener("mousedown", (e) => {
 });
 
 lienzo.addEventListener("mouseup", (e) => {
+  if (typeof Tiradores !== "undefined" && Tiradores.arrastrando()) { Tiradores.arriba(); return; }
   if (typeof TresD !== "undefined" && TresD.arrastrando()) { TresD.arriba(); return; }
   if (e.button !== 0 || estado.captura || cajaZoom) return;
   const caja = lienzo.getBoundingClientRect();
@@ -1560,6 +1568,10 @@ lienzo.addEventListener("mouseup", (e) => {
 });
 
 window.addEventListener("mouseup", (e) => {
+  // También aquí: un arrastre que termina con el ratón fuera del lienzo tiene
+  // que soltarse igual, o el tirador se queda pegado al cursor para siempre.
+  // `arriba()` se desarma sola, así que llamarla dos veces no hace daño.
+  if (typeof Tiradores !== "undefined" && Tiradores.arrastrando()) Tiradores.arriba();
   if (typeof Ventanas !== "undefined") Ventanas.terminarNavegacion();
   if (arrastrePan) { arrastrePan = null; lienzo.style.cursor = ""; Regen.terminarGesto(); }
   if (e.button === 2) Radial.arriba(e);
@@ -1577,6 +1589,7 @@ lienzo.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("contextmenu", (e) => { if (Radial.activo) e.preventDefault(); });
 
 lienzo.addEventListener("mousemove", (e) => {
+  if (typeof Tiradores !== "undefined" && Tiradores.mover(e)) return;
   if (typeof TresD !== "undefined" && TresD.mover(e)) return;
   const caja = lienzo.getBoundingClientRect();
   const px = e.clientX - caja.left, py = e.clientY - caja.top;

@@ -67,7 +67,7 @@ env:
   # El Windows del runner escribe cp1252: sin esto, una «→» en la salida de
   # verificar.py tumba las pruebas (corrida 34794283220).
   PYTHONUTF8: '1'
-  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/shape101-0.12.0/shape101-0.12.0-setup.exe
+  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/shape101-0.12.1/shape101-0.12.1-setup.exe
 
 jobs:
   armar:
@@ -311,6 +311,44 @@ jobs:
           git push -q origin main
           echo "- Release \`shape101-$VER\` publicada · \`shape101-ultima\` movida · \`shape101.json\` y README en main." >> "$GITHUB_STEP_SUMMARY"
           echo "- Las shape101 instaladas ya ven el letrero «Actualizar»." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Podar releases viejas de descargas (quedan las 3 más recientes)
+        if: success()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_DESCARGAS }}
+          VER: ${{ steps.version.outputs.version }}
+        run: |
+          # Mike, 18-sep: «quedémonos sólo con las 3 últimas». Cada instalador
+          # pesa 340 MB y llegaron a ser quince.
+          #
+          # REGLA QUE NO SE ROMPE: la más reciente nunca se borra, porque de
+          # ella sale el Python empotrado del siguiente armado. Por eso se
+          # guardan tres y no una: margen de sobra para que un armado en vuelo
+          # encuentre la suya. `shape101-ultima` es un puntero fijo y tampoco
+          # se toca: el patrón de abajo sólo casa con números.
+          #
+          # Va con `continue-on-error`: cuando esto corre, la versión ya está
+          # publicada y comprobada. Que la limpieza falle no puede convertir un
+          # armado bueno en uno rojo.
+          set -e
+          if [ -z "$GH_TOKEN" ]; then echo "sin TOKEN_DESCARGAS: no se poda nada"; exit 0; fi
+          mapfile -t TAGS < <(gh api --paginate repos/mikebalcazar/descargas/releases \
+            --jq '.[].tag_name' | grep -E '^shape101-[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -t- -k2 -V -r)
+          echo "releases de shape101 publicadas: ${#TAGS[@]}"
+          if [ "${#TAGS[@]}" -le 3 ]; then echo "tres o menos: no hay qué podar"; exit 0; fi
+          echo "se quedan: ${TAGS[0]} ${TAGS[1]} ${TAGS[2]}"
+          for t in "${TAGS[@]:3}"; do
+            if [ "$t" = "shape101-$VER" ]; then
+              echo "::warning::$t es la que se acaba de publicar: no se toca"
+              continue
+            fi
+            echo "borrando $t"
+            gh release delete "$t" --repo mikebalcazar/descargas --cleanup-tag --yes || \
+              echo "::warning::no se pudo borrar $t"
+          done
 
       - name: El cuaderno del armado, pase lo que pase
         if: always()

@@ -21,13 +21,31 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.12.1"
+VERSION = "0.13.0"
 FECHA = "2026-09-19"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.13.0",
+        "fecha": "2026-09-19",
+        "cambios": [
+            "Las piezas traen tiradores: un cuadrito en cada esquina —abajo, a media altura y "
+            "arriba— y un círculo en el medio de cada arista. Se arrastran y la pieza se rehace "
+            "desde el contorno nuevo, sin perder lo que hayas hecho después.",
+            "Arrastrar el medio de una arista corre la arista entera: se mueve, no se dobla.",
+            "Con el ortho encendido, el tirador se va por un solo eje.",
+            "Al abrir un archivo con piezas, las piezas ya se ven. Antes había que teclear 3D "
+            "para que aparecieran, y un dibujo guardado se veía vacío de piezas.",
+            "Deshacer una extrusión ya borra la pieza de la pantalla.",
+            "Los grips del medio de una línea se ven en su sitio en las cuatro ventanas. "
+            "Seguían proyectándose en planta, como la selección antes de la 0.12.0.",
+            "El instalador es de shape101: icono propio —una pieza en isometría— y sus "
+            "pantallas. Hasta ahora llevaba el icono de draw101.",
+        ],
+    },
     {
         "version": "0.12.1",
         "fecha": "2026-09-19",

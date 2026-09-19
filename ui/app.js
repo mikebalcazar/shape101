@@ -274,6 +274,11 @@ async function recargarTrazos() {
   const d = await api("/api/trazos");
   if (!Array.isArray(d.trazos)) throw new Error("El motor no devolvió el dibujo (respuesta incompleta).");
   if (window.Bloques) Bloques.olvidar();     // las definiciones son de este dibujo
+  // Y las piezas 3D también son de este dibujo. Hasta la 0.12.1 nadie las
+  // pedía al abrir: había que teclear 3D para que aparecieran, y un archivo
+  // guardado con piezas se veía vacío de piezas. No se espera a que lleguen:
+  // el kernel puede tardar y el plano ya está listo; cuando llegan, se pintan.
+  if (window.Cuerpos) { Cuerpos.olvidar(); if (window.Tiradores) Tiradores.olvidar(); Cuerpos.refrescar(); }
   estado.trazos = d.trazos;
   estado.geometria = d.geometria || [];
   if (estado.resumen) estado.resumen.extension = d.extension;
@@ -325,6 +330,12 @@ function aplicarParche(r) {
       if (!quedan.has(id)) estado.sel.delete(id);
     }
   }
+  // Deshacer una extrusión llega por aquí, no por `recargarTrazos`: si nadie
+  // volviera a preguntar qué piezas hay, la pieza deshecha se quedaría pintada
+  // encima de un contorno que ya nadie levantó. Preguntar cuesta una llamada
+  // que no toca el kernel; sólo se piden las mallas que faltan.
+  if (window.Cuerpos && (fuera.size || (p.trazos && p.trazos.length) ||
+      (p.geometria && p.geometria.length))) Cuerpos.refrescar();
   pintarCapas();
   pintar();
   return true;

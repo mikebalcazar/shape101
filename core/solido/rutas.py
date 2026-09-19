@@ -228,6 +228,54 @@ def mover_punto(id_: str, entrada: MoverPunto):
         raise
 
 
+@router.get("/{id_}/tiradores")
+def tiradores(id_: str):
+    """De qué se puede jalar la pieza: los puntos del contorno y el medio de
+    sus tramos rectos, en coordenadas del boceto.
+
+    No toca el kernel: sale de leer las operaciones. Por eso la pantalla los
+    puede pedir sin que cueste nada y enseñarlos en cuanto se señala la pieza.
+    """
+    from core.solido import cuerpo as mod
+    return mod.tiradores(_cuerpo(id_))
+
+
+class MoverSegmento(BaseModel):
+    entidad: int = 0
+    a: int
+    b: int
+    dx: float
+    dy: float
+
+
+@router.post("/{id_}/mover-segmento")
+def mover_segmento(id_: str, entrada: MoverSegmento):
+    """Corre un tramo del contorno: sus dos extremos se mueven lo mismo.
+
+    Como todo lo demás aquí, si la pieza sale imposible el historial se queda
+    como estaba: vale más que no pase nada a que el modelo quede roto.
+    """
+    from core.solido import cuerpo as mod
+    c = _cuerpo(id_)
+    antes = list(c.operaciones)
+    if entrada.dx == 0 and entrada.dy == 0:
+        return _malla(c)
+    try:
+        nuevas = mod.mover_segmento(antes, entrada.entidad, entrada.a, entrada.b,
+                                    entrada.dx, entrada.dy)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    doc = _doc()
+    with doc.transaccion("mover segmento"):
+        doc.modificar(id_, {"operaciones": nuevas})
+    try:
+        return _malla(doc.entidades[id_])
+    except HTTPException:
+        with doc.transaccion("deshacer mover segmento"):
+            doc.modificar(id_, {"operaciones": antes})
+        raise
+
+
 class Exportar(BaseModel):
     formato: str
     ruta: str
