@@ -56,13 +56,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # INSTALADOR_ANTERIOR es de draw101 a propósito: de ahí sale el Python de
-  # Windows con ezdxf, fastapi, numpy, pillow y reportlab ya dentro, que es lo que
-  # shape101 necesita hoy. Cuando el 3D pida OpenCascade, esto cambia.
+  # INSTALADOR_ANTERIOR es la última release de shape101: de ahí sale el Python
+  # de Windows con todo dentro, kernel de sólidos incluido. Hasta 0.11.0 era el
+  # de draw101 0.20.1, y cuando esa release se borró de descargas (19-sep) el
+  # armado murió a los 19 s sin decir por qué. shape101 se alimenta de sí mismo.
   # El Windows del runner escribe cp1252: sin esto, una «→» en la salida de
   # verificar.py tumba las pruebas (corrida 34794283220).
   PYTHONUTF8: '1'
-  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/draw101-0.20.1/draw101-0.20.1-setup.exe
+  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/shape101-0.11.0/shape101-0.11.0-setup.exe
 
 jobs:
   armar:
@@ -120,7 +121,9 @@ jobs:
         run: |
           set -euo pipefail
           exec > >(tee -a "$GITHUB_WORKSPACE/armado.log") 2>&1
-          curl -sSL -o anterior.exe "$INSTALADOR_ANTERIOR"
+          # -f: si la release ya no existe, que falle aquí con un mensaje y no
+          # tres líneas después en 7z con un «exit 2» que no explica nada.
+          curl -fsSL -o anterior.exe "$INSTALADOR_ANTERIOR" || { echo "no existe $INSTALADOR_ANTERIOR: la release de la que se saca el Python empotrado fue borrada"; exit 1; }
           7z x -y -oanterior anterior.exe "resources/python/*" > /dev/null
           mkdir -p runtime && mv anterior/resources/python runtime/python
           test -f runtime/python/python.exe

@@ -2,10 +2,10 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-19T05:48:33+00:00
-- recado: volver a disparar el armado de 0.12.0
+- corrido: 2026-09-19T17:00:12+00:00
+- recado: el armado se alimenta de su propia última release
 
 ```
-El armado de 0.12.0 no arrancó tras el recado 28. Commit de verdad y rama de
-publicación movida a él, para que haya un evento nuevo.
+armar-y-publicar.yml: se alimenta de shape101 0.11.0 y curl falla en voz alta
+el flujo sigue siendo YAML válido: 17 pasos
 ```
