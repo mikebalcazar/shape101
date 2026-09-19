@@ -1,21 +1,20 @@
-"""El mandadero · recado 30: el armado se alimenta de su propia última release.
+"""El mandadero · recado 31: abrir las dos capas del instalador.
 
-Los dos armados de 0.12.0 murieron a los 19 s en el paso «Python empotrado»
-con exit 2, sin cuaderno. Medido desde fuera: el instalador de draw101 0.20.1
-—de donde el armado sacaba el Python empotrado— **ya no existe en descargas**
-(404). Alguien limpió las releases viejas de draw101 y ese archivo era el
-cimiento de shape101 sin que se notara. `curl` sin `-f` bajó una página de
-error en vez del .exe, y `7z` tronó con exit 2.
+El armado de 0.12.0 llegó más lejos y el cuaderno lo dijo:
 
-Dos cambios en `.github/workflows/armar-y-publicar.yml`:
+    mv: cannot stat 'anterior/resources/python': No such file or directory
 
-1. `INSTALADOR_ANTERIOR` apunta a la última release de **shape101** (0.11.0),
-   que ya trae el Python empotrado con el kernel dentro. shape101 deja de
-   depender de draw101 para armarse.
-2. `curl -f`: si el archivo no existe, falla en voz alta con un mensaje claro
-   en vez de dejar que truene 7z sin explicación.
+Medido desde el chat, bajando el instalador y mirando dentro: el NSIS de
+electron-builder guarda **toda la app dentro de `$PLUGINSDIR/app-64.7z`**, y
+sólo deja `resources/icon.ico` suelto. En el instalador viejo de draw101 el
+árbol quedaba a la vista; en el de shape101 no. Hay que abrir dos capas.
 
-Y se vuelve a disparar el armado de 0.12.0 con un commit de verdad.
+De paso, dentro de esa segunda capa el Python ya trae `build123d`: shape101
+alimentándose de sí mismo sale más barato que de draw101.
+
+El paso queda escrito para servir con las dos formas —árbol suelto o `.7z`
+interno— y para decir qué encontró si no halla ninguna, en vez de un `mv` a
+secas sin explicación.
 """
 from __future__ import annotations
 
@@ -28,7 +27,6 @@ import sys
 
 DUENO = "mikebalcazar"
 DESTINO = "claude/publicar-0.12.0"
-NUEVA_FUENTE = "https://github.com/mikebalcazar/descargas/releases/download/shape101-0.11.0/shape101-0.11.0-setup.exe"
 
 lineas: list[str] = []
 
@@ -60,12 +58,38 @@ def cambiar(texto: str, viejo: str, nuevo: str, donde: str) -> str:
     return texto.replace(viejo, nuevo)
 
 
+VIEJO = """          7z x -y -oanterior anterior.exe "resources/python/*" > /dev/null
+          mkdir -p runtime && mv anterior/resources/python runtime/python
+"""
+
+NUEVO = """          # El NSIS de electron-builder guarda toda la app dentro de
+          # $PLUGINSDIR/app-64.7z y deja sólo el icono suelto: hay que abrir dos
+          # capas. El instalador viejo de draw101 dejaba el árbol a la vista, así
+          # que esto sirve con las dos formas.
+          7z x -y -oanterior anterior.exe "resources/python/*" '$PLUGINSDIR/app-64.7z' > /dev/null
+          if [ -d anterior/resources/python ]; then
+            mkdir -p runtime && mv anterior/resources/python runtime/python
+          else
+            interno=$(find anterior -name 'app-64.7z' | head -1)
+            if [ -z "$interno" ]; then
+              echo "el instalador no trae ni resources/python ni app-64.7z; esto es lo que hay dentro:"
+              7z l anterior.exe | tail -25
+              exit 1
+            fi
+            7z x -y -oadentro "$interno" "resources/python/*" > /dev/null
+            test -d adentro/resources/python || { echo "app-64.7z no trae resources/python"; exit 1; }
+            mkdir -p runtime && mv adentro/resources/python runtime/python
+            rm -rf adentro
+          fi
+"""
+
+
 def main() -> int:
     t_shape = os.environ.get("TOKEN_SHAPE101")
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado30")
+    tmp = pathlib.Path("/tmp/recado31")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -76,56 +100,37 @@ def main() -> int:
 
     flujo = shape / ".github" / "workflows" / "armar-y-publicar.yml"
     t = flujo.read_text(encoding="utf-8")
-    if NUEVA_FUENTE in t:
-        anotar("el flujo ya se alimentaba de shape101 0.11.0: no se toca")
+    if "app-64.7z" in t:
+        anotar("el flujo ya abría las dos capas: no se toca")
     else:
-        t = cambiar(
-            t,
-            "  # INSTALADOR_ANTERIOR es de draw101 a propósito: de ahí sale el Python de\n"
-            "  # Windows con ezdxf, fastapi, numpy, pillow y reportlab ya dentro, que es lo que\n"
-            "  # shape101 necesita hoy. Cuando el 3D pida OpenCascade, esto cambia.\n",
-            "  # INSTALADOR_ANTERIOR es la última release de shape101: de ahí sale el Python\n"
-            "  # de Windows con todo dentro, kernel de sólidos incluido. Hasta 0.11.0 era el\n"
-            "  # de draw101 0.20.1, y cuando esa release se borró de descargas (19-sep) el\n"
-            "  # armado murió a los 19 s sin decir por qué. shape101 se alimenta de sí mismo.\n",
-            "flujo (comentario)")
-        t = cambiar(
-            t,
-            "  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/draw101-0.20.1/draw101-0.20.1-setup.exe",
-            f"  INSTALADOR_ANTERIOR: {NUEVA_FUENTE}",
-            "flujo (fuente)")
-        t = cambiar(
-            t,
-            '          curl -sSL -o anterior.exe "$INSTALADOR_ANTERIOR"\n',
-            '          # -f: si la release ya no existe, que falle aquí con un mensaje y no\n'
-            '          # tres líneas después en 7z con un «exit 2» que no explica nada.\n'
-            '          curl -fsSL -o anterior.exe "$INSTALADOR_ANTERIOR" || { echo "no existe $INSTALADOR_ANTERIOR: la release de la que se saca el Python empotrado fue borrada"; exit 1; }\n',
-            "flujo (curl -f)")
-        flujo.write_text(t, encoding="utf-8")
-        anotar("armar-y-publicar.yml: se alimenta de shape101 0.11.0 y curl falla en voz alta")
+        flujo.write_text(cambiar(t, VIEJO, NUEVO, "flujo (dos capas)"), encoding="utf-8")
+        anotar("armar-y-publicar.yml: abre las dos capas del instalador (NSIS → app-64.7z)")
 
     correr([sys.executable, "-m", "pip", "install", "-q", "pyyaml"])
     import yaml
     datos = yaml.safe_load(flujo.read_text(encoding="utf-8"))
     pasos = datos["jobs"]["armar"]["steps"]
     anotar(f"el flujo sigue siendo YAML válido: {len(pasos)} pasos")
+    paso = next(p for p in pasos if "empotrado" in str(p.get("name", "")))
+    if "app-64.7z" not in paso["run"]:
+        raise RuntimeError("el paso del Python empotrado no quedó con las dos capas")
+    anotar("el paso del Python empotrado busca en las dos capas")
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: el armado se alimenta de su propia última release\n\n```\n"
+        "- recado: abrir las dos capas del instalador\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "El armado se alimenta de la última release de shape101, no de draw101\n\n"
-            "Los dos armados de 0.12.0 murieron a los 19 s en «Python empotrado» con exit 2\n"
-            "y sin cuaderno. El instalador de draw101 0.20.1, de donde se sacaba el Python\n"
-            "empotrado, ya no existe en descargas: alguien limpió las releases viejas y ese\n"
-            "archivo era el cimiento de shape101 sin que se notara. curl sin -f bajó una\n"
-            "página de error y 7z tronó.\n\n"
-            "Ahora la fuente es shape101 0.11.0, que ya trae el kernel dentro, y curl -f\n"
-            "falla en voz alta si la release no existe.\n\n"
-            "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>\n"
+            "El Python empotrado se saca de las dos capas del instalador\n\n"
+            "El armado murió con «cannot stat anterior/resources/python». Medido bajando el\n"
+            "instalador y mirando dentro: el NSIS de electron-builder guarda toda la app en\n"
+            "$PLUGINSDIR/app-64.7z y deja sólo el icono suelto. El instalador viejo de\n"
+            "draw101 dejaba el árbol a la vista; el de shape101 no.\n\n"
+            "Ahora se abren las dos capas, sirve con las dos formas, y si no encuentra el\n"
+            "Python lista lo que sí hay dentro en vez de fallar en un mv sin explicación.\n\n"
+            "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
@@ -135,7 +140,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado30/shape101")
+    shape = pathlib.Path("/tmp/recado31/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
