@@ -1,152 +1,187 @@
-"""Los tiradores de una pieza: de qué se agarra y qué pasa al jalar.
+"""Los tiradores de una pieza: sus vértices y sus aristas, cada uno suyo.
 
-Lo que se comprueba aquí es lo que hace que arrastrar una esquina sirva de
-algo: que el tirador diga **exactamente** un punto que el motor sabe mover, y
-que moverlo rehaga la pieza sin perder lo que se hizo después.
+Desde la 0.14.0 una pieza deja de ser «un contorno levantado» a la hora de
+editarla: cada vértice y cada arista del sólido se mueven solos. Mike lo pidió
+así el 19-sep, viendo que en la 0.13.0 mover la esquina de arriba movía también
+la de abajo, porque eran el mismo punto del boceto.
 
-La trampa que esta prueba existe para cazar: enseñar un tirador sobre un punto
-que `mover_punto` no sabe mover. En pantalla se vería un cuadrito perfecto que
-al jalarlo no hace nada, y eso es peor que no ponerlo.
+Lo que esta prueba fija, y por qué cada cosa:
+
+1. **Los nombres sobreviven.** Un tirador viaja con un nombre derivado de las
+   caras que lo forman, no con un índice. Si eso se rompe, el historial deja de
+   ser un historial: cambias una cota y la esquina que jalaste se va a otro
+   lado. Se comprueba contra un boceto distinto.
+2. **La geometría es la que dice la fórmula**, no «se ve bien». Un modelador
+   que se equivoca por medio milímetro corta mal la madera.
+3. **Una cara alabeada no se infla.** El 19-sep, rellenar su contorno dejaba
+   una cara de z = −39.53 a 18 en una pieza de 18 de espesor. Aquí se mide la
+   caja después de mover, que es donde eso se ve.
+4. **Lo imposible se niega y no deja el modelo roto.**
 """
 from __future__ import annotations
 
 from pruebas import comun, navegador
 
-DESCRIPCION = "los tiradores de una pieza: vértices, medios de arista y lo que mueven"
+DESCRIPCION = "tiradores: vértices y aristas del sólido, cada uno independiente"
+
+ANCHO, FONDO, ESPESOR = 600.0, 400.0, 18.0
 
 
-class _Cuerpo:
-    """Lo mínimo que `cuerpo.tiradores` mira de una entidad."""
-
-    def __init__(self, operaciones, plano="XY", id_="c1"):
-        self.operaciones = operaciones
-        self.plano = plano
-        self.id = id_
-
-
-def _rectangulo(x0=0.0, y0=0.0, x1=600.0, y1=400.0, mm=18.0):
+def _ops(ancho=ANCHO, fondo=FONDO, mm=ESPESOR):
     return [
         {"op": "boceto", "entidades": [{
             "tipo": "polilinea", "cerrada": True,
-            "puntos": [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]],
+            "puntos": [[0, 0, 0], [ancho, 0, 0], [ancho, fondo, 0], [0, fondo, 0]],
         }]},
         {"op": "extruir", "mm": mm},
     ]
 
 
 def correr(r: comun.Reporte) -> None:
-    from core.solido import cuerpo as mod
+    from core.solido import historial
 
-    _de_un_rectangulo(r, mod)
-    _cada_tirador_mueve_de_verdad(r, mod)
-    _el_medio_corre_el_tramo_entero(r, mod)
-    _los_arcos_no_llevan_tirador_de_medio(r, mod)
-    _mover_no_borra_lo_de_despues(r, mod)
-    _la_pieza_cambia_de_tamano(r, mod)
+    _de_un_tablero(r, historial)
+    _el_nombre_sobrevive_al_boceto(r, historial)
+    _mover_un_vertice(r, historial)
+    _mover_una_arista(r, historial)
+    _encadenadas(r, historial)
+    _lo_imposible_se_niega(r, historial)
+    _en_los_tres_planos(r)
     _en_la_pantalla(r)
 
 
-def _de_un_rectangulo(r: comun.Reporte, mod) -> None:
-    t = mod.tiradores(_Cuerpo(_rectangulo()))
-    r.igual(len(t["vertices"]), 4, "un rectángulo da cuatro tiradores de vértice")
-    r.igual(len(t["segmentos"]), 4, "y cuatro de medio de tramo, contando el que cierra")
-    r.igual(t["altura"], 18.0, "la altura que sale es el espesor con el que se extruyó")
-    r.igual(t["plano"], "XY", "y el plano es el de la pieza")
-    medios = sorted(tuple(s["uv"]) for s in t["segmentos"])
-    r.igual(medios, sorted([(300.0, 0.0), (600.0, 200.0), (300.0, 400.0), (0.0, 200.0)]),
-            "los medios caen justo a la mitad de cada lado")
+def _de_un_tablero(r: comun.Reporte, historial) -> None:
+    reg = historial.regenerar(_ops())
+    vs = reg.nombrador.vertices(reg.solido)
+    ar = reg.nombrador.aristas(reg.solido)
+    r.igual(len(vs), 8, "un tablero tiene ocho vértices, y los ocho tienen nombre")
+    r.igual(len(ar), 12, "y doce aristas, todas nombradas")
+    r.cierto("abajo|lado[0]|lado[1]" in vs,
+             "el nombre dice qué caras forman la esquina, no dónde está")
+    esquina = vs["abajo|lado[0]|lado[1]"]
+    r.punto([esquina.X, esquina.Y], [ANCHO, 0.0], "y esa esquina está donde debe", 1e-6)
+    # Arriba y abajo son ocho puntos distintos, no cuatro repetidos: es
+    # exactamente lo que no pasaba en la 0.13.0.
+    alturas = {round(v.Z, 6) for v in vs.values()}
+    r.igual(sorted(alturas), [0.0, ESPESOR],
+            "hay vértices arriba y abajo, y son distintos entre sí")
 
 
-def _cada_tirador_mueve_de_verdad(r: comun.Reporte, mod) -> None:
-    """La comprobación que justifica la prueba: **todo** tirador que se enseña
-    tiene que ser movible. Un tirador que no jala es una promesa rota."""
-    ops = _rectangulo()
-    t = mod.tiradores(_Cuerpo(ops))
-    fallos = []
-    for v in t["vertices"]:
-        try:
-            mod.mover_punto(ops, v["entidad"], v["punto"], v["uv"][0] + 1, v["uv"][1] + 1)
-        except ValueError as e:
-            fallos.append(f"vértice {v['entidad']}/{v['punto']}: {e}")
-    for s in t["segmentos"]:
-        try:
-            mod.mover_segmento(ops, s["entidad"], s["a"], s["b"], 1, 1)
-        except ValueError as e:
-            fallos.append(f"tramo {s['entidad']}/{s['a']}-{s['b']}: {e}")
-    r.igual(fallos, [], "todos los tiradores que se enseñan se pueden mover de verdad")
+def _el_nombre_sobrevive_al_boceto(r: comun.Reporte, historial) -> None:
+    """La comprobación que sostiene todo lo demás.
 
-
-def _puntos(ops):
-    op = next(o for o in ops if o.get("op") == "boceto")
-    return [p[:2] for p in op["entidades"][0]["puntos"]]
-
-
-def _el_medio_corre_el_tramo_entero(r: comun.Reporte, mod) -> None:
-    ops = _rectangulo()
-    # El tramo de abajo: del punto 0 al 1. Jalarlo 50 hacia −y.
-    nuevas = mod.mover_segmento(ops, 0, 0, 1, 0, -50)
-    p = _puntos(nuevas)
-    r.igual(p[0], [0.0, -50.0], "el primer extremo del tramo se movió")
-    r.igual(p[1], [600.0, -50.0], "y el segundo se movió lo mismo: la arista corre, no se dobla")
-    r.igual(p[2], [600.0, 400.0], "el resto del contorno no se tocó")
-    r.igual(_puntos(ops)[0], [0.0, 0.0], "y las operaciones originales quedaron intactas")
-
-
-def _los_arcos_no_llevan_tirador_de_medio(r: comun.Reporte, mod) -> None:
-    """Un tramo con bulge es un arco. Su medio no está donde estaría el de una
-    recta, y arrastrarlo tendría que cambiar la curvatura: otra operación. Se
-    queda fuera a propósito, y los vértices del arco siguen ahí."""
-    ops = [
-        {"op": "boceto", "entidades": [{
-            "tipo": "polilinea", "cerrada": True,
-            "puntos": [[0, 0, 0], [100, 0, 0.5], [100, 100, 0], [0, 100, 0]],
-        }]},
-        {"op": "extruir", "mm": 18},
-    ]
-    t = mod.tiradores(_Cuerpo(ops))
-    r.igual(len(t["vertices"]), 4, "los cuatro vértices siguen teniendo tirador")
-    r.igual(len(t["segmentos"]), 3, "pero el tramo curvo no lleva tirador de medio")
-    r.cierto(all(not (s["a"] == 1 and s["b"] == 2) for s in t["segmentos"]),
-             "y el que falta es justo el del arco")
-
-
-def _mover_no_borra_lo_de_despues(r: comun.Reporte, mod) -> None:
-    """Lo que hace que valga la pena guardar cómo se hizo la pieza: mover una
-    esquina no se lleva por delante la cara que se jaló después."""
-    ops = _rectangulo() + [{"op": "empujar_cara", "cara": "arriba", "mm": 5}]
-    nuevas = mod.mover_segmento(ops, 0, 0, 1, 0, -25)
-    r.igual([o["op"] for o in nuevas], ["boceto", "extruir", "empujar_cara"],
-            "las operaciones de después siguen ahí, en su orden")
-    r.igual(nuevas[-1]["mm"], 5, "y con lo que decían")
-
-
-def _la_pieza_cambia_de_tamano(r: comun.Reporte, mod) -> None:
-    """Y la prueba de fuego: el sólido que sale mide lo que tiene que medir.
-
-    Sin esto, todo lo de arriba sería mover números en un diccionario. Aquí se
-    regenera de verdad, con el kernel.
+    Si el nombre de una esquina se fuera a otro lado al cambiar una cota, esto
+    dejaría de ser un historial y pasaría a ser geometría suelta con pasos
+    encima. Se cambia el ancho del boceto de 600 a 900 y se exige que el mismo
+    nombre siga siendo la misma esquina.
     """
-    antes = _Cuerpo(_rectangulo(), id_="tam-antes")
-    m0 = mod.malla(antes)
-    r.igual(m0["caja"], [600.0, 400.0, 18.0], "la pieza de partida mide 600 × 400 × 18")
-    # El tramo de la derecha (puntos 1→2) corrido 100 hacia +x: 100 más de ancho.
-    ops = mod.mover_segmento(antes.operaciones, 0, 1, 2, 100, 0)
-    despues = _Cuerpo(ops, id_="tam-despues")
-    m1 = mod.malla(despues)
-    r.igual(m1["caja"], [700.0, 400.0, 18.0], "al correr la arista derecha 100, mide 700 de ancho")
-    r.cierto(m1["volumen_mm3"] > m0["volumen_mm3"],
-             "y la pieza tiene más volumen que antes")
+    nombre = "abajo|lado[0]|lado[1]"
+    chico = historial.regenerar(_ops())
+    grande = historial.regenerar(_ops(ancho=900))
+    a = chico.nombrador.vertices(chico.solido)[nombre]
+    b = grande.nombrador.vertices(grande.solido)[nombre]
+    r.punto([a.X, a.Y], [600.0, 0.0], "con 600 de ancho, la esquina está en 600", 1e-6)
+    r.punto([b.X, b.Y], [900.0, 0.0], "con 900, el mismo nombre está en 900", 1e-6)
+
+    # Y con la operación encima: la esquina jalada sigue siendo esa esquina.
+    movido = historial.regenerar(_ops(ancho=900) + [
+        {"op": "mover_vertice", "vertice": nombre, "d": [50, 0, 0]}])
+    caja = movido.solido.bounding_box()
+    r.casi(caja.size.X, 950.0, "jalarla 50 sobre el boceto grande da 950 de ancho", 0.01)
+
+
+def _mover_un_vertice(r: comun.Reporte, historial) -> None:
+    reg = historial.regenerar(_ops() + [
+        {"op": "mover_vertice", "vertice": "abajo|lado[0]|lado[1]", "d": [50, 0, 0]}])
+    caja = reg.solido.bounding_box()
+    r.casi(caja.size.X, 650.0, "la pieza se hizo 50 más ancha", 0.01)
+    r.casi(caja.size.Z, ESPESOR,
+           "y **el espesor no cambió**: la cara alabeada no se infla", 0.01)
+    # Abajo pasa a ser un cuadrilátero de 250 000 mm²; arriba sigue en 240 000.
+    # El volumen es el promedio por el espesor, y eso es un número, no una
+    # impresión.
+    r.casi(reg.solido.volume, ESPESOR * (250000.0 + 240000.0) / 2,
+           "el volumen es el que dice la fórmula", 1.0)
+    r.igual(len(reg.solido.faces()), 6, "sigue teniendo seis caras")
+    r.igual(len(reg.nombrador.caras), 6, "y las seis siguen con nombre")
+
+
+def _mover_una_arista(r: comun.Reporte, historial) -> None:
+    """Una arista se mueve entera: sus dos extremos, lo mismo."""
+    reg = historial.regenerar(_ops() + [
+        {"op": "mover_arista", "arista": "abajo|lado[0]", "d": [0, 0, 10]}])
+    # Subir la arista de abajo del lado 0 corta una cuña de 600 × 400 × 10 / 2.
+    r.casi(reg.solido.volume, ANCHO * FONDO * ESPESOR - ANCHO * FONDO * 10 / 2,
+           "subir una arista 10 quita justo la cuña que se ve", 1.0)
+    r.cierto(reg.solido.is_valid() if callable(reg.solido.is_valid) else reg.solido.is_valid,
+             "y la pieza sigue siendo un sólido válido")
+
+
+def _encadenadas(r: comun.Reporte, historial) -> None:
+    ops = _ops() + [
+        {"op": "mover_vertice", "vertice": "abajo|lado[0]|lado[1]", "d": [50, 0, 0]},
+        {"op": "mover_vertice", "vertice": "arriba|lado[2]|lado[3]", "d": [-30, 0, 0]},
+        {"op": "mover_arista", "arista": "abajo|lado[1]", "d": [0, 20, 0]},
+    ]
+    reg = historial.regenerar(ops)
+    r.igual(len(reg.solido.faces()), 6, "tres ediciones seguidas y sigue con seis caras")
+    r.cierto(reg.solido.volume > 0, "y con volumen")
+    caja = reg.solido.bounding_box()
+    r.casi(caja.size.Z, ESPESOR, "el espesor aguanta las tres", 0.01)
+
+
+def _lo_imposible_se_niega(r: comun.Reporte, historial) -> None:
+    """Mover un punto 500 mm en el espesor de una pieza de 18 no da una pieza:
+    da un nudo. El motor tiene que decirlo, no entregar algo roto."""
+    ops = _ops() + [
+        {"op": "mover_vertice", "vertice": "abajo|lado[0]|lado[1]", "d": [0, 0, 500]}]
+    try:
+        historial.regenerar(ops)
+        r.cierto(False, "un movimiento imposible tiene que fallar, no pasar callado")
+    except Exception as e:
+        r.cierto(True, f"un movimiento imposible se niega ({type(e).__name__})")
+    # Y el historial de antes sigue sirviendo: no se contaminó nada.
+    reg = historial.regenerar(_ops())
+    r.casi(reg.solido.volume, ANCHO * FONDO * ESPESOR,
+           "y la pieza de antes sigue intacta", 1.0)
+
+
+def _en_los_tres_planos(r: comun.Reporte) -> None:
+    """Una pieza dibujada en la Frontal o en la Lateral se jala igual: el
+    tirador llega girado al mundo y el arrastre se gira de vuelta."""
+    from core import entidades as E
+    from core.documento import Documento
+    from core.solido import cuerpo as mod, rutas
+
+    esperado = {"XY": [50, 0, 0], "XZ": [50, 0, 0], "YZ": [0, 50, 0]}
+    for plano, d in esperado.items():
+        doc = Documento.nuevo()
+        rutas.enchufar(lambda: doc)
+        mod.olvidar()
+        poli = E.Polilinea(puntos=[[0, 0, 0], [ANCHO, 0, 0], [ANCHO, FONDO, 0], [0, FONDO, 0]],
+                           cerrada=True)
+        if hasattr(poli, "plano"):
+            poli.plano = plano
+        doc.agregar(poli)
+        m = rutas.extruir(rutas.Extruir(ids=[poli.id], mm=ESPESOR))
+        cid = m["id"]
+        t = rutas.tiradores(cid)
+        r.igual(len(t["vertices"]), 8, f"{plano}: llegan los ocho vértices al mundo")
+        v = next(q for q in t["vertices"] if q["nombre"] == "abajo|lado[0]|lado[1]")
+        antes = list(v["p"])
+        m2 = rutas.mover_vertice(cid, rutas.MoverEnElMundo(nombre=v["nombre"], d=d))
+        r.igual(m2["caja"], [650.0, 400.0, 18.0], f"{plano}: la pieza se hizo 50 más ancha")
+        t2 = rutas.tiradores(cid)
+        v2 = next((q for q in t2["vertices"] if q["nombre"] == v["nombre"]), None)
+        if r.cierto(v2 is not None, f"{plano}: el tirador conserva su nombre tras moverlo"):
+            movido = [round(v2["p"][k] - antes[k], 3) for k in range(3)]
+            r.igual(movido, [float(k) for k in d],
+                    f"{plano}: y quedó exactamente donde se le pidió, en el mundo")
 
 
 def _en_la_pantalla(r: comun.Reporte) -> None:
     """Y en el programa de verdad: que los tiradores se carguen, caigan donde
-    deben y se dejen agarrar con el ratón.
-
-    Todo lo de arriba puede estar bien y aun así no servir de nada si el módulo
-    no se carga, si el mapeo al plano se equivoca o si el radio de agarre no
-    alcanza. Eso no se comprueba leyendo el código: se comprueba abriendo el
-    programa.
-    """
+    deben y se dejen agarrar."""
     if not navegador.hay_navegador():
         r.cierto(True, "(sin Playwright en esta máquina: la parte de pantalla se salta)")
         return
@@ -156,14 +191,12 @@ def _en_la_pantalla(r: comun.Reporte) -> None:
         r.cierto(pagina.evaluate("typeof Tiradores !== 'undefined'"),
                  "el módulo de tiradores se carga con el programa")
 
-        # Un tablero levantado, por el mismo camino que usa la app: la entidad
-        # se crea como la crea cualquier herramienta de dibujo.
         id_ = pagina.evaluate("""async () => {
             estado.prefs.osnap = false;
             const poli = await crearEntidad({
                 tipo: 'polilinea', cerrada: true,
                 puntos: [[0,0,0],[600,0,0],[600,400,0],[0,400,0]],
-            }, 'rectangulo de prueba');
+            }, 'tablero de prueba');
             if (!poli) return null;
             const m = await fetch('/api/cuerpo/extruir', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -173,17 +206,18 @@ def _en_la_pantalla(r: comun.Reporte) -> None:
             encuadrarCaja(-200, -200, 900, 700);
             return m.id || null;
         }""")
-        if not r.cierto(bool(id_), "se levanta una pieza de 600 × 400 × 18"):
+        if not r.cierto(bool(id_), "se levanta un tablero de 600 × 400 × 18"):
             return
 
-        conteo = pagina.evaluate("""async (id) => {
+        cuenta = pagina.evaluate("""async (id) => {
             await Tiradores.cargar(id);
-            return Tiradores.delMundo(id).length;
+            const t = Tiradores.delMundo(id);
+            return { total: t.length,
+                     vertices: t.filter((x) => x.tipo === 'vertice').length,
+                     aristas: t.filter((x) => x.tipo === 'arista').length };
         }""", id_)
-        # Cuatro esquinas × tres alturas (abajo, medio de la arista vertical,
-        # arriba) + cuatro tramos × dos alturas. Si este número cambia, cambió
-        # el reparto, y eso se decide a propósito: no se descubre instalando.
-        r.igual(conteo, 4 * 3 + 4 * 2, "la pieza da 20 tiradores: 12 de esquina y 8 de arista")
+        r.igual(cuenta["vertices"], 8, "en pantalla salen los ocho vértices")
+        r.igual(cuenta["aristas"], 12, "y las doce aristas")
 
         agarre = pagina.evaluate("""(id) => {
             Ventanas.activar(0);
@@ -192,31 +226,30 @@ def _en_la_pantalla(r: comun.Reporte) -> None:
             const q = aPX(t.p[0], t.p[1], t.p[2]);
             const cerca = Tiradores.bajo(q[0], q[1]);
             return { hay: !!cerca, tipo: cerca ? cerca.tipo : null,
-                     lejos: !!Tiradores.bajo(q[0] + 200, q[1] + 200) };
+                     nombre: cerca ? cerca.nombre : null,
+                     lejos: !!Tiradores.bajo(q[0] + 200, q[1] + 200),
+                     plano: Tiradores.planoDeArrastre() };
         }""", id_)
         r.cierto(agarre["hay"], "picando justo encima de un tirador, se agarra")
         r.igual(agarre["tipo"], "vertice", "y el de una esquina es de vértice")
+        r.cierto("|" in (agarre["nombre"] or ""), "que llega con su nombre de caras")
         r.cierto(not agarre["lejos"], "picando lejos no se agarra nada")
+        r.igual(agarre["plano"], "XY", "en la Superior se arrastra sobre el suelo")
 
-        # Los tiradores se pintan en las cuatro ventanas, cada una desde su
-        # ángulo: es el mismo error que costó la 0.11.0 y la 0.12.0, y no se
-        # va a repetir en silencio.
-        repartidos = pagina.evaluate("""(id) => {
-            const puestos = [];
+        # Cada ventana arrastra sobre su plano: es lo que quita la ambigüedad.
+        planos = pagina.evaluate("""() => {
+            const out = [];
+            const guardada = estado.vista;
             for (let i = 0; i < 4; i++) {
-                const v = Ventanas.la(i);
-                const guardada = estado.vista;
-                estado.vista = v;
-                const t = Tiradores.delMundo(id)[0];
-                const q = aPX(t.p[0], t.p[1], t.p[2]);
-                estado.vista = guardada;
-                puestos.push([Math.round(q[0]), Math.round(q[1])]);
+                estado.vista = Ventanas.la(i);
+                out.push([Ventanas.la(i).nombre, Tiradores.planoDeArrastre()]);
             }
-            return puestos;
-        }""", id_)
-        distintos = {tuple(p) for p in repartidos}
-        r.cierto(len(distintos) >= 3,
-                 "el mismo tirador cae en sitios distintos en cada ventana: cada una lo "
-                 "proyecta desde su ángulo")
+            estado.vista = guardada;
+            return out;
+        }""")
+        r.igual(dict(planos).get("Frontal"), "XZ", "en la Frontal se arrastra sobre XZ")
+        r.igual(dict(planos).get("Lateral"), "YZ", "en la Lateral, sobre YZ")
+        r.igual(dict(planos).get("Perspectiva"), "XY",
+                "y en la Perspectiva sobre el suelo, que es lo único decidible solo")
 
         r.igual(pagina.errores, [], "y no hubo un solo error de JavaScript")
