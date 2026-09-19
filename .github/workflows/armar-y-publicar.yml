@@ -124,8 +124,25 @@ jobs:
           # -f: si la release ya no existe, que falle aquí con un mensaje y no
           # tres líneas después en 7z con un «exit 2» que no explica nada.
           curl -fsSL -o anterior.exe "$INSTALADOR_ANTERIOR" || { echo "no existe $INSTALADOR_ANTERIOR: la release de la que se saca el Python empotrado fue borrada"; exit 1; }
-          7z x -y -oanterior anterior.exe "resources/python/*" > /dev/null
-          mkdir -p runtime && mv anterior/resources/python runtime/python
+          # El NSIS de electron-builder guarda toda la app dentro de
+          # $PLUGINSDIR/app-64.7z y deja sólo el icono suelto: hay que abrir dos
+          # capas. El instalador viejo de draw101 dejaba el árbol a la vista, así
+          # que esto sirve con las dos formas.
+          7z x -y -oanterior anterior.exe "resources/python/*" '$PLUGINSDIR/app-64.7z' > /dev/null
+          if [ -d anterior/resources/python ]; then
+            mkdir -p runtime && mv anterior/resources/python runtime/python
+          else
+            interno=$(find anterior -name 'app-64.7z' | head -1)
+            if [ -z "$interno" ]; then
+              echo "el instalador no trae ni resources/python ni app-64.7z; esto es lo que hay dentro:"
+              7z l anterior.exe | tail -25
+              exit 1
+            fi
+            7z x -y -oadentro "$interno" "resources/python/*" > /dev/null
+            test -d adentro/resources/python || { echo "app-64.7z no trae resources/python"; exit 1; }
+            mkdir -p runtime && mv adentro/resources/python runtime/python
+            rm -rf adentro
+          fi
           test -f runtime/python/python.exe
           ./runtime/python/python.exe -c "import ezdxf, fastapi, uvicorn, numpy, PIL, reportlab; print('python empotrado ok')"
           rm -rf anterior anterior.exe
