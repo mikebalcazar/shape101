@@ -2,17 +2,12 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-19T19:20:35+00:00
-- recado: navegar en otra ventana ya no secuestra el gesto (0.12.1)
+- corrido: 2026-09-19T20:30:06+00:00
+- recado: fuera draw101 de la maquinaria
 
 ```
-ui/ventanas.js: adoptar() corre una vez y ya; la navegación no la despierta
-pruebas/t007_dibujo.py: 5 comprobaciones nuevas de navegación entre ventanas
-core/version.py: 0.12.1 con su entrada de bitácora
-package.json: los 3 sitios dicen 0.12.1
-armar-y-publicar.yml: el Python empotrado se hereda de la 0.12.0
-ui/ventanas.js: JavaScript válido (node --check)
-pruebas/t007_dibujo.py: Python válido
-armar-y-publicar.yml: YAML válido
-version.py y package.json dicen lo mismo: 0.12.1
+recado.yml ya no pasaba TOKEN_DRAW101: no se toca
+armar-y-publicar.yml ya estaba limpio: no se toca
+los dos flujos siguen siendo YAML válido
+archivos que todavía nombran draw101: ./poc/p5_vistas_a_draw101.py, ./poc/p2_boceto_a_solido.py, ./poc/muestras/armar_muestras.py, ./poc/comun.py, ./poc/motor_http.py, ./poc/verificar.py, ./pruebas/t001_dxf.py, ./core/version.py, ./core/solido/boceto.py, ./claude/recado.py, ./.github/workflows/armar-y-publicar.yml
 ```
