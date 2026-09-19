@@ -36,6 +36,7 @@ def correr(r: comun.Reporte) -> None:
         primera = _dibujar_con_el_raton(r, pagina, base)
         _el_clic_se_engancha(r, pagina, base, primera)
         _un_grip_mueve_su_punto(r, pagina, base, primera)
+        _navegar_no_secuestra(r, pagina)
         r.igual(pagina.errores, [], "y no hubo un solo error de JavaScript")
 
 
@@ -174,3 +175,39 @@ def _un_grip_mueve_su_punto(r: comun.Reporte, pagina, base, primera) -> None:
     if linea:
         r.punto(linea["puntos"][1], primera["puntos"][1],
                 "y Ctrl+Z devuelve el extremo a donde estaba", tol)
+
+
+def _navegar_no_secuestra(r: comun.Reporte, pagina) -> None:
+    """Pan, zoom u órbita en una ventana que no es la activa: el repintado que
+    ocurre a mitad del gesto no debe cambiar de ventana activa ni reencuadrar.
+
+    En 0.12.0 sí lo hacía. `adoptar()` —la que la primera vez convierte la
+    cámara de siempre en la ventana Superior— se creía sin estrenar cada vez
+    que `estado.vista` no era la ventana activa, y durante la navegación es
+    justo así: `estado.vista` apunta a la ventana bajo el cursor. Entonces
+    secuestraba el gesto. Tres síntomas, un solo defecto.
+    """
+    datos = pagina.evaluate("""() => {
+        Ventanas.activar(0);
+        const f = Ventanas.la(2);                      // la Frontal, abajo a la izquierda
+        const antes = { x: f.x, y: f.y, escala: f.escala };
+        const navego = Ventanas.navegarEn(f.ox + f.w / 2, f.oy + f.h / 2);
+        const tomo = estado.vista === f;
+        Ventanas.adoptar([[0, 0, 0], [100, 100, 100]]);    // el repintado de a mitad
+        const salida = {
+            navego, tomo,
+            activa: Ventanas.activa,
+            sigueEnLaDeAbajo: estado.vista === f,
+            seMovio: f.x !== antes.x || f.y !== antes.y || f.escala !== antes.escala,
+        };
+        Ventanas.terminarNavegacion();
+        salida.vuelveALaActiva = estado.vista === Ventanas.laActiva();
+        return salida;
+    }""")
+    r.cierto(datos["navego"] and datos["tomo"],
+             "el botón central sobre otra ventana navega en ella")
+    r.igual(datos["activa"], 0, "y la ventana activa no cambia sola")
+    r.cierto(datos["sigueEnLaDeAbajo"],
+             "el gesto sigue mandando en la ventana de abajo del cursor")
+    r.cierto(not datos["seMovio"], "y nadie reencuadra a media navegación")
+    r.cierto(datos["vuelveALaActiva"], "al soltar, el mando vuelve a la activa")

@@ -112,8 +112,16 @@ const Ventanas = (() => {
   /** La primera vez: la cámara que el programa traía —la de siempre— pasa a
    *  ser la ventana superior, y las otras tres se encuadran a lo que hay.
    *  Devuelve true si adoptó. */
+  let adoptado = false;
   function adoptar(puntos) {
-    if (typeof estado === "undefined" || estado.vista === ventanas[activa]) return false;
+    // La bandera es propia a propósito. Antes se preguntaba si `estado.vista`
+    // era ya la ventana activa, y eso es falso a mitad de una navegación: con
+    // el botón central sobre otra ventana, `estado.vista` apunta a la de abajo
+    // del cursor. Adoptar se creía sin estrenar y secuestraba el gesto —volvía
+    // la activa a la Superior y reencuadraba las cuatro—. Una bandera de «ya
+    // pasó» no se deduce de un estado que el usuario mueve.
+    if (typeof estado === "undefined" || adoptado) return false;
+    adoptado = true;
     const vieja = estado.vista || {};
     ventanas[0].x = vieja.x || 0;
     ventanas[0].y = vieja.y || 0;

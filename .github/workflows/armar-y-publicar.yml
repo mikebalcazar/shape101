@@ -67,7 +67,7 @@ env:
   # El Windows del runner escribe cp1252: sin esto, una «→» en la salida de
   # verificar.py tumba las pruebas (corrida 34794283220).
   PYTHONUTF8: '1'
-  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/shape101-0.11.0/shape101-0.11.0-setup.exe
+  INSTALADOR_ANTERIOR: https://github.com/mikebalcazar/descargas/releases/download/shape101-0.12.0/shape101-0.12.0-setup.exe
 
 jobs:
   armar:
