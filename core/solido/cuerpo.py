@@ -141,100 +141,45 @@ def mover_punto(operaciones: list[dict], entidad: int, punto: int, x: float, y: 
     raise ValueError("este cuerpo no tiene boceto que mover")
 
 
-def _puntos_de(e: dict) -> list:
-    """Los puntos de control de una entidad del boceto: (indice, x, y).
-
-    Son exactamente los que `mover_punto` sabe mover. Si aquí sale un punto que
-    allá no se puede mover, la pantalla enseñaría un tirador que no jala, y eso
-    es peor que no enseñarlo. La prueba t025 lo comprueba uno por uno.
-    """
-    t = e.get("tipo")
-    if t == "polilinea":
-        return [(i, float(p[0]), float(p[1])) for i, p in enumerate(e.get("puntos") or [])]
-    if t == "linea":
-        a, b = e.get("p1"), e.get("p2")
-        return [(0, float(a[0]), float(a[1])), (1, float(b[0]), float(b[1]))]
-    if t in ("circulo", "arco"):
-        c = e.get("centro")
-        return [(0, float(c[0]), float(c[1]))]
-    return []
-
-
-def _segmentos_de(e: dict) -> list:
-    """Los tramos rectos: (a, b, x_medio, y_medio).
-
-    Los tramos con bulge —los que son un arco— se quedan fuera a propósito:
-    arrastrar el medio de un arco tendría que cambiar su curvatura, y eso es
-    otra operación. Enseñar ahí un tirador que se comporta como si fuera recto
-    sería mentir.
-    """
-    t = e.get("tipo")
-    if t == "linea":
-        a, b = e.get("p1"), e.get("p2")
-        return [(0, 1, (float(a[0]) + float(b[0])) / 2, (float(a[1]) + float(b[1])) / 2)]
-    if t != "polilinea":
-        return []
-    pts = e.get("puntos") or []
-    n = len(pts)
-    if n < 2:
-        return []
-    tramos = n - 1 + (1 if e.get("cerrada") else 0)
-    out = []
-    for i in range(tramos):
-        a, b = i, (i + 1) % n
-        bulge = pts[a][2] if len(pts[a]) > 2 else 0
-        if abs(float(bulge or 0)) > 1e-12:
-            continue
-        out.append((a, b, (float(pts[a][0]) + float(pts[b][0])) / 2,
-                    (float(pts[a][1]) + float(pts[b][1])) / 2))
-    return out
-
-
 def tiradores(cuerpo) -> dict:
-    """De qué se puede jalar esta pieza, en coordenadas del boceto.
+    """De qué se puede jalar esta pieza: **sus vértices y sus aristas de
+    verdad**, no los puntos del boceto.
 
-    La pantalla los lleva al mundo con el plano de la pieza y los reparte a lo
-    alto: abajo, a media altura (el medio de la arista vertical) y arriba. Los
-    tres jalan el mismo punto del contorno, porque la pieza es un contorno
-    levantado: mover una esquina es mover **la** esquina.
+    Mike, el 19-sep: «todas las aristas son independientes y todos los puntos
+    también». Hasta la 0.13.0 los tiradores salían del contorno, así que una
+    esquina de abajo y la de arriba eran el mismo punto y moverla movía las
+    dos. Ahora cada uno es suyo.
+
+    Cada tirador viaja con su **nombre**, no con un índice: `abajo|lado[0]|
+    lado[3]` es la esquina donde se juntan esas tres caras, y lo sigue siendo
+    aunque cambie una cota del boceto. Es lo mismo que ya hacía posible jalar
+    una cara y que siguiera jalada.
+
+    Todo en coordenadas del kernel; `rutas.py` lo gira al plano de la pieza.
     """
-    boceto = next((o for o in cuerpo.operaciones if o.get("op") == "boceto"), None)
-    altura = next((float(o.get("mm", 0)) for o in cuerpo.operaciones
-                   if o.get("op") == "extruir"), 0.0)
-    vertices, segmentos = [], []
-    for i, e in (enumerate(boceto.get("entidades") or []) if boceto else []):
-        for punto, x, y in _puntos_de(e):
-            vertices.append({"entidad": i, "punto": punto, "uv": [x, y]})
-        for a, b, mx, my in _segmentos_de(e):
-            segmentos.append({"entidad": i, "a": a, "b": b, "uv": [mx, my]})
-    return {"id": cuerpo.id, "plano": getattr(cuerpo, "plano", "XY"),
-            "altura": altura, "vertices": vertices, "segmentos": segmentos}
+    reg = regenerar(cuerpo)
+    salida = {"id": cuerpo.id, "plano": getattr(cuerpo, "plano", "XY"),
+              "vertices": [], "aristas": []}
+    if reg.solido is None:
+        return salida
+    for nombre, v in reg.nombrador.vertices(reg.solido).items():
+        salida["vertices"].append({"nombre": nombre, "p": [v.X, v.Y, v.Z]})
+    for nombre, e in reg.nombrador.aristas(reg.solido).items():
+        m = e.position_at(0.5)
+        a, b = e.start_point(), e.end_point()
+        salida["aristas"].append({"nombre": nombre, "p": [m.X, m.Y, m.Z],
+                                  "a": [a.X, a.Y, a.Z], "b": [b.X, b.Y, b.Z],
+                                  "recta": e.geom_type.name == "LINE"})
+    return salida
 
 
-def mover_segmento(operaciones: list, entidad: int, a: int, b: int,
-                   dx: float, dy: float) -> list:
-    """Corre un tramo entero: sus dos extremos se mueven lo mismo.
+def mover_vertice(operaciones: list, nombre: str, d) -> list:
+    """Una operación más al final: esa esquina, corrida. No se toca nada de lo
+    anterior, así que deshacer es quitar la última y ya."""
+    return json.loads(json.dumps(operaciones)) + [
+        {"op": "mover_vertice", "vertice": nombre, "d": [float(k) for k in d]}]
 
-    Es lo que uno espera al agarrar el medio de una arista y jalarla: la arista
-    se mueve, no se dobla. Por dentro son dos puntos movidos, y de ahí en
-    adelante es `mover_punto` de siempre: la pieza se rehace desde el contorno
-    nuevo y lo que se hizo después se vuelve a aplicar solo.
-    """
-    ops = json.loads(json.dumps(operaciones))
-    op = next((o for o in ops if o.get("op") == "boceto"), None)
-    if op is None:
-        raise ValueError("este cuerpo no tiene boceto que mover")
-    ents = op.get("entidades") or []
-    if not (0 <= entidad < len(ents)):
-        raise ValueError(f"el boceto no tiene la entidad {entidad}")
-    e = ents[entidad]
-    for punto in (a, b):
-        for k, x, y in _puntos_de(e):
-            if k == punto:
-                ops = mover_punto(ops, entidad, punto, x + float(dx), y + float(dy))
-                ents = next(o for o in ops if o.get("op") == "boceto")["entidades"]
-                e = ents[entidad]
-                break
-        else:
-            raise ValueError(f"esa entidad no tiene el punto {punto}")
-    return ops
+
+def mover_arista(operaciones: list, nombre: str, d) -> list:
+    return json.loads(json.dumps(operaciones)) + [
+        {"op": "mover_arista", "arista": nombre, "d": [float(k) for k in d]}]

@@ -21,13 +21,32 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.13.0"
+VERSION = "0.14.0"
 FECHA = "2026-09-19"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.14.0",
+        "fecha": "2026-09-19",
+        "cambios": [
+            "Cada punto y cada arista de una pieza se mueven solos. Los tiradores ya no "
+            "salen del contorno sino del sólido: la esquina de arriba y la de abajo son dos "
+            "puntos distintos, y mover una ya no mueve la otra.",
+            "Arrastrar el medio de una arista la corre entera, sin doblarla.",
+            "El arrastre va en el plano de la ventana donde estás: en la Superior sobre XY, "
+            "en la Frontal sobre XZ, en la Lateral sobre YZ.",
+            "Una pieza puede dejar de ser un prisma: si una cara se alabea, se pone la "
+            "superficie que pasa por sus cuatro puntos, sin inflarse.",
+            "Lo que se hizo después —un barreno, una cara jalada— se sigue volviendo a "
+            "aplicar solo: la pieza se guarda como cómo se hizo, no como geometría.",
+            "Si un movimiento deja una pieza imposible, el programa lo dice y no cambia nada.",
+            "Ctrl+Z ya redibuja al instante. Antes había que dar otro comando para ver el "
+            "resultado de deshacer.",
+        ],
+    },
     {
         "version": "0.13.0",
         "fecha": "2026-09-19",

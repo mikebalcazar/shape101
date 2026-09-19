@@ -66,6 +66,23 @@ def _a_mundo(plano: str, p):
     return [u, v, w]
 
 
+def _del_mundo(plano: str, p):
+    """(x, y, z) del mundo → (u, v, w) del kernel. La vuelta exacta de
+    `_a_mundo`, y por eso se escriben juntas: si un día cambia una, la otra
+    tiene que cambiar en el mismo renglón.
+
+      XY: (x, y, z) → (x, y, z)
+      XZ: (u, −w, v) = (x, y, z) → (x, z, −y)
+      YZ: (w, u, v)  = (x, y, z) → (y, z, x)
+    """
+    x, y, z = p[0], p[1], p[2] if len(p) > 2 else 0.0
+    if plano == "XZ":
+        return [x, z, -y]
+    if plano == "YZ":
+        return [y, z, x]
+    return [x, y, z]
+
+
 def _al_mundo(m: dict, plano: str) -> dict:
     """La malla del kernel, ya en el mundo. El kernel siempre trabaja en XY:
     ahí los nombres de caras están probados. La pieza se rota al salir."""
@@ -230,50 +247,70 @@ def mover_punto(id_: str, entrada: MoverPunto):
 
 @router.get("/{id_}/tiradores")
 def tiradores(id_: str):
-    """De qué se puede jalar la pieza: los puntos del contorno y el medio de
-    sus tramos rectos, en coordenadas del boceto.
+    """De qué se puede jalar la pieza: sus vértices y sus aristas de verdad,
+    cada uno con su nombre, ya girados al plano de la pieza.
 
-    No toca el kernel: sale de leer las operaciones. Por eso la pantalla los
-    puede pedir sin que cueste nada y enseñarlos en cuanto se señala la pieza.
+    Esto sí toca el kernel —hay que tener el sólido para saber sus puntos—,
+    pero la regeneración está en caché por huella de las operaciones: pedirlos
+    después de pintar no cuesta nada.
     """
     from core.solido import cuerpo as mod
-    return mod.tiradores(_cuerpo(id_))
+    c = _cuerpo(id_)
+    d = mod.tiradores(c)
+    plano = d["plano"]
+    for v in d["vertices"]:
+        v["p"] = _a_mundo(plano, v["p"])
+    for a in d["aristas"]:
+        for k in ("p", "a", "b"):
+            a[k] = _a_mundo(plano, a[k])
+    return d
 
 
-class MoverSegmento(BaseModel):
-    entidad: int = 0
-    a: int
-    b: int
-    dx: float
-    dy: float
+class MoverEnElMundo(BaseModel):
+    nombre: str
+    d: list[float]
 
 
-@router.post("/{id_}/mover-segmento")
-def mover_segmento(id_: str, entrada: MoverSegmento):
-    """Corre un tramo del contorno: sus dos extremos se mueven lo mismo.
+def _mover(id_: str, entrada: MoverEnElMundo, cual: str):
+    """El camino común de mover un vértice y mover una arista.
 
-    Como todo lo demás aquí, si la pieza sale imposible el historial se queda
-    como estaba: vale más que no pase nada a que el modelo quede roto.
+    El arrastre llega en coordenadas del mundo —es lo que el ratón sabe— y se
+    gira al plano de la pieza antes de entrar al historial, porque el kernel
+    siempre trabaja en XY.
+
+    Si la pieza sale imposible, el historial se queda como estaba. Es la misma
+    promesa de todas las demás operaciones: vale más que no pase nada a que el
+    modelo quede roto y el usuario no sepa en qué momento.
     """
     from core.solido import cuerpo as mod
     c = _cuerpo(id_)
     antes = list(c.operaciones)
-    if entrada.dx == 0 and entrada.dy == 0:
+    if all(abs(k) < 1e-9 for k in entrada.d):
         return _malla(c)
-    try:
-        nuevas = mod.mover_segmento(antes, entrada.entidad, entrada.a, entrada.b,
-                                    entrada.dx, entrada.dy)
-    except ValueError as e:
-        raise HTTPException(400, str(e)) from e
+    d = _del_mundo(getattr(c, "plano", "XY"), list(entrada.d) + [0.0, 0.0, 0.0])
+    hacer = mod.mover_vertice if cual == "vertice" else mod.mover_arista
+    nuevas = hacer(antes, entrada.nombre, d)
     doc = _doc()
-    with doc.transaccion("mover segmento"):
+    with doc.transaccion(f"mover {cual}"):
         doc.modificar(id_, {"operaciones": nuevas})
     try:
         return _malla(doc.entidades[id_])
     except HTTPException:
-        with doc.transaccion("deshacer mover segmento"):
+        with doc.transaccion(f"deshacer mover {cual}"):
             doc.modificar(id_, {"operaciones": antes})
         raise
+
+
+@router.post("/{id_}/mover-vertice")
+def mover_vertice(id_: str, entrada: MoverEnElMundo):
+    """Una esquina de la pieza, corrida. Sólo esa."""
+    return _mover(id_, entrada, "vertice")
+
+
+@router.post("/{id_}/mover-arista")
+def mover_arista(id_: str, entrada: MoverEnElMundo):
+    """Una arista entera, corrida: sus dos extremos se mueven lo mismo."""
+    return _mover(id_, entrada, "arista")
 
 
 class Exportar(BaseModel):

@@ -11,6 +11,8 @@ Operaciones:
   {"op": "restar",   "entidades": [...], "mm": 18}       barreno/cajeado: se extruye y se resta
   {"op": "redondear", "aristas": ["lado[0]|lado[1]", ...], "r": 20}
   {"op": "empujar_cara", "cara": "arriba", "mm": 10}     positivo = hacia afuera
+  {"op": "mover_vertice", "vertice": "abajo|lado[0]|lado[3]", "d": [dx, dy, dz]}
+  {"op": "mover_arista",  "arista": "lado[1]|arriba",         "d": [dx, dy, dz]}
 
 Las referencias a caras y aristas son **nombres por derivación**
 (`nombres.py`): así una cota del boceto puede cambiar y «arriba», «lado[2]» o
@@ -31,7 +33,7 @@ import time
 
 from build123d import Face, extrude, fillet
 
-from core.solido import boceto, nombres
+from core.solido import boceto, nombres, remallar
 
 
 class Regenerado:
@@ -52,7 +54,8 @@ def _entidades(op: dict) -> list[dict]:
     raise ValueError("un boceto lleva sus entidades adentro")
 
 
-OPERACIONES = {"boceto", "extruir", "restar", "redondear", "empujar_cara"}
+OPERACIONES = {"boceto", "extruir", "restar", "redondear", "empujar_cara",
+               "mover_vertice", "mover_arista"}
 
 
 class Estado:
@@ -104,6 +107,32 @@ def _paso(est: Estado, i: int, op: dict) -> None:
                 solido = solido - pieza
                 movida = Face(pieza.faces().sort_by(lambda f: f.normal_at().dot(cara.normal_at()))[0].wrapped)
             nom.rebautizar(solido, nuevas={"__movida__": movida}, heredan={op["cara"]: "__movida__"})
+    elif clase in ("mover_vertice", "mover_arista"):
+        # Mover un punto o una arista del **sólido**, no del boceto.
+        #
+        # Mike lo pidió así el 19-sep: cada punto y cada arista independientes.
+        # Que apunten a un nombre y no a un índice es lo que hace que esto siga
+        # siendo un historial: cambias una cota del boceto y la esquina que
+        # jalaste sigue siendo esa esquina.
+        if solido is None:
+            raise ValueError(f"op {i}: {clase} sin una pieza antes")
+        d = op.get("d") or [0, 0, 0]
+        if clase == "mover_vertice":
+            v = nom.vertice(solido, op["vertice"])
+            puntos = [remallar.punto_de(v)]
+        else:
+            a = nom.arista(solido, op["arista"])
+            puntos = [remallar.punto_de(a.start_point()), remallar.punto_de(a.end_point())]
+        if not all(abs(k) < 1e-9 for k in d):       # mover cero no es mover
+            # Por `nombres_en`, no por `nombre_de`: una cara que ya se alabeó
+            # en una edición anterior es una superficie reglada, y por
+            # superficie no se reconocería. Medido el 19-sep: con `nombre_de`,
+            # la segunda edición encadenada dejaba a `lado[1]` sin nombre y con
+            # él se iban sus cuatro aristas y cuatro de los ocho vértices.
+            porIndice = nom.nombres_en(solido)
+            viejos = [porIndice[k] for k in range(len(solido.faces()))]
+            solido, caras, _ = remallar.mover(solido, [(p, tuple(d)) for p in puntos], viejos)
+            nom.caras = caras
     else:
         raise ValueError(f"op {i}: no conozco «{clase}»")
     est.solido = solido

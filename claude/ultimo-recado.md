@@ -1,13 +1,1 @@
-# Último recado
-
-*Lo escribe `claude/recado.py` al correr en Actions.*
-
-- corrido: 2026-09-19T23:42:54+00:00
-- recado: fuera draw101 de la maquinaria
-
-```
-recado.yml ya no pasaba TOKEN_DRAW101: no se toca
-armar-y-publicar.yml ya estaba limpio: no se toca
-los dos flujos siguen siendo YAML válido
-archivos que todavía nombran draw101: ./poc/p5_vistas_a_draw101.py, ./poc/p2_boceto_a_solido.py, ./poc/muestras/armar_muestras.py, ./poc/comun.py, ./poc/motor_http.py, ./poc/verificar.py, ./pruebas/t001_dxf.py, ./build/imagenes.py, ./core/version.py, ./claude/recado.py, ./.github/workflows/armar-y-publicar.yml
-```
+# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n- corrido: 2026-09-19T23:45:08+00:00\n- recado: la 0.14.0, cada punto y cada arista suyos\n\n```\nfundida claude/loft-0.14.0: remallar.py, tiradores.js y t025\ncore/solido/nombres.py: 4 cambio(s)\ncore/solido/historial.py: 4 cambio(s)\ncore/solido/cuerpo.py: los tiradores salen del sólido\ncore/solido/rutas.py (la vuelta del mundo): 1 cambio(s)\ncore/solido/rutas.py: tiradores del sólido y las dos rutas de mover\nui/app.js: 1 cambio(s)\ncore/version.py: 0.14.0 con su entrada de bitácora\npackage.json: los 3 sitios dicen 0.14.0\narmar-y-publicar.yml: el Python empotrado se hereda de la 0.13.0\nlos 4 archivos de JavaScript son válidos (node --check)\nlos 7 archivos de Python son válidos\nel motor y la pantalla tienen todas sus piezas nuevas\nversion.py y package.json dicen lo mismo: 0.14.0\n```\n

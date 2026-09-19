@@ -87,6 +87,24 @@ def misma_superficie(a: tuple, b: tuple) -> bool:
 
 
 # ------------------------------------------------------------------- huella
+def _donde(cara: Face) -> tuple:
+    """Dónde está esta cara y cuánto mide. Sin la normal, a propósito.
+
+    `huella` lleva la normal, y para una cara plana es la mejor identidad que
+    hay. Pero desde la 0.14.0 una cara puede ser **reglada** —se alabea al
+    mover un punto— y entonces no tiene una sola normal: `normal_at()` da un
+    valor distinto según dónde se pregunte, y la huella deja de casar consigo
+    misma. Medido el 19-sep: tras dos ediciones encadenadas, `lado[1]` perdía
+    su nombre y con él el de sus cuatro aristas; de doce aristas nombradas
+    quedaban ocho.
+
+    Centro y área alcanzan para reconocer **la misma cara del mismo sólido**,
+    que es para lo único que se usa esto.
+    """
+    c = cara.center()
+    return (round(c.X, 3), round(c.Y, 3), round(c.Z, 3), round(cara.area, 2))
+
+
 def huella(cara: Face) -> tuple:
     c = cara.center()
     n = cara.normal_at()
@@ -131,17 +149,88 @@ class Nombrador:
                 return n
         return None
 
+    def nombres_en(self, solido: Shape) -> dict:
+        """`índice de cara → nombre`, para las caras de **este** sólido.
+
+        Primero por dónde está cada cara, contra las que ya se tienen
+        guardadas, y sólo después por superficie. El orden importa: desde la
+        0.14.0 una cara puede dejar de ser plana —se alabea al mover un punto y
+        pasa a ser una superficie reglada—, y por superficie no se
+        reconocería. Con eso se perderían su nombre, los de sus aristas y los
+        de sus vértices, que es justo el historial que este archivo existe para
+        sostener.
+        """
+        guardadas = {}
+        for nombre, f in self.caras.items():
+            try:
+                guardadas.setdefault(_donde(f), nombre)
+            except Exception:
+                continue
+        out = {}
+        for i, f in enumerate(solido.faces()):
+            n = None
+            try:
+                n = guardadas.get(_donde(f))
+            except Exception:
+                n = None
+            out[i] = n if n else self.nombre_de(f)
+        return out
+
     def aristas(self, solido: Shape) -> dict[str, Edge]:
         """`nombreA|nombreB → arista` para cada arista entre dos caras nombradas."""
         out = {}
         caras = list(solido.faces())
-        nombres = {i: self.nombre_de(f) for i, f in enumerate(caras)}
+        nombres = self.nombres_en(solido)
         for e in solido.edges():
             vecinas = [nombres[i] for i, f in enumerate(caras) if _cara_tiene(f, e)]
             vecinas = [v for v in vecinas if v]
             if len(vecinas) == 2:
                 out["|".join(sorted(vecinas))] = e
         return out
+
+    def vertices(self, solido: Shape) -> dict:
+        """`nombreA|nombreB|nombreC → vértice` para cada punto donde se juntan
+        tres o más caras nombradas.
+
+        Es la misma idea que los nombres de arista, un piso más abajo: un punto
+        no se llama por dónde está —eso cambia en cuanto se mueve algo— sino
+        por **qué caras lo forman**. Así, mover una cota del boceto no le
+        cambia el nombre a la esquina, y una esquina jalada sigue jalada.
+
+        Si dos puntos distintos comparten las mismas caras —pasa en piezas con
+        huecos— se desempatan por posición, en orden, y eso también es estable
+        mientras la topología no cambie.
+        """
+        caras = list(solido.faces())
+        nombres = self.nombres_en(solido)
+        crudo: dict = {}
+        for v in solido.vertices():
+            vecinas = sorted({nombres[i] for i, f in enumerate(caras)
+                              if nombres[i] and _cara_toca(f, v)})
+            if len(vecinas) < 3:
+                continue
+            crudo.setdefault("|".join(vecinas), []).append(v)
+        out = {}
+        for nombre, vs in crudo.items():
+            if len(vs) == 1:
+                out[nombre] = vs[0]
+                continue
+            for k, v in enumerate(sorted(vs, key=lambda q: (round(q.X, 6), round(q.Y, 6),
+                                                            round(q.Z, 6)))):
+                out[f"{nombre}#{k}"] = v
+        return out
+
+    def vertice(self, solido: Shape, nombre: str):
+        todos = self.vertices(solido)
+        if nombre in todos:
+            return todos[nombre]
+        # Por si llega con las caras en otro orden: el nombre es un conjunto.
+        base, _, sufijo = nombre.partition("#")
+        clave = "|".join(sorted(base.split("|"))) + (f"#{sufijo}" if sufijo else "")
+        try:
+            return todos[clave]
+        except KeyError:
+            raise KeyError(f"no hay un vértice llamado «{nombre}»; hay: {sorted(todos)}")
 
     def arista(self, solido: Shape, nombre: str) -> Edge:
         todas = self.aristas(solido)
@@ -231,9 +320,44 @@ class Nombrador:
         return perdidas
 
 
+def _cara_toca(cara: Face, vertice) -> bool:
+    """¿Ese punto es uno de los vértices de esta cara? Se compara por posición
+    con la misma tolerancia que todo lo demás: dos objetos distintos del kernel
+    pueden ser el mismo punto del mundo."""
+    p = (vertice.X, vertice.Y, vertice.Z)
+    for v in cara.vertices():
+        if (abs(p[0] - v.X) < TOL_DIST and abs(p[1] - v.Y) < TOL_DIST
+                and abs(p[2] - v.Z) < TOL_DIST):
+            return True
+    return False
+
+
+def _extremos(e: Edge) -> tuple:
+    """Los dos extremos de una arista, ordenados: sirven de identidad sin
+    depender de cómo esté parametrizada."""
+    a, b = e.start_point(), e.end_point()
+    pa = (round(a.X, 4), round(a.Y, 4), round(a.Z, 4))
+    pb = (round(b.X, 4), round(b.Y, 4), round(b.Z, 4))
+    return (pa, pb) if pa <= pb else (pb, pa)
+
+
 def _cara_tiene(cara: Face, arista: Edge) -> bool:
-    m = arista.position_at(0.5)
+    """¿Esta arista es una de las de esta cara?
+
+    Se compara por **extremos**, no por el punto de en medio. Desde la 0.14.0
+    la misma arista puede llegar como LINE desde una cara y como BSPLINE desde
+    la de al lado —la superficie reglada de una cara alabeada reescribe sus
+    bordes—, y un BSPLINE no tiene su punto medio geométrico en el parámetro
+    0.5: la parametrización no es uniforme. Medido el 19-sep: por el punto
+    medio, las cuatro aristas de la cara reglada se quedaban sin nombre y de
+    doce nombradas quedaban ocho.
+
+    Un círculo completo tiene los dos extremos en el mismo sitio, así que el
+    largo sigue entrando en la comparación para no confundir dos que se cierren
+    sobre el mismo punto.
+    """
+    ext = _extremos(arista)
     for e in cara.edges():
-        if (e.position_at(0.5) - m).length < TOL_DIST and abs(e.length - arista.length) < TOL_DIST:
+        if _extremos(e) == ext and abs(e.length - arista.length) < TOL_DIST:
             return True
     return False

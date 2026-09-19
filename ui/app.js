@@ -481,17 +481,37 @@ $("#b-exportar").onclick = async () => {
 };
 
 /* --- Deshacer / rehacer ------------------------------------------------ */
-$("#b-deshacer").onclick = async () => {
-  const r = await post("/api/deshacer");
+/* Deshacer y rehacer **siempre** vuelven a preguntar por las piezas y siempre
+ * redibujan. Mike, 19-sep: «cuando das ctrl+Z, no se dibuja luego luego el
+ * undo hasta que no haces otro comando».
+ *
+ * Por qué pasaba: lo que cambia en una pieza 3D no viaja en el parche de
+ * trazos —una pieza no es un trazo—, así que deshacer una extrusión o un punto
+ * movido devolvía un parche vacío. Con el parche vacío, `aplicarParche` no
+ * creaba un arreglo de trazos nuevo, la llave del plano no cambiaba (ver
+ * `llavePlano` en vista.js, que compara por identidad del arreglo) y el lienzo
+ * reusaba el cuadro de antes. Se veía igual hasta que otro comando invalidaba
+ * la caché, que es exactamente lo que Mike describió.
+ *
+ * Preguntar por las piezas cuesta una llamada que ni toca el kernel, y
+ * deshacer no pasa sesenta veces por segundo. */
+async function trasDeshacerORehacer(r, verbo) {
   aplicar(r);
   if (!aplicarParche(r)) await recargarTrazos();
-  if (r.accion) Comandos.eco("Deshecho: " + r.accion);
+  if (window.Cuerpos) {
+    Cuerpos.olvidar();
+    if (window.Tiradores) Tiradores.olvidar();
+    Cuerpos.refrescar();
+  }
+  if (window.invalidarPlano) window.invalidarPlano();
+  pintar();
+  if (r.accion) Comandos.eco(verbo + ": " + r.accion);
+}
+$("#b-deshacer").onclick = async () => {
+  await trasDeshacerORehacer(await post("/api/deshacer"), "Deshecho");
 };
 $("#b-rehacer").onclick = async () => {
-  const r = await post("/api/rehacer");
-  aplicar(r);
-  if (!aplicarParche(r)) await recargarTrazos();
-  if (r.accion) Comandos.eco("Rehecho: " + r.accion);
+  await trasDeshacerORehacer(await post("/api/rehacer"), "Rehecho");
 };
 
 /* --- Capas: alta, baja y propiedades ----------------------------------- */
