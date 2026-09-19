@@ -63,7 +63,9 @@ const aPX = (x, y, z) => {
     // son ortogonales, que es donde se mide.
     const prof = uy * sx + (z || 0) * cx;
     const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
-    const k = 1 / Math.max(0.1, 1 - prof / (v.dist || 4000));
+    // El foco va en píxeles: así la perspectiva es igual de conservadora a
+    // cualquier zoom. En milímetros se estiraba al alejarse.
+    const k = 1 / Math.max(0.1, 1 - prof * v.escala / (v.foco || 1400));
     px = cxs + (px - cxs) * k;
     py = cys + (py - cys) * k;
   }
@@ -81,7 +83,7 @@ const aMM = (px, py) => {
     // Deshacer la perspectiva sobre el suelo (z = 0): ahí la profundidad es
     // lineal en la Y de la cámara, y la ecuación se resuelve exacta.
     const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
-    const t = (Math.sin(v.rx) / cx) / (v.dist || 4000);
+    const t = (Math.sin(v.rx) / cx) * v.escala / (v.foco || 1400);
     const A = v.y * v.escala + (v.oy || 0) - cys, d = py - cys;
     vy = (A - d) / (v.escala - d * t);
     const k = 1 / Math.max(0.1, 1 - t * vy);
@@ -654,6 +656,9 @@ const Regen = (() => {
 
   /** ¿Se puede navegar sobre la foto en vez de redibujar? */
   function sirve() {
+    // Con cuatro ventanas la foto corrida ya no dice la verdad: mover una
+    // ventana no mueve las otras. Se redibuja siempre.
+    if (typeof Ventanas !== "undefined") return false;
     if (!enGesto || !foto || !fotoVista) return false;
     const f = fotoVista;
     // La foto se corre y se escala, pero **no se puede girar**: si la cámara
@@ -716,7 +721,11 @@ function invalidarPlano() { _planoLlave = null; }
 
 function llavePlano() {
   const v = estado.vista;
-  return `${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
+  // Las cuatro cámaras, no sólo la activa: navegar va en la ventana bajo el
+  // cursor, y si su cámara cambia el plano tiene que redibujarse.
+  const todas = typeof Ventanas !== "undefined"
+    ? Ventanas.ventanas.map((q) => `${q.x}|${q.y}|${q.escala}|${q.rx}|${q.rz}|${q.ox}|${q.oy}|${q.w}|${q.h}`).join(";") : "";
+  return `${todas}#${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
          `${tema().cual}|${estado.modo}|${estado.prefs && estado.prefs.borrador ? "b" : ""}`;
 }
 

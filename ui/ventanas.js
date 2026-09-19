@@ -23,7 +23,7 @@ const Ventanas = (() => {
 
   const ventanas = [
     { nombre: "Superior",    plano: "XY", rx: 0,            rz: 0 },
-    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO, persp: true, dist: 4000 },
+    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO, persp: true, foco: 1400 },
     { nombre: "Frontal",     plano: "XZ", rx: -90 * GRADO,  rz: 0 },
     { nombre: "Lateral",     plano: "YZ", rx: -90 * GRADO,  rz: -90 * GRADO },
   ].map((v, i) => ({ ...v, i, x: 0, y: 0, escala: 1, ox: 0, oy: 0, w: 100, h: 100 }));

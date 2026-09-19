@@ -211,7 +211,7 @@ const Radial = (() => {
 
   /* --- Los botones del ratón, desde vista.js ----------------------------- */
   function abajo(e) {
-    inicio = { x: e.clientX, y: e.clientY, t: performance.now(), alt: e.altKey };
+    inicio = { x: e.clientX, y: e.clientY, t: performance.now(), alt: e.shiftKey };   // Shift, no Alt (Mike, 18-sep)
   }
 
   function arrastre(e) {

@@ -712,7 +712,8 @@ const Seleccion = (() => {
     if (estado.resaltado) pintarResaltado(ctx, estado.resaltado);
     if (!estado.sel.size) return;
     if (!(estado.sel instanceof SelSet)) estado.sel = new SelSet(estado.sel);
-    if (estado.sel.size < UMBRAL_FOTO_SEL) { _pintarSeleccionDirecto(ctx); return; }
+    // Con cuatro ventanas nunca se usa la foto: se pinta directo en cada una.
+    if (estado.sel.size < UMBRAL_FOTO_SEL || typeof Ventanas !== "undefined") { _pintarSeleccionDirecto(ctx); return; }
 
     const v = estado.vista, dpr = window.devicePixelRatio || 1;
     const w = lienzo.width, h = lienzo.height;
@@ -751,7 +752,11 @@ const Seleccion = (() => {
     const anchoPX = lienzo.clientWidth, altoPX = lienzo.clientHeight;
     const mx0 = vx - 20 / esc, mx1 = vx + anchoPX / esc + 20 / esc;
     const my1 = vy + 20 / esc, my0 = vy - altoPX / esc - 20 / esc;
-    const seVe = (c) => c && !(c[2] < mx0 || c[0] > mx1 || c[3] < my0 || c[1] > my1);
+    // Girada, o en un plano que no es el suelo, la ventana en planta no dice
+    // qué se ve: se pinta todo. Y cada entidad va por su plano, con la cámara.
+    const girada = !!(estado.vista.rx || estado.vista.rz) || (estado.vista.plano && estado.vista.plano !== "XY");
+    const planoDe = (id) => { const tt = estado.trazos.find((x) => x.id === id); return (tt && tt.plano) || "XY"; };
+    const seVe = (c) => girada || (c && !(c[2] < mx0 || c[0] > mx1 || c[3] < my0 || c[1] > my1));
 
     ctx.save();
     // resaltado: se repinta encima lo seleccionado, con línea gruesa y clara.
@@ -777,7 +782,9 @@ const Seleccion = (() => {
         if (t.clase !== "linea") continue;
         const pts = t.puntos;
         for (let i = 0; i < pts.length; i++) {
-          const px = (pts[i][0] - vx) * esc, py = (vy - pts[i][1]) * esc;
+          const mp = Planos.aMundo(t.plano || "XY", pts[i][0], pts[i][1], 0);
+          const qp = aPX(mp[0], mp[1], mp[2]);
+          const px = qp[0], py = qp[1];
           i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
         }
       }
@@ -793,7 +800,9 @@ const Seleccion = (() => {
       for (const id of estado.sel) {
         if (!seVe(Indice.caja(id))) continue;
         for (const q of gripsDe(id)) {
-          const px = (q[0] - vx) * esc, py = (vy - q[1]) * esc;
+          const mg = Planos.aMundo(planoDe(id), q[0], q[1], 0);
+          const qg = aPX(mg[0], mg[1], mg[2]);
+          const px = qg[0], py = qg[1];
           ctx.fillRect(px - 3.5, py - 3.5, 7, 7);
           ctx.strokeRect(px - 3.5, py - 3.5, 7, 7);
         }

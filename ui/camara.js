@@ -33,9 +33,19 @@ const Camara = (() => {
    *  mirando**: se anota qué punto del plano está en el centro, se gira, y se
    *  vuelve a poner ese punto en el centro. Sin esto, cada giro manda el
    *  dibujo a otra parte y hay que encuadrar de nuevo cada vez. */
+  /** Girar siempre va a la Perspectiva, esté activa o no: las tres ortogonales
+   *  están clavadas en su vista. Mike: «la Superior debe quedarse locked». */
+  function destino() {
+    if (estado.vista.persp) return estado.vista;
+    if (typeof Ventanas !== "undefined") { const p = Ventanas.ventanas.find((x) => x.persp); if (p) return p; }
+    return estado.vista;
+  }
+
   function poner(rx, rz, pivote) {
     const el = lienzo();
-    const v = estado.vista;
+    const guardadaVista = estado.vista;
+    const v = destino();
+    estado.vista = v;                       // aPX y aMM miran estado.vista
     const w = el ? el.clientWidth : 0, h = el ? el.clientHeight : 0;
     // El pivote: lo que está bajo el cursor al empezar (lo pasa `arrastrar`),
     // o el centro de la ventana activa. Ese punto se queda clavado en su sitio
@@ -52,6 +62,7 @@ const Camara = (() => {
       v.x += (q[0] - antes[0]) / v.escala;
       v.y += (antes[1] - q[1]) / v.escala;
     }
+    estado.vista = guardadaVista;
     repintar();
   }
 
