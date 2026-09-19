@@ -1,5 +1,8 @@
 """El mandadero · recado 28: 0.12.0 — lo que Mike vio en la 0.11.0.
 
+Segundo intento: el primero se detuvo en `node --check` por un acento grave de
+más en la llave del plano, y no empujó nada. La comprobación hizo su trabajo.
+
 1. **La selección se dibujaba mal en las cuatro ventanas.** `seleccion.js` proyecta
    a mano en planta —`(x − vx)·escala`—, sin cámara ni plano, y además guarda
    una foto por vista que no sabe de las cuatro ventanas. Ahora pasa por `aPX` y
@@ -142,7 +145,7 @@ def main() -> int:
          "  // cursor, y si su cámara cambia el plano tiene que redibujarse.\n"
          "  const todas = typeof Ventanas !== \"undefined\"\n"
          "    ? Ventanas.ventanas.map((q) => `${q.x}|${q.y}|${q.escala}|${q.rx}|${q.rz}|${q.ox}|${q.oy}|${q.w}|${q.h}`).join(\";\") : \"\";\n"
-         "  return `${todas}#`"),
+         "  return `${todas}#"),
     ], "const todas = typeof Ventanas", "ui/vista.js (la llave mira las cuatro)")
     parchar(vista, [
         ("    if (!enGesto || !foto || !fotoVista) return false;",
@@ -150,7 +153,7 @@ def main() -> int:
          "    // ventana no mueve las otras. Se redibuja siempre.\n"
          "    if (typeof Ventanas !== \"undefined\") return false;\n"
          "    if (!enGesto || !foto || !fotoVista) return false;"),
-    ], "mover una\n    // ventana no mueve las otras".replace("\n", ""), "ui/vista.js (sin foto con cuatro ventanas)")
+    ], "la foto corrida ya no dice la verdad", "ui/vista.js (sin foto con cuatro ventanas)")
     # 4 · la perspectiva en píxeles
     parchar(vista, [
         ("    const k = 1 / Math.max(0.1, 1 - prof / (v.dist || 4000));",
