@@ -1,8 +1,10 @@
 # Arma el instalador de shape101 en un Windows de GitHub, lo prueba, lo manda a
 # `descargas` por la rama de carga que espera `publicar-instalador.yml`, espera
 # a que esa release exista y entonces deja `shape101.json` y el README de
-# `descargas` diciendo la versión nueva. Al terminar, la 0.20.x instalada en
-# cualquier máquina ve el letrero «Actualizar».
+# `descargas` diciendo la versión nueva. Al terminar, cualquier shape101 ya
+# instalada ve el letrero «Actualizar».
+#
+# La receta completa, con sus trampas, está en `claude/COMO-PUBLICAR.md`.
 #
 # POR QUÉ
 #
@@ -57,9 +59,11 @@ concurrency:
 
 env:
   # INSTALADOR_ANTERIOR es la última release de shape101: de ahí sale el Python
-  # de Windows con todo dentro, kernel de sólidos incluido. Hasta 0.11.0 era el
-  # de draw101 0.20.1, y cuando esa release se borró de descargas (19-sep) el
-  # armado murió a los 19 s sin decir por qué. shape101 se alimenta de sí mismo.
+  # de Windows con todo dentro, kernel de sólidos incluido. shape101 se alimenta
+  # de sí mismo, así que **esa release no se borra nunca**: es el cimiento del
+  # siguiente armado. (Se aprendió a golpes el 19-sep, cuando desapareció el
+  # archivo del que salía el Python y el armado murió a los 19 s sin decir por
+  # qué. Ver claude/COMO-PUBLICAR.md.)
   # El Windows del runner escribe cp1252: sin esto, una «→» en la salida de
   # verificar.py tumba las pruebas (corrida 34794283220).
   PYTHONUTF8: '1'
@@ -306,7 +310,7 @@ jobs:
           git commit -qm "shape101 $VER: manifiesto y README (armada y publicada por Actions de shape101)"
           git push -q origin main
           echo "- Release \`shape101-$VER\` publicada · \`shape101-ultima\` movida · \`shape101.json\` y README en main." >> "$GITHUB_STEP_SUMMARY"
-          echo "- Las 0.20.x instaladas ya ven el letrero «Actualizar»." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Las shape101 instaladas ya ven el letrero «Actualizar»." >> "$GITHUB_STEP_SUMMARY"
 
       - name: El cuaderno del armado, pase lo que pase
         if: always()

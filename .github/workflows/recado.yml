@@ -19,6 +19,5 @@ jobs:
         with:
           python-version: '3.11'
       - env:
-          TOKEN_DRAW101: ${{ secrets.TOKEN_DRAW101 }}
           TOKEN_SHAPE101: ${{ secrets.TOKEN_SHAPE101 }}
         run: python claude/recado.py
