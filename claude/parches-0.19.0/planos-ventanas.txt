@@ -1,0 +1,38 @@
+
+
+# --- el plano de la ventana donde se dibujó  ·  0.19.0 ----------------------
+#
+# El dibujo 2D vive en una de las tres ventanas ortogonales y cada entidad se
+# acuerda de cuál: `"XY"` la Superior, `"XZ"` la Frontal, `"YZ"` la Lateral.
+# Hasta la 0.18.0 eso se resolvía al final —la pieza se armaba en el suelo y se
+# rotaba al salir, `rutas._al_mundo`—, y alcanzaba porque una pieza salía de un
+# solo contorno.
+#
+# Deja de alcanzar con el grupo `model`: un barrido quiere el perfil en la
+# Frontal y el camino en la Superior, y esos dos no se pueden rotar juntos al
+# final porque no están en el mismo plano. Así que cada boceto se coloca en su
+# sitio **desde el principio** y la pieza nace ya en el mundo.
+#
+# Las cuentas son las mismas que `rutas._a_mundo`, sólo que dichas como plano:
+#   XZ: (u, v) → (u, 0, v)   normal (0, −1, 0), hacia quien mira la Frontal
+#   YZ: (u, v) → (0, u, v)   normal (1, 0, 0),  hacia +X
+DEL_DIBUJO = {
+    "XY": {"origen": [0, 0, 0], "x": [1, 0, 0], "normal": [0, 0, 1]},
+    "XZ": {"origen": [0, 0, 0], "x": [1, 0, 0], "normal": [0, -1, 0]},
+    "YZ": {"origen": [0, 0, 0], "x": [0, 1, 0], "normal": [1, 0, 0]},
+}
+
+
+def del_dibujo(plano: str | None, z: float = 0.0) -> dict | None:
+    """La especificación de plano que le toca a un boceto según la ventana en
+    la que se dibujó. `z` lo separa de sus hermanos a lo largo de su normal,
+    que es lo que hace falta para un loft entre contornos de la misma ventana.
+
+    Devuelve `None` para la Superior a ras de suelo: es el caso de todas las
+    piezas que ya existen y no tiene por qué costar nada ni cambiar un nombre.
+    """
+    base = DEL_DIBUJO.get(plano or "XY", DEL_DIBUJO["XY"])
+    if not z:
+        return None if (plano or "XY") == "XY" else dict(base)
+    n = base["normal"]
+    return {"origen": [n[0] * z, n[1] * z, n[2] * z], "x": list(base["x"]), "normal": list(n)}

@@ -1,0 +1,6 @@
+        <button data-cmd="EXTRUIR" title="Levantar el contorno seleccionado (EXTRUIR)">⬒</button>
+        <button data-cmd="REVOLVER" title="Girar el contorno alrededor de la línea de eje (REVOLVER)">◕</button>
+        <button data-cmd="BARRER" title="Llevar el contorno por un camino (BARRER)">➟</button>
+        <button data-cmd="LOFT" title="Una piel que pasa por varios contornos (LOFT)">⧉</button>
+        <button data-cmd="CRECER" title="Material nuevo con el perfil de la cara señalada (CRECER)">⬈</button>
+        <button data-cmd="3D"
