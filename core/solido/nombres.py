@@ -30,7 +30,8 @@ import math
 from build123d import Face, Edge, GeomType, Shape, Vector
 from OCP.BRep import BRep_Tool
 from OCP.GeomAdaptor import GeomAdaptor_Surface
-from OCP.GeomAbs import GeomAbs_Plane, GeomAbs_Cylinder
+from OCP.GeomAbs import (GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane,
+                         GeomAbs_Sphere, GeomAbs_Torus)
 
 TOL_DIST = 1e-4
 TOL_ANG = 1e-6
@@ -65,7 +66,39 @@ def superficie(cara: Face) -> tuple:
         ax = cy.Axis()
         p, v = ax.Location(), ax.Direction()
         return ("cilindro", p.X(), p.Y(), p.Z(), v.X(), v.Y(), v.Z(), cy.Radius())
-    return ("otra", id(cara))
+    # --- las que llegaron con el grupo **model**  ·  0.19.0 -----------------
+    #
+    # Hasta la 0.18.0 una pieza sólo podía ser un contorno extruido con
+    # barrenos y redondeos: plano y cilindro cubrían todo. Un torneado trae
+    # conos y toros, un loft trae superficies libres. Sin reconocerlas, cada
+    # cara de ésas **perdía su nombre en cuanto se le hacía algo encima**, y
+    # con él los de sus aristas y sus vértices. Medido el 19-sep: un barreno
+    # sobre la tapa de un loft dejaba 5 de 9 caras sin nombre.
+    if tipo == GeomAbs_Cone:
+        co = ad.Cone()
+        ax = co.Axis()
+        p, v = ax.Location(), ax.Direction()
+        return ("cono", p.X(), p.Y(), p.Z(), v.X(), v.Y(), v.Z(),
+                co.RefRadius(), co.SemiAngle())
+    if tipo == GeomAbs_Sphere:
+        es = ad.Sphere()
+        c = es.Location()
+        return ("esfera", c.X(), c.Y(), c.Z(), es.Radius())
+    if tipo == GeomAbs_Torus:
+        to = ad.Torus()
+        ax = to.Axis()
+        p, v = ax.Location(), ax.Direction()
+        return ("toro", p.X(), p.Y(), p.Z(), v.X(), v.Y(), v.Z(),
+                to.MajorRadius(), to.MinorRadius())
+    # Superficie libre —la piel de un loft, la de un barrido con guía—. No
+    # tiene parámetros que comparar, así que se compara **dónde está y cuánto
+    # mide**, que es lo que ya usa `nombres_en` y sirve para reconocer la
+    # misma cara del mismo sólido. No sirve para reconocerla después de que
+    # una operación la recorte, y eso está asumido: una cara libre recortada
+    # se vuelve a nombrar por posición, no por superficie.
+    c = cara.center()
+    return ("libre", int(tipo), round(c.X, 3), round(c.Y, 3), round(c.Z, 3),
+            round(cara.area, 2))
 
 
 def misma_superficie(a: tuple, b: tuple) -> bool:
@@ -83,7 +116,33 @@ def misma_superficie(a: tuple, b: tuple) -> bool:
         wx, wy, wz = a[1] - b[1], a[2] - b[2], a[3] - b[3]
         t = wx * b[4] + wy * b[5] + wz * b[6]
         return math.sqrt((wx - t * b[4]) ** 2 + (wy - t * b[5]) ** 2 + (wz - t * b[6]) ** 2) < TOL_DIST
+    if a[0] == "cono":
+        if abs(a[7] - b[7]) > TOL_DIST or abs(a[8] - b[8]) > TOL_ANG:
+            return False
+        return _mismo_eje(a, b)
+    if a[0] == "esfera":
+        return (abs(a[4] - b[4]) < TOL_DIST
+                and math.dist(a[1:4], b[1:4]) < TOL_DIST)
+    if a[0] == "toro":
+        if abs(a[7] - b[7]) > TOL_DIST or abs(a[8] - b[8]) > TOL_DIST:
+            return False
+        return _mismo_eje(a, b)
+    if a[0] == "libre":
+        return a == b
     return False
+
+
+def _mismo_eje(a: tuple, b: tuple) -> bool:
+    """Mismo eje: misma dirección (en cualquier sentido) y el punto de uno
+    cae sobre la recta del otro. Sirve para cono y toro, que guardan su eje
+    en las mismas posiciones que el cilindro."""
+    dot = a[4] * b[4] + a[5] * b[5] + a[6] * b[6]
+    if abs(abs(dot) - 1) > TOL_ANG:
+        return False
+    wx, wy, wz = a[1] - b[1], a[2] - b[2], a[3] - b[3]
+    t = wx * b[4] + wy * b[5] + wz * b[6]
+    return math.sqrt((wx - t * b[4]) ** 2 + (wy - t * b[5]) ** 2
+                     + (wz - t * b[6]) ** 2) < TOL_DIST
 
 
 # ------------------------------------------------------------------- huella
@@ -253,14 +312,27 @@ class Nombrador:
             raise KeyError(f"no hay una arista llamada «{nombre}»; hay: {sorted(todas)}")
 
     # -- bautizos -------------------------------------------------------------
-    def bautizar_extrusion(self, solido: Shape, aristas_boceto: list[Edge], espesor: float, prefijo: str = ""):
-        """Nombra las caras de un sólido recién extruido de un boceto."""
+    def bautizar_extrusion(self, solido: Shape, aristas_boceto: list[Edge], espesor: float,
+                           prefijo: str = "", normal=None):
+        """Nombra las caras de un sólido recién extruido de un boceto.
+
+        `normal` es la perpendicular del papel donde se dibujó el boceto. Sin
+        ella se supone el suelo, que es como nacieron todas las piezas hasta
+        la 0.18.0. Con un boceto sobre una cara inclinada, «arriba» y «abajo»
+        se miden contra **su** perpendicular y no contra Z: si no, una pieza
+        levantada sobre una cara en diagonal no tendría ni arriba ni abajo y
+        sus caras se llamarían todas `lado[...]`.
+        """
+        from build123d import Vector
+
+        eje = Vector(0, 0, 1) if normal is None else Vector(normal)
         self.caras = {}
         medios = [a.position_at(0.5) for a in aristas_boceto]
         for f in solido.faces():
             n = f.normal_at()
-            if abs(n.Z) > 1 - TOL_ANG:
-                nombre = "arriba" if (n.Z > 0) == (espesor > 0) else "abajo"
+            contra = n.dot(eje)
+            if abs(contra) > 1 - TOL_ANG:
+                nombre = "arriba" if (contra > 0) == (espesor > 0) else "abajo"
             else:
                 # la arista inferior de la cara lateral es una arista del boceto
                 mejor, dist = None, 1e9
@@ -271,6 +343,62 @@ class Nombrador:
                             mejor, dist = i, d
                 nombre = f"lado[{mejor}]"
             self.caras[prefijo + nombre] = f
+
+    def bautizar_cuerpo(self, solido: Shape, eje=(0, 0, 1), prefijo: str = ""):
+        """Nombra las caras de un cuerpo recién nacido **sin boceto detrás**:
+        un revolucionado, un loft, un barrido.
+
+        `bautizar_extrusion` sirve sólo para lo que sale de un contorno: mira
+        qué arista del boceto produjo cada cara lateral. Un loft entre un
+        rectángulo y un círculo no tiene esa correspondencia —cinco caras
+        laterales y ocho aristas de origen—, así que aquí se nombra por
+        **dónde está la cara respecto del eje de la operación**, que es lo
+        único que los tres casos comparten.
+
+        El eje es el de la operación: el de giro en un revolucionado, el que
+        va del primer perfil al último en un loft, el del camino en un
+        barrido.
+
+        - Las caras planas perpendiculares al eje son tapas: la primera
+          `abajo`, la última `arriba`, las de en medio `tapa[k]`.
+        - Las demás son `lado[k]`, ordenadas por **ángulo alrededor del eje**
+          y, a igualdad de ángulo, por **distancia al eje**.
+
+        El orden importa más que el nombre: lo que tiene que aguantar es que
+        cambiar un número —el radio, la altura, los grados— deje cada nombre
+        en la misma cara. Por eso se ordena por ángulo y radio, que no se
+        mueven al escalar, y no por la posición del centro, que sí.
+        """
+        from build123d import Vector
+
+        self.caras = {}
+        e = Vector(eje)
+        if e.length < 1e-12:
+            e = Vector(0, 0, 1)
+        e = e.normalized()
+        origen = _centro_de(solido)
+
+        tapas, lados = [], []
+        for f in solido.faces():
+            plana = f.geom_type.name == "PLANE"
+            if plana and abs(f.normal_at().dot(e)) > 1 - TOL_ANG:
+                tapas.append(f)
+            else:
+                lados.append(f)
+
+        tapas.sort(key=lambda f: ((f.center() - origen).dot(e), _orden(f)))
+        for k, f in enumerate(tapas):
+            if k == 0 and len(tapas) > 1:
+                nombre = "abajo"
+            elif k == len(tapas) - 1:
+                nombre = "arriba"
+            else:
+                nombre = f"tapa[{k}]"
+            self.caras[prefijo + nombre] = f
+
+        lados.sort(key=lambda f: _alrededor(f, origen, e))
+        for k, f in enumerate(lados):
+            self.caras[prefijo + f"lado[{k}]"] = f
 
     def rebautizar(self, solido_nuevo: Shape, nuevas: dict[str, Face] | None = None,
                    heredan: dict[str, str] | None = None) -> list[str]:
@@ -420,3 +548,65 @@ def _cara_tiene(cara: Face, arista: Edge) -> bool:
         if _extremos(e) == ext and abs(e.length - arista.length) < TOL_DIST:
             return True
     return False
+
+
+def _centro_de(solido: Shape):
+    """El centro de la caja envolvente. Sirve de origen del eje: no depende de
+    cómo estén repartidas las caras, así que no se mueve cuando una operación
+    parte una en dos."""
+    from build123d import Vector
+
+    c = solido.bounding_box().center()
+    return Vector(c.X, c.Y, c.Z)
+
+
+def _alrededor(cara: Face, origen, eje) -> tuple:
+    """Dónde está una cara alrededor de un eje: (ángulo, radio, altura).
+
+    El ángulo se mide del centro de la cara proyectado fuera del eje. Una cara
+    que envuelve el eje —el cilindro de un revolucionado— tiene ese centro
+    **sobre** el eje, así que no tiene ángulo: se le pone −1 para que esas
+    vayan primero, y entre ellas manda el radio. Es lo que separa el cilindro
+    de adentro del de afuera en un tubo, que es el caso que hay que resolver.
+    """
+    import math
+
+    from build123d import Vector
+
+    c = Vector(cara.center()) - origen
+    altura = c.dot(eje)
+    fuera = c - eje * altura
+    radio = _radio_max(cara, origen, eje)
+    if fuera.length < 1e-6:
+        return (-1.0, round(radio, 6), round(altura, 6))
+    u = _perpendicular(eje)
+    v = eje.cross(u)
+    ang = math.degrees(math.atan2(fuera.dot(v), fuera.dot(u))) % 360.0
+    return (round(ang, 4), round(radio, 6), round(altura, 6))
+
+
+def _perpendicular(eje):
+    """Un eje horizontal cualquiera pero **siempre el mismo** para un eje
+    dado: si se eligiera al azar, los ángulos cambiarían de una corrida a otra
+    y los nombres con ellos."""
+    from build123d import Vector
+
+    otro = Vector(1, 0, 0) if abs(eje.X) < 0.9 else Vector(0, 1, 0)
+    return eje.cross(otro).cross(eje).normalized()
+
+
+def _radio_max(cara: Face, origen, eje) -> float:
+    """Lo más lejos del eje que llega la cara. Con el centro no alcanza: el de
+    un cilindro completo cae sobre el eje, y así el de adentro y el de afuera
+    darían lo mismo."""
+    from build123d import Vector
+
+    mejor = 0.0
+    puntos = [Vector(v.X, v.Y, v.Z) for v in cara.vertices()]
+    puntos += [Vector(a.position_at(0.5)) for a in cara.edges()]
+    if not puntos:
+        puntos = [Vector(cara.center())]
+    for p in puntos:
+        d = p - origen
+        mejor = max(mejor, (d - eje * d.dot(eje)).length)
+    return mejor
