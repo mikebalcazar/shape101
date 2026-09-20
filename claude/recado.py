@@ -1,31 +1,31 @@
-"""El mandadero · recado 40: fuera poc/, y la receta de publicar al día.
+"""El mandadero · recado 41: el grupo model, alcanzable desde el dibujo.
 
-Mike, el 19-sep, preguntando qué eran esos archivos: `poc/` era la prueba de
-concepto del 12 y 13 de septiembre —la medición que decidió si shape101 iba o
-no—. **No era la app: era el estudio previo.**
+El motor ya sabía revolver, barrer, loftear y crecer desde una cara —t030 lo
+fija—, pero desde el programa no había manera de llegar a ninguna. Un comando
+al que no se puede llamar no existe.
 
-Hace tiempo que no corre: importa de `app/motor/`, una carpeta que dejó de
-existir cuando el motor se mudó a `core/solido/`. Los cinco pasos mueren con
-`ModuleNotFoundError: No module named 'app'`. Nada fuera de esa carpeta la
-toca, no entra al instalador y no la ve ninguna prueba.
+Este recado abre las puertas:
 
-**Lo que valía eran los números, y ya están guardados** en Drive
-(`suite101/shape101-prueba-de-concepto-2026-09-12-13 (archivo)`): el plan, la
-tabla de resultados y los seis veredictos. Ahí sigue estando lo que sostiene el
-motor de hoy —que los nombres derivados aguantan un cambio de cota y la huella
-geométrica no, 0 de 2 caras— y el aviso del `~2` que la 0.18.0 acabó
-arreglando.
+  · `planos.del_dibujo` dice el plano de cada ventana **como plano**, para que
+    cada boceto se coloque desde el principio en vez de armar la pieza en el
+    suelo y rotarla al salir. Sin eso no se puede decir un barrido con el
+    perfil en la Frontal y el camino en la Superior: esos dos no se rotan
+    juntos.
+  · `cuerpo.ops_de_revolver/_barrer/_loft` arman el historial, y `repartir`
+    separa la selección en cerrado (el contorno) y abierto (el eje o el
+    camino), que es lo que hace que el comando sea «señala y dale».
+  · tres rutas nuevas más `crecer-cara`, que niegan en español lo que no se
+    puede hacer.
+  · `ui/model.js` con los cuatro comandos, su sitio en la barra y su gajo en
+    la rueda del 3D, sin moverle el ángulo a Extruir.
+  · y la 0.19.0, con su bitácora.
 
-Así que aquí se borra el código, que es deuda: 22 archivos, 196 KB y once que
-todavía nombran draw101.
+Probado aquí antes de mandarlo: la suite entera, 772 comprobaciones en 31
+pruebas, con los parches ya aplicados sobre una copia de main.
 
-Y de paso, `claude/COMO-PUBLICAR.md` se pone al día: decía «45 minutos» cuando
-el armado tarda unos 20, hablaba de 24 pruebas cuando son 28, y explicaba el
-Python empotrado con la `INSTALADOR_ANTERIOR` que la 0.18.0 quitó. Una receta
-equivocada es peor que no tenerla.
-
-**Este recado no cambia la versión ni dispara un armado**: no toca nada que se
-instale.
+Los parches viajan como texto pelón en `claude/parches-0.19.0/`: ni el ancla
+ni el texto viven dentro de una cadena de Python, que es como se han colado
+los errores de comillas y de sangría en los recados anteriores.
 """
 from __future__ import annotations
 
@@ -38,7 +38,9 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-PARCHES = "claude/parches-limpieza"
+PARCHES = "claude/parches-0.19.0"
+NUMERO = 41
+ASUNTO = "el grupo model, alcanzable desde el dibujo"
 
 lineas: list[str] = []
 
@@ -67,6 +69,9 @@ def aplicar(raiz: pathlib.Path) -> None:
     vez** —si aparece cero o dos, se para, que es mucho mejor que dejar un
     archivo a medias— y si el parche ya está puesto no se pone dos veces, así
     repetir el recado es inofensivo.
+
+    `nuevo` es de este recado: un archivo que no existía. Se escribe entero y
+    se crea su carpeta si hace falta.
     """
     d = raiz / PARCHES
     for p in json.loads((d / "indice.json").read_text(encoding="utf-8")):
@@ -75,6 +80,13 @@ def aplicar(raiz: pathlib.Path) -> None:
                  if p.get("ancla_txt") else p.get("ancla", ""))
         texto = (d / p["texto"]).read_text(encoding="utf-8")
         f = raiz / arch
+        if modo == "nuevo":
+            if f.exists() and f.read_text(encoding="utf-8") == texto:
+                anotar(f"  {arch}: ya estaba"); continue
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(texto, encoding="utf-8")
+            anotar(f"  {arch}: nuevo · {len(texto):,} caracteres")
+            continue
         t = f.read_text(encoding="utf-8")
         if modo == "final":
             if t.endswith(texto):
@@ -103,44 +115,60 @@ def aplicar(raiz: pathlib.Path) -> None:
 
 
 def revisar(shape: pathlib.Path) -> None:
-    """Lo comprobable antes de empujar."""
-    if (shape / "poc").exists():
-        raise RuntimeError("la carpeta sigue ahí")
-    anotar("la carpeta ya no está")
+    """Lo comprobable sin el motor de sólidos, que aquí no está instalado.
 
-    # Que no quede nadie apuntando a lo borrado. Se busca **lo que se ejecuta**:
-    # un import, o la ruta dentro de una cadena. La palabra suelta no vale, y
-    # esto ya costó una corrida: la primera versión buscaba la ruta a secas y se
-    # delató este mismo archivo, cuya cabecera cuenta qué era esa carpeta.
-    #
-    # `claude/` queda fuera a propósito: ahí no vive nada que corra con la app,
-    # sólo el mandadero y la documentación, que sí deben poder nombrarla.
-    sueltos = correr(["bash", "-lc",
-                      "grep -rIl --include='*.py' --include='*.yml' --include='*.json' "
-                      "-e '^from poc' -e '^import poc' -e 'from poc import' "
-                      "-e \"'poc/\" -e '\"poc/' . "
-                      "| grep -v node_modules | grep -v '^./claude/' || true"],
-                     cwd=shape).strip()
-    if sueltos:
-        raise RuntimeError("todavía hay quien apunta ahí: " + sueltos.replace("\n", ", "))
-    anotar("y nadie apuntaba a ella")
-
+    No se corre la suite: son 350 MB de OpenCascade y catorce minutos. La suite
+    ya corrió entera en el chat, con estos mismos parches puestos sobre una
+    copia de main, y eso es lo que autoriza a mandarlos. Aquí se comprueba lo
+    que sí se puede comprobar en treinta segundos y que es justo lo que se
+    rompe al transportar texto: que todo compile y que el número cuadre.
+    """
     import py_compile
-    py_compile.compile(str(shape / "verificar.py"), doraise=True)
-    anotar("verificar.py sigue compilando")
 
-    quedan = correr(["bash", "-lc",
-                     "grep -rIl 'draw101' --include='*.yml' --include='*.py' --include='*.js' "
-                     ". | grep -v node_modules || true"], cwd=shape).strip()
-    anotar("archivos que todavía nombran draw101: "
-           + (quedan.replace("\n", ", ") if quedan else "ninguno"))
+    for arch in ("core/solido/planos.py", "core/solido/cuerpo.py", "core/solido/rutas.py",
+                 "core/version.py", "pruebas/t031_model_desde_el_dibujo.py", "verificar.py"):
+        py_compile.compile(str(shape / arch), doraise=True)
+    anotar("los seis archivos de Python compilan")
 
-    receta = (shape / "claude" / "COMO-PUBLICAR.md").read_text(encoding="utf-8")
-    if "INSTALADOR_ANTERIOR" in receta or "45 minutos" in receta:
-        raise RuntimeError("la receta de publicar sigue desactualizada")
-    if "MANIFIESTO" not in receta:
-        raise RuntimeError("la receta no explica de dónde sale el instalador anterior")
-    anotar("la receta de publicar está al día")
+    # La versión vive en dos sitios y tienen que decir lo mismo: un instalador
+    # que se llama de una manera y se presenta de otra ya pasó ocho veces.
+    v = json.loads((shape / "package.json").read_text(encoding="utf-8"))["version"]
+    texto = (shape / "core" / "version.py").read_text(encoding="utf-8")
+    if f'VERSION = "{v}"' not in texto:
+        raise RuntimeError(f"package.json dice {v} y core/version.py dice otra cosa")
+    if v != "0.19.0":
+        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.19.0")
+    anotar(f"la versión dice {v} en los dos sitios")
+
+    # Un comando que no se carga es un comando que no existe.
+    html = (shape / "ui" / "index.html").read_text(encoding="utf-8")
+    if 'src="model.js"' not in html:
+        raise RuntimeError("ui/model.js no se carga desde index.html")
+    faltan = [c for c in ("REVOLVER", "BARRER", "LOFT", "CRECER")
+              if f'data-cmd="{c}"' not in html]
+    if faltan:
+        raise RuntimeError("sin botón en la barra: " + ", ".join(faltan))
+    anotar("los cuatro comandos se cargan y tienen botón")
+
+    js = (shape / "ui" / "model.js").read_text(encoding="utf-8")
+    faltan = [c for c in ("REVOLVER", "BARRER", "LOFT", "CRECER")
+              if f'nombre: "{c}"' not in js]
+    if faltan:
+        raise RuntimeError("sin registrar en model.js: " + ", ".join(faltan))
+    rueda = (shape / "ui" / "radial.js").read_text(encoding="utf-8")
+    if 'cmd: "REVOLVER"' not in rueda or rueda.index('cmd: "EXTRUIR"') > rueda.index('cmd: "REVOLVER"'):
+        raise RuntimeError("la rueda del 3D no ofrece model, o le movió el sitio a Extruir")
+    anotar("y están en la rueda, detrás de Extruir")
+
+    rutas = (shape / "core" / "solido" / "rutas.py").read_text(encoding="utf-8")
+    # `crecer-cara` cuelga de `/{id_}/`, así que se busca el final y no la ruta
+    # entera: la primera versión de esta comprobación buscó "/crecer-cara" y se
+    # cayó sola en el ensayo. Que se cayera es la prueba de que sirve.
+    faltan = [r for r in ("/revolver", "/barrer", "/loft", "/crecer-cara")
+              if f'{r}"' not in rutas]
+    if faltan:
+        raise RuntimeError("faltan rutas: " + ", ".join(faltan))
+    anotar("las cuatro rutas están puestas")
 
 
 def main() -> int:
@@ -148,7 +176,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado40")
+    tmp = pathlib.Path(f"/tmp/recado{NUMERO}")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -156,13 +184,6 @@ def main() -> int:
             f"https://x-access-token:{t_shape}@github.com/{DUENO}/shape101", str(shape)])
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
-
-    if (shape / "poc").is_dir():
-        cuantos = len(list((shape / "poc").rglob("*")))
-        correr(["git", "rm", "-r", "-q", "poc"], cwd=shape)
-        anotar(f"borrada la carpeta de la prueba de concepto ({cuantos} entradas)")
-    else:
-        anotar("la carpeta ya no estaba")
 
     aplicar(shape)
     revisar(shape)
@@ -173,41 +194,45 @@ def main() -> int:
     anotar("parches aplicados y retirados del repositorio")
 
     if not correr(["git", "status", "--porcelain"], cwd=shape).strip():
-        anotar("no había nada que cambiar: main ya estaba limpio")
+        anotar("no había nada que cambiar")
         return 0
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: 40 · fuera la prueba de concepto, y la receta de publicar al día\n\n```\n"
-        + "\n".join(lineas) + "\n```\n", encoding="utf-8")
+        f"- recado: {NUMERO} · {ASUNTO}\n\n```\n" + "\n".join(lineas) + "\n```\n",
+        encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Fuera la prueba de concepto, y la receta de publicar al día\n\n"
-            "Era la medición del 12 y 13 de septiembre: la que decidió si shape101 iba o\n"
-            "no. No era la app, era el estudio previo, y hace tiempo que no corre: importa\n"
-            "de app/motor/, una carpeta que dejó de existir cuando el motor se mudó a\n"
-            "core/solido/. Nada fuera de ella la tocaba.\n\n"
-            "Lo que valía eran los números y ya están guardados en Drive: el plan, la tabla\n"
-            "de resultados y los seis veredictos. Ahí sigue lo que sostiene el motor de hoy\n"
-            "—que los nombres derivados aguantan un cambio de cota y la huella geométrica\n"
-            "no, 0 de 2 caras— y el aviso del ~2 que la 0.18.0 acabó arreglando.\n\n"
-            "Se van 22 archivos y 196 KB, y con ellos los once que todavía nombraban\n"
-            "draw101.\n\n"
-            "Y COMO-PUBLICAR.md se pone al día: decía 45 minutos cuando el armado tarda\n"
-            "unos 20, hablaba de 24 pruebas cuando son 28, y explicaba el Python empotrado\n"
-            "con la INSTALADOR_ANTERIOR que la 0.18.0 quitó. Una receta equivocada es peor\n"
-            "que no tenerla.\n\n"
+            "El grupo model, alcanzable: REVOLVER, BARRER, LOFT y CRECER\n\n"
+            "El motor ya sabia las cuatro (t030), pero no habia manera de llegar a ellas\n"
+            "desde el dibujo. Aqui se abren las puertas.\n\n"
+            "planos.del_dibujo dice el plano de cada ventana como plano, para que cada\n"
+            "boceto se coloque desde el principio en vez de armar la pieza en el suelo y\n"
+            "rotarla al salir. Sin eso no se puede decir un barrido con el perfil en la\n"
+            "Frontal y el camino en la Superior: esos dos no se rotan juntos.\n\n"
+            "cuerpo.ops_de_revolver/_barrer/_loft arman el historial y repartir separa la\n"
+            "seleccion en cerrado (el contorno) y abierto (el eje o el camino), que es lo\n"
+            "que hace que el comando sea senala y dale. Tres rutas nuevas mas crecer-cara,\n"
+            "que niegan en espanol lo que no se puede hacer, incluido el caso callado: dos\n"
+            "secciones en la misma ventana sin separacion, donde el kernel solo dice\n"
+            "BRep_API: command not done.\n\n"
+            "ui/model.js con los cuatro comandos, su sitio en la barra y su gajo en la\n"
+            "rueda del 3D sin moverle el angulo a Extruir.\n\n"
+            "t031, 37 comprobaciones, con el navegador de verdad. Dentro va la que evita\n"
+            "que esto se pudra: planos.del_dibujo y rutas._a_mundo son dos maneras de decir\n"
+            "el mismo hecho en archivos distintos, y la prueba las compara punto por punto.\n\n"
+            "Suite completa en el chat: 772 comprobaciones en 31 pruebas.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
-    anotar("main actualizado")
+    anotar("empujado a main")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado40/shape101")
+    shape = pathlib.Path(f"/tmp/recado{NUMERO}/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
