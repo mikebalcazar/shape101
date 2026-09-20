@@ -1,0 +1,78 @@
+             f"{ms:.0f} ms")
+
+
+# --- 5. en perspectiva no puede haber ninguna orilla ----------------------
+
+def _sin_orillas(r: comun.Reporte, pagina) -> None:
+    """La rejilla de la Perspectiva tiene que **apagarse**, no cortarse.
+
+    Mike, 20-sep, sobre la 0.20.0 ya publicada: *«se dibuja mal el grid en
+    perspectiva, se ven como 3 planos espaciados»*. Eran los tres discos
+    concéntricos con que se desvanecía: las líneas se cortaban en el borde de
+    cada disco, y esos cortes —vistos casi de canto cerca del horizonte— se
+    leían como tres planos.
+
+    La regla que se fija aquí no habla de discos ni de máscaras, habla de lo
+    que se ve, y por eso sigue valiendo si mañana el desvanecido se hace de
+    otra manera: **acercándose, la rejilla nunca puede volverse más tenue**.
+    Cualquier salto hacia arriba yendo del horizonte hacia uno es una orilla.
+    Medido: 0.013 con el desvanecido de una sola pieza, 0.142 con los tres
+    discos de la 0.20.0.
+    """
+    pagina.evaluate("""async () => { await guardarPrefs({ rejilla_planos: {XY:true, XZ:false, YZ:false} }); }""")
+    pagina.evaluate("""() => {
+      Ventanas.maximizar(1);
+      for (const v of Ventanas.ventanas) v.escala = 1;
+      Ventanas.centrarEnOrigen();
+      for (let i = 0; i < 9; i++) zoomEn(lienzo.clientWidth / 2, lienzo.clientHeight / 2, 1 / 1.15);
+      invalidarPlano(); pintarYa();
+    }""")
+    pagina.wait_for_timeout(300)
+
+    # De abajo (lo cercano) hacia arriba (el horizonte), por franjas anchas. Los
+    # cortes son arcos y cruzan de lado a lado, así que una franja ancha los
+    # atrapa enteros en vez de rozarlos.
+    perfil = pagina.evaluate("""() => {
+      const v = Ventanas.la(1);
+      const c = lienzo.getContext('2d');
+      const dpr = lienzo.width / lienzo.clientWidth;
+      const leer = (x, y, w, h) => c.getImageData(Math.round(x * dpr), Math.round(y * dpr),
+          Math.max(1, Math.round(w * dpr)), Math.max(1, Math.round(h * dpr))).data;
+      const f = leer(v.ox + 3, v.oy + v.h - 3, 1, 1);
+      const x = v.ox + v.w * 0.25, ancho = Math.round(v.w * 0.5);
+      const abajo = v.oy + v.h - 6, n = 16, paso = (v.h - v.oy - 30) / n;
+      const fuera = [];
+      for (let i = 0; i < n; i++) {
+        const d = leer(x, abajo - (i + 1) * paso, ancho, paso);
+        let tinta = 0;
+        for (let k = 0; k < d.length; k += 4)
+          tinta += Math.abs(d[k] - f[0]) + Math.abs(d[k+1] - f[1]) + Math.abs(d[k+2] - f[2]);
+        fuera.push(tinta / (d.length / 4));
+      }
+      return fuera; }""")
+
+    r.cierto(max(perfil) > 0.5, "en la Perspectiva hay rejilla que medir",
+             f"tinta máxima {max(perfil):.2f}")
+    mayor = max(perfil) or 1
+    # `perfil` va del horizonte hacia uno; un salto positivo es tinta que se
+    # pierde al acercarse, y eso no lo hace ninguna rejilla honrada.
+    saltos = [(perfil[i] - perfil[i + 1]) / mayor for i in range(len(perfil) - 1)]
+    peor = max(saltos)
+    r.cierto(peor <= 0.06,
+             "y se apaga sin cortarse: acercándose nunca se vuelve más tenue",
+             f"el peor salto fue {peor:.3f} (con los tres discos de la 0.20.0 daba 0.142) · "
+             f"perfil: {[round(v, 2) for v in perfil]}")
+
+    # Se deja como estaba para lo que sigue.
+    pagina.evaluate("""async () => {
+      Ventanas.maximizar(1);
+      await guardarPrefs({ rejilla_planos: {XY:true, XZ:true, YZ:true} });
+      for (const v of Ventanas.ventanas) v.escala = 1;
+      Ventanas.centrarEnOrigen(); invalidarPlano(); pintarYa(); }""")
+    pagina.wait_for_timeout(200)
+
+
+# --- 6. la cara que se podía picar --------------------------------------
+
+def _se_puede_picar_una_cara(r: comun.Reporte, pagina) -> None:
+    """Lo que Mike reportó como «CRECER no sirvió».

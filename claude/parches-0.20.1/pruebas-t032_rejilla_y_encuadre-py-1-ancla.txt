@@ -1,0 +1,7 @@
+             f"{ms:.0f} ms")
+
+
+# --- 5. la cara que se podía picar --------------------------------------
+
+def _se_puede_picar_una_cara(r: comun.Reporte, pagina) -> None:
+    """Lo que Mike reportó como «CRECER no sirvió».
