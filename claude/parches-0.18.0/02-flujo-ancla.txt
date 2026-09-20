@@ -1,9 +1,0 @@
-        run: |
-          set -euo pipefail
-          exec > >(tee -a "$GITHUB_WORKSPACE/armado.log") 2>&1
-          # -f: si la release ya no existe, que falle aquí con un mensaje y no
-          # tres líneas después en 7z con un «exit 2» que no explica nada.
-          curl -fsSL -o anterior.exe "$INSTALADOR_ANTERIOR" || { echo "no existe $INSTALADOR_ANTERIOR: la release de la que se saca el Python empotrado fue borrada"; exit 1; }
-          # El NSIS de electron-builder guarda toda la app dentro de
-          # $PLUGINSDIR/app-64.7z y deja sólo el icono suelto: hay que abrir dos
-          # capas. El instalador viejo de draw101 dejaba el árbol a la vista, así

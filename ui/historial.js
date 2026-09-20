@@ -229,7 +229,7 @@ if (typeof Comandos !== "undefined") {
 
   Comandos.registrar({
     nombre: "REDONDEAR", alias: ["RED", "FILLET"],
-    ayuda: "REDONDEAR [r] — redondea las aristas verticales de la pieza señalada",
+    ayuda: "REDONDEAR [r] — redondea las aristas elegidas con Ctrl+clic; si no elegiste ninguna, las verticales",
     correr: async (args) => {
       const id = (typeof Cuerpos !== "undefined" && Cuerpos.senalada) ? Cuerpos.senalada.id : null;
       if (!id) {
@@ -243,12 +243,18 @@ if (typeof Comandos !== "undefined") {
       }
       if (!isFinite(r) || r <= 0) return;
       try {
-        const refs = await fetch(`/api/cuerpo/${id}/referencias`).then((x) => x.json());
-        // Las verticales son las que separan dos lados: son las que un taller
-        // redondea. Elegirlas a mano con el ratón es el paso siguiente.
-        const aristas = (refs.aristas || []).filter((a) => (a.match(/lado\[/g) || []).length === 2);
+        // Las que se eligieron con Ctrl+clic mandan. Si no se eligió ninguna,
+        // se toman las verticales —las que separan dos lados—, que son las que
+        // un taller redondea cuando no dice otra cosa.
+        let aristas = (typeof Tiradores !== "undefined") ? Tiradores.aristasElegidas(id) : [];
+        const aMano = aristas.length > 0;
+        if (!aMano) {
+          const refs = await fetch(`/api/cuerpo/${id}/referencias`).then((x) => x.json());
+          aristas = (refs.aristas || []).filter((a) => (a.match(/lado\[/g) || []).length === 2);
+        }
         if (!aristas.length) {
-          Comandos.eco("Esta pieza no tiene aristas verticales que redondear.", "malo");
+          Comandos.eco("Esta pieza no tiene aristas verticales que redondear. "
+            + "Elige las que quieras con Ctrl+clic sobre el círculo de en medio.", "malo");
           return;
         }
         const resp = await fetch(`/api/cuerpo/${id}/redondear`, {
@@ -257,7 +263,11 @@ if (typeof Comandos !== "undefined") {
         });
         const j = await resp.json();
         if (!resp.ok) throw new Error(j.detail || resp.status);
-        await Historial.trasCambiar(j, `${aristas.length} aristas redondeadas r${r}`);
+        // Ya se usaron: se sueltan, o el siguiente REDONDEAR repetiría éstas
+        // sin que nadie se lo pidiera.
+        if (aMano && typeof Tiradores !== "undefined") Tiradores.soltarElegidas(id);
+        await Historial.trasCambiar(j, `${aristas.length} arista(s) redondeada(s) r${r}`
+          + (aMano ? " (las elegidas)" : " (las verticales)"));
       } catch (e) { Comandos.eco("No se pudo redondear: " + e.message, "malo"); }
     },
   });

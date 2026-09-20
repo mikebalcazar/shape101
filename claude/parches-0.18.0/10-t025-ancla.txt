@@ -1,4 +1,0 @@
-        r.igual(dict(planos).get("Perspectiva"), "XY",
-                "y en la Perspectiva sobre el suelo, que es lo único decidible solo")
-
-        r.igual(pagina.errores, [], "y no hubo un solo error de JavaScript")

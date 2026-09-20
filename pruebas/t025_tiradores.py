@@ -252,4 +252,72 @@ def _en_la_pantalla(r: comun.Reporte) -> None:
         r.igual(dict(planos).get("Perspectiva"), "XY",
                 "y en la Perspectiva sobre el suelo, que es lo único decidible solo")
 
+        # --- elegir aristas con Ctrl+clic  ·  0.18.0 -------------------------
+        #
+        # Antes REDONDEAR tomaba **todas** las verticales, que era un apaño: en
+        # una pieza de taller casi nunca se redondean las cuatro. Ctrl y no un
+        # clic pelón porque el clic pelón ya significa «jalar esta arista», que
+        # es el gesto que más se usa.
+        elegir = pagina.evaluate("""(id) => {
+            Ventanas.activar(0);
+            Cuerpos.senalar({ id, cara: 'arriba' });
+            const aristas = Tiradores.delMundo(id).filter((t) => t.tipo === 'arista');
+            const a = aristas[0], b = aristas[1];
+            const vacio = Tiradores.aristasElegidas(id);
+            Tiradores.alternarElegida(id, a.nombre);
+            Tiradores.alternarElegida(id, b.nombre);
+            const dos = Tiradores.aristasElegidas(id);
+            Tiradores.alternarElegida(id, a.nombre);            // otra vez: se quita
+            const una = Tiradores.aristasElegidas(id);
+            return { vacio, dos, una, sigue: Tiradores.estaElegida(id, b.nombre),
+                     ordenado: dos.join('|') === [...dos].sort().join('|') };
+        }""", id_)
+        r.igual(elegir["vacio"], [], "de entrada no hay ninguna arista elegida")
+        r.igual(len(elegir["dos"]), 2, "Ctrl+clic en dos aristas elige las dos")
+        r.igual(len(elegir["una"]), 1, "y volver a picar una la quita")
+        r.cierto(elegir["sigue"], "quitar una no se lleva a la otra")
+        r.cierto(elegir["ordenado"],
+                 "las elegidas salen ordenadas: el historial no depende del orden en que se picaron")
+
+        # El clic de verdad: con Ctrl elige, sin Ctrl jala. Son dos gestos
+        # distintos sobre el mismo tirador, y si se confundieran no habría
+        # manera de elegir sin mover la pieza.
+        clics = pagina.evaluate("""(id) => {
+            Tiradores.soltarElegidas(id);
+            // Una arista que de verdad se agarre desde esta ventana. En la
+            // Superior, una arista **vertical** se proyecta justo encima de su
+            // esquina, y a igualdad gana el vértice: ésas no se pueden picar
+            // desde aquí, hay que girar la vista o usar otra ventana.
+            const t = Tiradores.delMundo(id).filter((x) => x.tipo === 'arista')
+              .find((x) => {
+                const p = aPX(x.p[0], x.p[1], x.p[2]);
+                const b = Tiradores.bajo(p[0], p[1]);
+                return b && b.tipo === 'arista' && b.nombre === x.nombre;
+              });
+            if (!t) return null;
+            const q = aPX(t.p[0], t.p[1], t.p[2]);
+            const caja = document.getElementById('lienzo').getBoundingClientRect();
+            const hacer = (ctrl) => Tiradores.abajo(new MouseEvent('mousedown', {
+                button: 0, ctrlKey: ctrl,
+                clientX: caja.left + q[0], clientY: caja.top + q[1] }));
+            const conCtrl = hacer(true);
+            const traeCtrl = { tomado: conCtrl, elegidas: Tiradores.aristasElegidas(id).length,
+                               arrastrando: Tiradores.arrastrando() };
+            const sinCtrl = hacer(false);
+            const traeSin = { tomado: sinCtrl, arrastrando: Tiradores.arrastrando() };
+            Tiradores.arriba(new MouseEvent('mouseup', { button: 0 }));
+            Tiradores.soltarElegidas(id);
+            return { traeCtrl, traeSin, tras: Tiradores.aristasElegidas(id).length };
+        }""", id_)
+        if not r.cierto(clics is not None,
+                        "en la Superior hay aristas que se pueden picar (las horizontales)"):
+            return
+        r.cierto(clics["traeCtrl"]["tomado"], "Ctrl+clic sobre una arista se toma")
+        r.igual(clics["traeCtrl"]["elegidas"], 1, "y la elige")
+        r.cierto(not clics["traeCtrl"]["arrastrando"],
+                 "y NO empieza a arrastrarla: elegir no mueve la pieza")
+        r.cierto(clics["traeSin"]["arrastrando"],
+                 "sin Ctrl, el mismo clic sí empieza a jalarla")
+        r.igual(clics["tras"], 0, "y soltarlas las suelta")
+
         r.igual(pagina.errores, [], "y no hubo un solo error de JavaScript")

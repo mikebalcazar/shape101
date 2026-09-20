@@ -21,13 +21,29 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.17.0"
+VERSION = "0.18.0"
 FECHA = "2026-09-19"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.18.0",
+        "fecha": "2026-09-19",
+        "cambios": [
+            "Ya se eligen a mano las aristas que se van a redondear: Ctrl+clic sobre el "
+            "círculo de en medio de una arista la elige, y se pinta en amarillo. Volver a "
+            "picarla la quita.",
+            "REDONDEAR usa las elegidas. Si no elegiste ninguna sigue tomando las "
+            "verticales, como antes, así que nada de lo que ya hacías cambia.",
+            "Ctrl y no un clic pelón porque el clic pelón ya significa «jalar esta "
+            "arista», que es el gesto que más se usa: no se le quita el sitio.",
+            "Ojo con la ventana: en la Superior una arista vertical se dibuja justo encima "
+            "de su esquina, y ahí gana la esquina. Para elegir esas aristas, gira la vista "
+            "o usa la Frontal o la Lateral.",
+        ],
+    },
     {
         "version": "0.17.0",
         "fecha": "2026-09-19",

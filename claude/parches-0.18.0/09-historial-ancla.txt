@@ -1,7 +1,0 @@
-        });
-        const j = await resp.json();
-        if (!resp.ok) throw new Error(j.detail || resp.status);
-        await Historial.trasCambiar(j, `${aristas.length} aristas redondeadas r${r}`);
-      } catch (e) { Comandos.eco("No se pudo redondear: " + e.message, "malo"); }
-    },
-  });

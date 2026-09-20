@@ -1,2 +1,0 @@
-BITACORA: list[dict] = [
-    {

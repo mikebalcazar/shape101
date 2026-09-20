@@ -29,6 +29,18 @@ const Tiradores = (() => {
   let arrastre = null;
   const pidiendo = new Set();
 
+  /** Las aristas elegidas a mano, por pieza  ·  0.18.0
+   *
+   *  `REDONDEAR` tomaba **todas** las verticales, que era un apaño: en una
+   *  pieza de taller casi nunca se redondean las cuatro. Ahora se eligen con
+   *  **Ctrl+clic** sobre el círculo del medio de la arista, y el comando usa
+   *  las elegidas si hay alguna.
+   *
+   *  Ctrl y no un clic pelón porque un clic pelón ya significa «jalar esta
+   *  arista», y ése es el gesto que más se usa: no se le quita el sitio.
+   */
+  const elegidas = new Map();       // id → Set de nombres de arista
+
   const RADIO = 8;                  // radio de agarre, en píxeles
 
   function lienzo() { return document.getElementById("lienzo"); }
@@ -102,11 +114,12 @@ const Tiradores = (() => {
         c.fillRect(q[0] - 3.5, q[1] - 3.5, 7, 7);
         c.strokeRect(q[0] - 3.5, q[1] - 3.5, 7, 7);
       } else {
-        c.fillStyle = "rgba(255,255,255,0.9)";
-        c.strokeStyle = agarrado ? "#ffd35a" : "#4aa3ff";
-        c.lineWidth = 1.5;
+        const elegida = estaElegida(t.id, t.nombre);
+        c.fillStyle = elegida ? "#ffd35a" : "rgba(255,255,255,0.9)";
+        c.strokeStyle = agarrado ? "#ffd35a" : elegida ? "#c98f00" : "#4aa3ff";
+        c.lineWidth = elegida ? 2 : 1.5;
         c.beginPath();
-        c.arc(q[0], q[1], 3.2, 0, Math.PI * 2);
+        c.arc(q[0], q[1], elegida ? 4.6 : 3.2, 0, Math.PI * 2);
         c.fill();
         c.stroke();
       }
@@ -206,6 +219,18 @@ const Tiradores = (() => {
     const [px, py] = coords(e);
     const t = bajo(px, py);
     if (!t) return false;
+    if (e.ctrlKey || e.metaKey) {
+      // Elegir, no jalar. Sobre un vértice no hay nada que elegir todavía, y
+      // se dice en voz alta en vez de no hacer nada.
+      if (t.tipo !== "arista") {
+        if (typeof Comandos !== "undefined") {
+          Comandos.eco("Con Ctrl se eligen aristas: pica el círculo de en medio de una.", "malo");
+        }
+        return true;
+      }
+      alternarElegida(t.id, t.nombre);
+      return true;
+    }
     const plano = planoDeArrastre();
     const inv = inversaDelPlano(plano, t.p);
     if (!inv) {
@@ -273,8 +298,41 @@ const Tiradores = (() => {
     }
   }
 
+  // --- las aristas elegidas ------------------------------------------------
+
+  function estaElegida(id, nombre) {
+    const s = elegidas.get(id);
+    return !!(s && s.has(nombre));
+  }
+
+  function alternarElegida(id, nombre) {
+    let s = elegidas.get(id);
+    if (!s) { s = new Set(); elegidas.set(id, s); }
+    if (s.has(nombre)) s.delete(nombre); else s.add(nombre);
+    if (!s.size) elegidas.delete(id);
+    if (typeof Comandos !== "undefined") {
+      const n = (elegidas.get(id) || new Set()).size;
+      Comandos.eco(n ? `${n} arista(s) elegida(s) · REDONDEAR las usa`
+                     : "Ninguna arista elegida · REDONDEAR toma las verticales");
+    }
+    if (window.pintar) window.pintar();
+    return estaElegida(id, nombre);
+  }
+
+  /** Los nombres de las aristas elegidas de esa pieza, en un orden estable
+   *  para que el historial no dependa de en qué orden se picaron. */
+  function aristasElegidas(id) {
+    return [...(elegidas.get(id) || new Set())].sort();
+  }
+
+  function soltarElegidas(id) {
+    if (id === undefined) elegidas.clear(); else elegidas.delete(id);
+    if (window.pintar) window.pintar();
+  }
+
   return { pintar, abajo, mover, arriba, bajo, cargar, olvidar, delMundo,
-           planoDeArrastre, arrastrando: () => !!arrastre };
+           planoDeArrastre, arrastrando: () => !!arrastre,
+           aristasElegidas, alternarElegida, estaElegida, soltarElegidas };
 })();
 
 if (typeof window !== "undefined") window.Tiradores = Tiradores;

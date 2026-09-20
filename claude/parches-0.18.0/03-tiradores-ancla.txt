@@ -1,6 +1,0 @@
-  const cache = new Map();          // id → {plano, vertices, aristas}
-  let arrastre = null;
-  const pidiendo = new Set();
-
-  const RADIO = 8;                  // radio de agarre, en píxeles
-
