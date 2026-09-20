@@ -1,0 +1,8 @@
+  // cursor, y si su cámara cambia el plano tiene que redibujarse.
+  const todas = typeof Ventanas !== "undefined"
+    ? Ventanas.ventanas.map((q) => `${q.x}|${q.y}|${q.escala}|${q.rx}|${q.rz}|${q.ox}|${q.oy}|${q.w}|${q.h}`).join(";") : "";
+  return `${todas}#${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
+         `${tema().cual}|${estado.modo}|${estado.prefs && estado.prefs.borrador ? "b" : ""}`;
+}
+
+/* En espacio papel el «plano» es la hoja, y ésa cambia sin que cambie la vista

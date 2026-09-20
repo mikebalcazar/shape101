@@ -1,0 +1,20 @@
+  // cursor, y si su cámara cambia el plano tiene que redibujarse.
+  const todas = typeof Ventanas !== "undefined"
+    ? Ventanas.ventanas.map((q) => `${q.x}|${q.y}|${q.escala}|${q.rx}|${q.rz}|${q.ox}|${q.oy}|${q.w}|${q.h}`).join(";") : "";
+  // La rejilla también: se pinta dentro del plano, que va en caché, así que si
+  // no entra aquí apagarla no borra nada de la pantalla hasta que la vista se
+  // mueva. Era justo lo que pasaba hasta la 0.19.0 con el botón REJILLA: la
+  // preferencia cambiaba, el dibujo no. Con la llave puesta, el botón de
+  // abajo, el comando REJILLA, F7 y los interruptores del título se arreglan
+  // todos de una vez, y ninguno tiene que acordarse de invalidar nada.
+  const pr = estado.prefs || {};
+  const rv = pr.rejilla_ventanas || {}, rp = pr.rejilla_planos || {};
+  const rej = `${pr.rejilla === false ? 0 : 1}${pr.rejilla_paso || 10}` +
+    `${rv.Superior === false ? 0 : 1}${rv.Perspectiva === false ? 0 : 1}` +
+    `${rv.Frontal === false ? 0 : 1}${rv.Lateral === false ? 0 : 1}` +
+    `${rp.XY === false ? 0 : 1}${rp.XZ === false ? 0 : 1}${rp.YZ === false ? 0 : 1}`;
+  return `${todas}#${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
+         `${tema().cual}|${estado.modo}|${estado.prefs && estado.prefs.borrador ? "b" : ""}|${rej}`;
+}
+
+/* En espacio papel el «plano» es la hoja, y ésa cambia sin que cambie la vista
