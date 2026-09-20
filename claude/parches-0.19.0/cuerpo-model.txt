@@ -1,0 +1,105 @@
+# --- el grupo model, desde el dibujo  ·  0.19.0 -----------------------------
+#
+# Las tres funciones de abajo son hermanas de `ops_de_contorno`: reciben lo que
+# el usuario señaló en el dibujo y devuelven el historial con el que nace la
+# pieza. Todas ponen el boceto **en el plano de la ventana donde se dibujó**,
+# no en el suelo: un barrido quiere el perfil en la Frontal y el camino en la
+# Superior, y esos dos ya no se pueden rotar juntos al final.
+
+
+def _boceto_de(entidades: list[dict], z: float = 0.0) -> dict:
+    """Un paso «boceto» con su copia de las entidades y su plano."""
+    if not entidades:
+        raise ValueError("falta el contorno")
+    plano = planos.del_dibujo(entidades[0].get("plano", "XY"), z)
+    op = {"op": "boceto", "entidades": json.loads(json.dumps(entidades))}
+    if plano is not None:
+        op["plano"] = plano
+    return op
+
+
+def _dos_puntos(entidad: dict) -> dict:
+    """Los dos extremos de la línea que el usuario señaló como eje."""
+    t = entidad.get("tipo")
+    if t == "linea":
+        a, b = entidad.get("p1"), entidad.get("p2")
+    elif t == "polilinea":
+        pts = entidad.get("puntos") or []
+        if len(pts) < 2:
+            raise ValueError("el eje necesita una línea de dos puntos")
+        a, b = pts[0], pts[-1]
+    else:
+        raise ValueError(f"un eje se señala con una línea, no con un «{t}»")
+    return {"a": [float(a[0]), float(a[1])], "b": [float(b[0]), float(b[1])]}
+
+
+def es_cerrada(entidad: dict) -> bool:
+    """¿Esta entidad, ella sola, encierra un área?
+
+    Por lo que la entidad **dice** y no por geometría a ojo: un círculo y una
+    polilínea marcada como cerrada, sí; todo lo demás, no. Un contorno hecho de
+    líneas sueltas cuenta como abierto aunque a la vista se cierre, y los
+    comandos lo dicen con todas sus letras: se juntan antes con UNIR. Adivinar
+    aquí es adivinar en silencio, y un contorno mal adivinado sale como una
+    pieza mal hecha que nadie sabe por qué salió así.
+    """
+    t = entidad.get("tipo")
+    if t == "circulo":
+        return True
+    if t == "polilinea":
+        return bool(entidad.get("cerrada")) and len(entidad.get("puntos") or []) >= 3
+    return False
+
+
+def repartir(entidades: list[dict]) -> tuple[list[dict], list[dict]]:
+    """La selección partida en (cerradas, abiertas), en el orden en que venía."""
+    cerradas, abiertas = [], []
+    for e in entidades:
+        (cerradas if es_cerrada(e) else abiertas).append(e)
+    return cerradas, abiertas
+
+
+def ops_de_revolver(perfil: list[dict], eje: dict, grados: float = 360.0) -> list[dict]:
+    """Torneado: el contorno gira alrededor de una línea del mismo dibujo."""
+    if not (0 < float(grados) <= 360):
+        raise ValueError("un revolucionado gira entre 0 y 360 grados")
+    return historial.asegurar_ids([
+        _boceto_de(perfil),
+        {"op": "revolver", "perfil": "0", "eje": _dos_puntos(eje), "grados": float(grados)},
+    ])
+
+
+def ops_de_barrer(perfil: list[dict], camino: list[dict]) -> list[dict]:
+    """El contorno recorre un camino. Los dos pueden venir de ventanas
+    distintas —perfil en la Frontal, camino en la Superior— y cada uno se
+    coloca en la suya."""
+    if not camino:
+        raise ValueError("falta el camino por donde barrer")
+    return historial.asegurar_ids([
+        _boceto_de(perfil),
+        _boceto_de(camino),
+        {"op": "barrer", "perfil": "0", "camino": "1"},
+    ])
+
+
+def ops_de_loft(secciones: list[list[dict]], alturas: list[float] | None = None,
+                reglado: bool = False) -> list[dict]:
+    """Una piel que pasa por varias secciones.
+
+    `alturas` separa las secciones a lo largo de la normal de su ventana. Hace
+    falta cuando se dibujaron todas en la misma: dos contornos de la Superior
+    están los dos en el suelo, y una piel entre dos cosas que viven en el mismo
+    plano no tiene volumen. Si ya vienen de ventanas distintas, se deja vacío.
+    """
+    if len(secciones) < 2:
+        alturas_txt = "una sección" if len(secciones) == 1 else "ninguna"
+        raise ValueError(f"un loft necesita al menos dos secciones, y llegó {alturas_txt}")
+    alturas = list(alturas or [0.0] * len(secciones))
+    while len(alturas) < len(secciones):
+        alturas.append(0.0)
+    ops = [_boceto_de(s, float(h)) for s, h in zip(secciones, alturas)]
+    ops = historial.asegurar_ids(ops)
+    ops.append({"op": "loft", "perfiles": [o["id"] for o in ops], "reglado": bool(reglado)})
+    return historial.asegurar_ids(ops)
+
+
