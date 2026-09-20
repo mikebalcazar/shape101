@@ -1,0 +1,6 @@
+        _el_plano_de_cada_una(r, pagina)
+        _los_interruptores(r, pagina)
+        _infinita(r, pagina)
+        _se_puede_picar_una_cara(r, pagina)
+
+

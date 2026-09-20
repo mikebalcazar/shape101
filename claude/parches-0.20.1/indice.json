@@ -1,0 +1,37 @@
+[
+  {
+    "archivo": "ui/visor.js",
+    "modo": "entero",
+    "texto": "nuevo-ui-visor.js.txt"
+  },
+  {
+    "archivo": "core/version.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-version-py-0-ancla.txt",
+    "texto": "core-version-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "package.json",
+    "modo": "cambiar",
+    "ancla_txt": "package-json-0-ancla.txt",
+    "texto": "package-json-0-nuevo.txt"
+  },
+  {
+    "archivo": "package.json",
+    "modo": "cambiar",
+    "ancla_txt": "package-json-1-ancla.txt",
+    "texto": "package-json-1-nuevo.txt"
+  },
+  {
+    "archivo": "pruebas/t032_rejilla_y_encuadre.py",
+    "modo": "cambiar",
+    "ancla_txt": "pruebas-t032_rejilla_y_encuadre-py-0-ancla.txt",
+    "texto": "pruebas-t032_rejilla_y_encuadre-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "pruebas/t032_rejilla_y_encuadre.py",
+    "modo": "cambiar",
+    "ancla_txt": "pruebas-t032_rejilla_y_encuadre-py-1-ancla.txt",
+    "texto": "pruebas-t032_rejilla_y_encuadre-py-1-nuevo.txt"
+  }
+]
