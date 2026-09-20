@@ -1,0 +1,84 @@
+
+    while (paso * porPX > MIN_PX * 10 && g++ < 60) paso = peldano(paso, -1);
+    if ((u1 - u0) / paso + (v1 - v0) / paso > MAX_LINEAS) return;
+
+    const tinta = ctx.oscuro ? "255,255,255" : "0,0,0";
+    const seg = (au, av, bu, bv) => {
+      const s0 = puntoEn(plano, au, av), s1 = puntoEn(plano, bu, bv);
+      const a1 = aPX(s0[0], s0[1], s0[2]), b1 = aPX(s1[0], s1[1], s1[2]);
+      c.moveTo(a1[0], a1[1]); c.lineTo(b1[0], b1[1]);
+    };
+
+    /* En perspectiva no se puede pintar una rejilla infinita y que además se
+     * lea: hacia el horizonte las líneas se juntan hasta volverse una mancha
+     * gris. Así que ahí se pinta una mancha redonda que **se apaga** — tres
+     * pasadas concéntricas, la de en medio encima de la grande y la chica
+     * encima de las dos—: no tiene orilla, no se acaba, se desvanece. Es lo
+     * que hacen todos los programas de 3D y es lo que la deja leerse como
+     * infinita. En las tres ventanas ortogonales no hace falta nada de esto:
+     * ahí no hay horizonte, se pintan todas las que caben y son exactas. */
+    let discos = null;
+    if (ctx.persp) {
+      const dx = (x0 + x1) / 2 - o[0], dy = (y0 + y1) / 2 - o[1];
+      const cu = (dx * vy - dy * vx) * inv, cv = (dy * ux - dx * uy) * inv;
+      const r = Math.max(u1 - u0, v1 - v0) * 0.55;
+      discos = [1, 0.72, 0.46].map((k) => ({ cu, cv, r: r * k }));
+    }
+
+    // Una línea del nivel, recortada al disco que toque (o entera si no hay).
+    const filas = (p, saltarDiez, d) => {
+      for (let k = Math.ceil(u0 / p); k * p <= u1; k++) {
+        if (k === 0 || (saltarDiez && k % 10 === 0)) continue;
+        const u = k * p;
+        if (!d) { seg(u, v0, u, v1); continue; }
+        const h = d.r * d.r - (u - d.cu) * (u - d.cu);
+        if (h <= 0) continue;
+        const dv = Math.sqrt(h);
+        seg(u, d.cv - dv, u, d.cv + dv);
+      }
+      for (let k = Math.ceil(v0 / p); k * p <= v1; k++) {
+        if (k === 0 || (saltarDiez && k % 10 === 0)) continue;
+        const v = k * p;
+        if (!d) { seg(u0, v, u1, v); continue; }
+        const h = d.r * d.r - (v - d.cv) * (v - d.cv);
+        if (h <= 0) continue;
+        const du = Math.sqrt(h);
+        seg(d.cu - du, v, d.cu + du, v);
+      }
+    };
+
+    c.save();
+    c.lineWidth = 1;
+    // Dos niveles: la fina casi no se ve, la de cada diez sostiene la lectura.
+    // La fina se salta los múltiplos de diez para no encimarse con la gorda y
+    // acabar pintando un tono que nadie eligió.
+    const pases = discos || [null];
+    // Repartida entre las tres pasadas, para que las tres juntas den el tono
+    // de una sola en el centro y menos conforme se aleja.
+    const reparto = discos ? 0.45 : 1;
+    for (const [mult, alfa] of [[1, ctx.oscuro ? 0.05 : 0.055], [10, ctx.oscuro ? 0.11 : 0.12]]) {
+      const p = paso * mult;
+      if (p * porPX > MIN_PX * 60) continue;       // tan separada que ya no dice nada
+      c.strokeStyle = `rgba(${tinta},${alfa * f * reparto})`;
+      for (const d of pases) { c.beginPath(); filas(p, mult === 1, d); c.stroke(); }
+    }
+    // Los dos ejes del plano: sin ellos no se sabe dónde está el cero. Con los
+    // tres planos encimados sólo el suelo los marca fuerte: seis rayas negras
+    // cruzándose en el origen era justo el amontonamiento que había que evitar.
+    const mandan = !ctx.persp || plano === "XY";
+    c.strokeStyle = `rgba(${tinta},${(mandan ? (ctx.oscuro ? 0.2 : 0.22) : (ctx.oscuro ? 0.09 : 0.1)) * f})`;
+    for (const d of pases) {
+      c.beginPath();
+      if (!d) { seg(0, v0, 0, v1); seg(u0, 0, u1, 0); }
+      else {
+        let h = d.r * d.r - d.cu * d.cu;
+        if (h > 0) { const dv = Math.sqrt(h); seg(0, d.cv - dv, 0, d.cv + dv); }
+        h = d.r * d.r - d.cv * d.cv;
+        if (h > 0) { const du = Math.sqrt(h); seg(d.cu - du, 0, d.cu + du, 0); }
+      }
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  /** Los textos, como los pintaba el lienzo viejo: en su punto, con su altura,

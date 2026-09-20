@@ -1,8 +1,9 @@
 [
   {
     "archivo": "ui/visor.js",
-    "modo": "entero",
-    "texto": "nuevo-ui-visor.js.txt"
+    "modo": "cambiar",
+    "ancla_txt": "ui-visor-js-0-ancla.txt",
+    "texto": "ui-visor-js-0-nuevo.txt"
   },
   {
     "archivo": "core/version.py",
