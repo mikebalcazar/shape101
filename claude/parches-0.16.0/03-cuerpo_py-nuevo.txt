@@ -1,0 +1,17 @@
+    ops = json.loads(json.dumps(operaciones))
+    if not (0 <= i < len(ops)):
+        raise ValueError(f"no hay una operación {i}")
+    # Ancho, fondo y esquina no viven en ningún lado dentro de la operación: se
+    # sacan de la caja del contorno. Por eso no son una ruta sino una cuenta.
+    CALCULADAS = {"ancho": (_estirar, 0), "fondo": (_estirar, 1),
+                  "x": (_correr, 0), "y": (_correr, 1)}
+    for clave, valor in (campos or {}).items():
+        hacer = CALCULADAS.get(clave)
+        if hacer is not None:
+            if ops[i].get("op") != "boceto":
+                raise ValueError(f"la operación {i} no tiene «{clave}»")
+            hacer[0](ops[i], hacer[1], float(valor))
+            continue
+        try:
+            _poner(ops[i], clave, valor)
+        except (KeyError, IndexError, TypeError) as e:

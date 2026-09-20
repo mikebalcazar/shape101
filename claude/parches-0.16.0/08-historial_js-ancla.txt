@@ -1,0 +1,19 @@
+    const id = senalada ? senalada.id : null;
+    if (id === idActual) return;
+    idActual = id;
+    if (!id) { pasos = []; pintar(); return; }
+    await traer();
+  }
+
+  async function traer() {
+    if (!idActual || pidiendo) return;
+    pidiendo = true;
+    try {
+      const r = await fetch(`/api/cuerpo/${idActual}/historial`);
+      const j = await r.json();
+      pasos = r.ok ? (j.pasos || []) : [];
+    } catch (e) { pasos = []; }
+    finally { pidiendo = false; }
+    pintar();
+  }
+

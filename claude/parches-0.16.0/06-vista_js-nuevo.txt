@@ -1,0 +1,9 @@
+  // Antes que la cara: un tirador se ve encima de ella y se agarra antes.
+  // Si el orden fuera el otro, jalar una esquina empezaría a jalar la cara que
+  // tiene debajo y no habría manera de llegar nunca a la esquina.
+  // La cota se pinta encima de todo, así que se agarra antes que todo: si
+  // no, picar el número empezaría a jalar el tirador de debajo.
+  if (typeof CotasPieza !== "undefined" && CotasPieza.abajo(e)) { e.preventDefault(); return; }
+  if (typeof Tiradores !== "undefined" && Tiradores.abajo(e)) { e.preventDefault(); return; }
+  if (typeof TresD !== "undefined" && TresD.abajo(e)) { e.preventDefault(); return; }
+  if (cajaZoom) {

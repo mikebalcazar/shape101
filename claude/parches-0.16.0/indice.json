@@ -1,0 +1,80 @@
+[
+ {
+  "archivo": "core/solido/cuerpo.py",
+  "modo": "cambiar",
+  "ancla_txt": "01-cuerpo_py-ancla.txt",
+  "texto": "01-cuerpo_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/solido/cuerpo.py",
+  "modo": "cambiar",
+  "ancla_txt": "02-cuerpo_py-ancla.txt",
+  "texto": "02-cuerpo_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/solido/cuerpo.py",
+  "modo": "cambiar",
+  "ancla_txt": "03-cuerpo_py-ancla.txt",
+  "texto": "03-cuerpo_py-nuevo.txt"
+ },
+ {
+  "archivo": "ui/index.html",
+  "modo": "cambiar",
+  "ancla_txt": "04-index_html-ancla.txt",
+  "texto": "04-index_html-nuevo.txt"
+ },
+ {
+  "archivo": "ui/vista.js",
+  "modo": "cambiar",
+  "ancla_txt": "05-vista_js-ancla.txt",
+  "texto": "05-vista_js-nuevo.txt"
+ },
+ {
+  "archivo": "ui/vista.js",
+  "modo": "cambiar",
+  "ancla_txt": "06-vista_js-ancla.txt",
+  "texto": "06-vista_js-nuevo.txt"
+ },
+ {
+  "archivo": "ui/historial.js",
+  "modo": "cambiar",
+  "ancla_txt": "07-historial_js-ancla.txt",
+  "texto": "07-historial_js-nuevo.txt"
+ },
+ {
+  "archivo": "ui/historial.js",
+  "modo": "cambiar",
+  "ancla_txt": "08-historial_js-ancla.txt",
+  "texto": "08-historial_js-nuevo.txt"
+ },
+ {
+  "archivo": "pruebas/t026_historial_pieza.py",
+  "modo": "cambiar",
+  "ancla_txt": "09-t026_historial_pieza_py-ancla.txt",
+  "texto": "09-t026_historial_pieza_py-nuevo.txt"
+ },
+ {
+  "archivo": "pruebas/t026_historial_pieza.py",
+  "modo": "cambiar",
+  "ancla_txt": "10-t026_historial_pieza_py-ancla.txt",
+  "texto": "10-t026_historial_pieza_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/version.py",
+  "modo": "cambiar",
+  "ancla_txt": "11-version_py-ancla.txt",
+  "texto": "11-version_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/version.py",
+  "modo": "cambiar",
+  "ancla_txt": "12-version_py-ancla.txt",
+  "texto": "12-version_py-nuevo.txt"
+ },
+ {
+  "archivo": "package.json",
+  "modo": "todos",
+  "ancla_txt": "13-package_json-ancla.txt",
+  "texto": "13-package_json-nuevo.txt"
+ }
+]

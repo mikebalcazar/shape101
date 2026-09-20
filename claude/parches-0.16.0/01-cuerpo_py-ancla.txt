@@ -1,0 +1,6 @@
+            "unidad": unidad, "minimo": minimo}
+
+
+def _del_boceto(op) -> tuple:
+    """Título y campos de un boceto, según lo que traiga dentro."""
+    ents = op.get("entidades") or []

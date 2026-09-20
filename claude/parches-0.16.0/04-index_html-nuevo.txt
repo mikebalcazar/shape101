@@ -1,0 +1,7 @@
+<script src="planos.js"></script>
+<script src="tiradores.js"></script>
+<script src="historial.js"></script>
+<script src="cotaspieza.js"></script>
+<script src="marco.js"></script>
+</body>
+</html>

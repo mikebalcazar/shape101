@@ -1,0 +1,13 @@
+            const caja = document.querySelector('#props-historial');
+            return { abierto: !caja.hidden,
+                     pasos: Historial.pasos.map((p) => p.titulo),
+                     filas: document.querySelectorAll('#hist-pasos .paso').length,
+                     cerrar: document.querySelectorAll('#hist-pasos .cerrar').length };
+        }""", id_)
+        r.cierto(visible["abierto"], "al señalar una cara, el panel se abre solo")
+        r.igual(visible["pasos"], ["Contorno · 1 entidad(es), 4 punto(s)", "Extruir 18.0"],
+                "y dice con qué se hizo la pieza, en palabras")
+        r.igual(visible["filas"], 2, "un bloque por paso")
+        r.igual(visible["cerrar"], 0,
+                "sin botón de quitar en los de nacimiento: quitarlos deja sin pieza")
+

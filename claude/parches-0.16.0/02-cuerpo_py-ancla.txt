@@ -1,0 +1,8 @@
+                [_campo("entidades/0/radio", "Radio", e.get("radio", 0)),
+                 _campo("entidades/0/centro/0", "Centro X", (e.get("centro") or [0, 0])[0]),
+                 _campo("entidades/0/centro/1", "Centro Y", (e.get("centro") or [0, 0])[1])])
+    n = sum(len(e.get("puntos") or []) if e.get("tipo") == "polilinea" else 1 for e in ents)
+    return (f"Contorno · {len(ents)} entidad(es), {n} punto(s)", [])
+
+
+def describir(operaciones: list) -> list:

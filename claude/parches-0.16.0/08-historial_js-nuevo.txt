@@ -1,0 +1,25 @@
+    const id = senalada ? senalada.id : null;
+    if (id === idActual) return;
+    idActual = id;
+    await traer();
+  }
+
+  function traer() {
+    fila = fila.then(_traer, _traer);
+    return fila;
+  }
+
+  async function _traer() {
+    if (!idActual) { pasos = []; pintar(); return; }
+    const id = idActual;
+    try {
+      const r = await fetch(`/api/cuerpo/${id}/historial`);
+      const j = await r.json();
+      // Si mientras se pedía se señaló otra pieza, lo que llegó ya no es de
+      // ésta: se tira. Lo trae el siguiente de la fila.
+      if (id !== idActual) return;
+      pasos = r.ok ? (j.pasos || []) : [];
+    } catch (e) { if (id === idActual) pasos = []; }
+    pintar();
+  }
+

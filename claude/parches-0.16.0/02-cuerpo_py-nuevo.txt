@@ -1,0 +1,17 @@
+                [_campo("entidades/0/radio", "Radio", e.get("radio", 0)),
+                 _campo("entidades/0/centro/0", "Centro X", (e.get("centro") or [0, 0])[0]),
+                 _campo("entidades/0/centro/1", "Centro Y", (e.get("centro") or [0, 0])[1])])
+    x0, y0, x1, y1 = _caja_del(op)
+    ancho, fondo = round(x1 - x0, 2), round(y1 - y0, 2)
+    n = sum(len(e.get("puntos") or []) if e.get("tipo") == "polilinea" else 1 for e in ents)
+    if _es_rectangulo(op):
+        titulo = f"Rectángulo {ancho} × {fondo}"
+    else:
+        titulo = f"Contorno {ancho} × {fondo} · {n} punto(s)"
+    campos = [_campo("ancho", "Ancho", ancho, minimo=0.01),
+              _campo("fondo", "Fondo", fondo, minimo=0.01),
+              _campo("x", "Esquina X", x0), _campo("y", "Esquina Y", y0)]
+    return (titulo, campos)
+
+
+def describir(operaciones: list) -> list:

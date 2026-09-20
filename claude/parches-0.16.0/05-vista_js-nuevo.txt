@@ -1,0 +1,9 @@
+      pintarHule(cc);
+      if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
+      if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
+      // Las cotas de la pieza señalada van antes que los tiradores: son un
+      // letrero, y un letrero no debe taparle a la mano lo que va a agarrar.
+      if (typeof CotasPieza !== "undefined") CotasPieza.pintar(cc);
+      // Los tiradores van al final: son lo que se agarra, y lo que se agarra
+      // se pinta encima de todo lo demás.
+      if (typeof Tiradores !== "undefined") Tiradores.pintar(cc);
