@@ -1,24 +1,24 @@
-"""El mandadero · recado 38: la 0.17.0, el nombrado de las caras partidas.
+"""El mandadero · recado 39: el armado que no se apoya en una URL a mano, y la 0.18.0.
 
-El rumbo llama al nombrado topológico *«el riesgo que gobierna todo»*. Se
-midió sobre un tablero con una muesca y salieron dos defectos silenciosos: el
-nombre base saltaba de un trozo al otro al cambiar una cota, y jalar un trozo
-dejaba al otro sin nombre.
+El armado de la 0.17.0 murió en un minuto: el flujo llevaba escrita a mano la
+URL del instalador del que hereda el Python empotrado, apuntando a la 0.13.0, y
+la poda automática que metimos en esa misma versión se la había llevado. Dos
+cosas nuestras que funcionan bien, juntas se rompían.
+
+El flujo vive en `.github/workflows/`, donde el conector del chat no puede
+escribir: por eso esto va por recado, que es justo para lo que existe.
 
 **Los parches no viven dentro de este archivo.** Viven en
-`claude/parches-0.17.0/`, cada uno en dos `.txt` —el ancla y el texto nuevo—, y
-aquí sólo se leen y se ponen. El recado 35 metió texto dentro de cadenas de
-Python y sus `\\n` se escaparon dos veces: salieron barras literales en el
-cuaderno y en el mensaje del commit. Desde el 37 **ni el ancla va en el JSON**:
-un archivo de texto no tiene nada que escapar, y además se puede mirar en
-GitHub antes de que esto corra.
+`claude/parches-0.18.0/`, cada uno en dos `.txt` —el ancla y el texto nuevo—, y
+aquí sólo se leen y se ponen. Un archivo de texto no tiene nada que escapar, y
+además se puede mirar en GitHub antes de que esto corra.
 
 Cada parche se ensayó contra la copia de `main` bajada de GitHub y el resultado
-salió **idéntico**, byte por byte, a los archivos con los que corrieron las 662
+salió **idéntico**, byte por byte, a los archivos con los que corrieron las 673
 comprobaciones. Por eso ninguna ancla puede fallar.
 
 Este recado **no crea la rama de publicación**: primero se lee el cuaderno, y
-sólo entonces se dispara el armado de 45 minutos.
+sólo entonces se dispara el armado.
 """
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-VERSION = "0.17.0"
-PARCHES = "claude/parches-0.17.0"
+VERSION = "0.18.0"
+PARCHES = "claude/parches-0.18.0"
 
 lineas: list[str] = []
 
@@ -97,14 +97,16 @@ def aplicar(raiz: pathlib.Path) -> None:
 
 
 def revisar(shape: pathlib.Path) -> None:
-    """Todo lo comprobable sin Windows, antes de gastar 45 minutos."""
+    """Todo lo comprobable sin Windows, antes de gastar un armado."""
     import py_compile
-    for f in ("core/solido/nombres.py", "core/solido/cuerpo.py", "core/version.py",
-              "pruebas/t028_nombrado_partido.py"):
+    for f in ("core/solido/nombres.py", "core/version.py",
+              "pruebas/t025_tiradores.py"):
         py_compile.compile(str(shape / f), doraise=True)
     anotar("el Python tocado compila")
 
-    # Esta entrega no toca JavaScript: no hay nada que revisar ahí.
+    for f in ("ui/tiradores.js", "ui/historial.js"):
+        correr(["node", "--check", str(shape / f)])
+    anotar("el JavaScript tocado pasa node --check")
 
     paquete = json.loads((shape / "package.json").read_text(encoding="utf-8"))
     ver = (shape / "core" / "version.py").read_text(encoding="utf-8")
@@ -116,10 +118,31 @@ def revisar(shape: pathlib.Path) -> None:
         raise RuntimeError("artifactName no trae la versión nueva")
     anotar(f"la versión dice {VERSION} en los tres sitios y la bitácora la trae")
 
-    nom = (shape / "core" / "solido" / "nombres.py").read_text(encoding="utf-8")
-    if "_orden" not in nom or "disputados" not in nom:
-        raise RuntimeError("el reparto por posición no quedó puesto en nombres.py")
-    anotar("el reparto de caras partidas va por posición, no por cercanía")
+    # El flujo de armado: que ya no lleve una URL escrita a mano, que siga
+    # siendo YAML válido, y que el manifiesto de verdad dé una URL utilizable.
+    # Si esto no se comprueba aquí, se comprueba gastando un armado entero.
+    flujo = shape / ".github" / "workflows" / "armar-y-publicar.yml"
+    t = flujo.read_text(encoding="utf-8")
+    if "INSTALADOR_ANTERIOR" in t:
+        raise RuntimeError("el flujo todavía lleva la URL escrita a mano")
+    if "MANIFIESTO" not in t:
+        raise RuntimeError("el flujo no sabe de dónde leer el instalador anterior")
+    correr([sys.executable, "-m", "pip", "install", "-q", "pyyaml"])
+    import yaml
+    datos = yaml.safe_load(t)
+    if not datos.get("jobs"):
+        raise RuntimeError("el flujo dejó de ser YAML válido")
+    anotar("el flujo ya no lleva URL a mano y sigue siendo YAML válido")
+
+    import re
+    import urllib.request
+    manifiesto = urllib.request.urlopen(
+        "https://raw.githubusercontent.com/mikebalcazar/descargas/main/shape101.json",
+        timeout=30).read().decode("utf-8")
+    url = re.findall(r'https://github\.com/[^"]*-setup\.exe', manifiesto)
+    if not url:
+        raise RuntimeError("el manifiesto no trae ninguna URL de instalador")
+    anotar("y el manifiesto de verdad da: " + url[0])
 
 
 def main() -> int:
@@ -127,7 +150,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado38")
+    tmp = pathlib.Path("/tmp/recado39")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -136,10 +159,7 @@ def main() -> int:
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
 
-    for arch in ("pruebas/t028_nombrado_partido.py",):
-        if not (shape / arch).is_file():
-            raise RuntimeError(f"falta {arch}: primero van los archivos, luego el recado")
-    anotar("la prueba del nombrado partido ya está en main")
+    # Esta entrega no trae archivos nuevos: todo son retoques.
 
     aplicar(shape)
     revisar(shape)
@@ -150,31 +170,30 @@ def main() -> int:
     anotar("parches aplicados y retirados del repositorio")
 
     if not correr(["git", "status", "--porcelain"], cwd=shape).strip():
-        anotar("no había nada que cambiar: main ya trae la 0.17.0")
+        anotar("no había nada que cambiar: main ya trae la 0.18.0")
         return 0
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: 38 · la 0.17.0, el nombrado de las caras partidas\n\n```\n"
+        "- recado: 39 · el armado que no se apoya en una URL a mano, y la 0.18.0\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "0.17.0: cuando una operación parte una cara en dos\n\n"
-            "El rumbo llama al nombrado topológico «el riesgo que gobierna todo». Se midió\n"
-            "sobre un tablero con una muesca y salieron dos defectos, los dos silenciosos.\n\n"
-            "Uno: el nombre base saltaba de un trozo al otro al cambiar una cota. El trozo\n"
-            "se elegía «el más cercano a la cara vieja», y la cara vieja era la entera,\n"
-            "cuyo centro se mueve al estirar la pieza. Medido: lado[0] era el trozo\n"
-            "izquierdo con 600 y 450 de ancho, y el derecho con 900 y 2000. Una cara jalada\n"
-            "se iba al otro lado de la pieza sin que el programa dijera nada.\n\n"
-            "Dos: jalar una cara ya partida dejaba a su hermana sin nombre, y con ella sin\n"
-            "nombre sus aristas y sus vértices.\n\n"
-            "Ahora los trozos se reparten por posición —el centro, eje por eje—, que no\n"
-            "cambia de orden cuando la pieza se estira, y una cara desplazada por herencia\n"
-            "se corre a un ~k en vez de perderse.\n\n"
-            "t028 trae 36 comprobaciones. Contra el código de la 0.16.0 falla con 8\n"
-            "errores: prueba el arreglo, no se prueba a sí misma.\n\n"
+            "El armado deja de apoyarse en una URL a mano, y la 0.18.0\n\n"
+            "El armado de la 0.17.0 murió en un minuto: el flujo llevaba escrita a mano la\n"
+            "URL del instalador del que hereda el Python empotrado, apuntando a la 0.13.0,\n"
+            "y la poda automática que metimos en esa misma versión se la había llevado.\n"
+            "Dos cosas nuestras que funcionan bien, juntas se rompían.\n\n"
+            "Cambiarle el número a la URL habría durado tres versiones. Ahora el flujo lee\n"
+            "cuál es el instalador publicado de descargas/shape101.json, que ya es la única\n"
+            "señal que cuenta para dar una versión por publicada: la poda y el armado dejan\n"
+            "de poder contradecirse.\n\n"
+            "La 0.17.0 no llegó a publicarse, así que su contenido sale en la 0.18.0, que\n"
+            "añade elegir a mano las aristas que se redondean: Ctrl+clic sobre el círculo\n"
+            "de en medio de una arista la elige y REDONDEAR usa ésas. Sin elegir ninguna\n"
+            "sigue tomando las verticales, así que nada de lo de antes cambia. Ctrl y no un\n"
+            "clic pelón porque el clic pelón ya significa jalar esa arista.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
@@ -184,7 +203,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado38/shape101")
+    shape = pathlib.Path("/tmp/recado39/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
