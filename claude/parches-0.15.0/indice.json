@@ -1,0 +1,62 @@
+[
+ {
+  "archivo": "core/solido/cuerpo.py",
+  "modo": "final",
+  "ancla": "",
+  "texto": "01-cuerpo-historial.txt"
+ },
+ {
+  "archivo": "core/solido/rutas.py",
+  "modo": "antes",
+  "ancla": "class Exportar(BaseModel):",
+  "texto": "02-rutas-historial.txt"
+ },
+ {
+  "archivo": "core/version.py",
+  "modo": "cambiar",
+  "ancla": "VERSION = \"0.14.0\"",
+  "texto": "03-version-numero.txt"
+ },
+ {
+  "archivo": "core/version.py",
+  "modo": "cambiar",
+  "ancla": "BITACORA: list[dict] = [\n    {",
+  "texto": "04-version-bitacora.txt"
+ },
+ {
+  "archivo": "package.json",
+  "modo": "todos",
+  "ancla": "0.14.0",
+  "texto": "05-paquete.txt"
+ },
+ {
+  "archivo": "ui/index.html",
+  "modo": "antes",
+  "ancla": "    <div class=\"props objeto\" id=\"props-obj\" hidden>",
+  "texto": "06-html-panel.txt"
+ },
+ {
+  "archivo": "ui/index.html",
+  "modo": "cambiar",
+  "ancla": "<script src=\"tiradores.js\"></script>",
+  "texto": "07-html-script.txt"
+ },
+ {
+  "archivo": "ui/cuerpos.js",
+  "modo": "cambiar",
+  "ancla": "    senalada = cual ? { id: cual.id, cara: cual.cara } : null;\n",
+  "texto": "08-cuerpos-aviso.txt"
+ },
+ {
+  "archivo": "ui/app.js",
+  "modo": "cambiar",
+  "ancla": "    Cuerpos.refrescar();\n",
+  "texto": "09-app-deshacer.txt"
+ },
+ {
+  "archivo": "ui/styles.css",
+  "modo": "final",
+  "ancla": "",
+  "texto": "10-estilos.txt"
+ }
+]

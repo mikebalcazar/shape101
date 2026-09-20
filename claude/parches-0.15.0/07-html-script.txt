@@ -1,0 +1,2 @@
+<script src="tiradores.js"></script>
+<script src="historial.js"></script>
