@@ -402,7 +402,7 @@ def barreno(id_: str, entrada: Barreno):
         op = mod.ops_de_barreno((u, v), entrada.radio, mm)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return _rehacer(id_, list(c.operaciones) + [op], "barreno")
+    return _rehacer(id_, mod.agregar(list(c.operaciones), op), "barreno")
 
 
 class Redondear(BaseModel):
@@ -418,9 +418,10 @@ def redondear(id_: str, entrada: Redondear):
         raise HTTPException(400, "un redondeo necesita un radio mayor que cero")
     if not entrada.aristas:
         raise HTTPException(400, "elige primero qué aristas redondear")
+    from core.solido import cuerpo as mod
     c = _cuerpo(id_)
     op = {"op": "redondear", "aristas": list(entrada.aristas), "r": float(entrada.r)}
-    return _rehacer(id_, list(c.operaciones) + [op], "redondear")
+    return _rehacer(id_, mod.agregar(list(c.operaciones), op), "redondear")
 
 
 class Exportar(BaseModel):
