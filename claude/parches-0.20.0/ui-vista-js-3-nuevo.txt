@@ -1,0 +1,14 @@
+      escala: v.escala, trazos: estado.trazos,
+      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
+      rx: v.rx || 0, rz: v.rz || 0,
+      // La rejilla necesita saber dónde empieza y acaba **esta** ventana para
+      // pintar sólo lo que cabe en ella. Hasta la 0.19.0 no se le pasaba nada
+      // de esto y el interruptor REJILLA no hacía absolutamente nada: el visor
+      // preguntaba por `ctx.rejilla` y nadie se lo mandaba.
+      ox: v.ox, oy: v.oy, titulo: Ventanas.TITULO, persp: !!v.persp,
+      rejilla: !!(estado.prefs && estado.prefs.rejilla),
+      planos: Ventanas.planosRejilla(v),
+      paso: (estado.prefs && estado.prefs.rejilla_paso) || 10,
+      colorDe: (hex) => colorDeTrazo(hex, oscuro),
+    }), oscuro);
+    return;
