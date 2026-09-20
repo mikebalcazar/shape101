@@ -1,24 +1,31 @@
-"""El mandadero · recado 39: el armado que no se apoya en una URL a mano, y la 0.18.0.
+"""El mandadero · recado 40: fuera poc/, y la receta de publicar al día.
 
-El armado de la 0.17.0 murió en un minuto: el flujo llevaba escrita a mano la
-URL del instalador del que hereda el Python empotrado, apuntando a la 0.13.0, y
-la poda automática que metimos en esa misma versión se la había llevado. Dos
-cosas nuestras que funcionan bien, juntas se rompían.
+Mike, el 19-sep, preguntando qué eran esos archivos: `poc/` era la prueba de
+concepto del 12 y 13 de septiembre —la medición que decidió si shape101 iba o
+no—. **No era la app: era el estudio previo.**
 
-El flujo vive en `.github/workflows/`, donde el conector del chat no puede
-escribir: por eso esto va por recado, que es justo para lo que existe.
+Hace tiempo que no corre: importa de `app/motor/`, una carpeta que dejó de
+existir cuando el motor se mudó a `core/solido/`. Los cinco pasos mueren con
+`ModuleNotFoundError: No module named 'app'`. Nada fuera de `poc/` la toca, no
+entra al instalador y no la ve ninguna prueba.
 
-**Los parches no viven dentro de este archivo.** Viven en
-`claude/parches-0.18.0/`, cada uno en dos `.txt` —el ancla y el texto nuevo—, y
-aquí sólo se leen y se ponen. Un archivo de texto no tiene nada que escapar, y
-además se puede mirar en GitHub antes de que esto corra.
+**Lo que valía eran los números, y ya están guardados** en Drive
+(`suite101/shape101-prueba-de-concepto-2026-09-12-13 (archivo)`): el plan, la
+tabla de resultados y los seis veredictos. Ahí sigue estando lo que sostiene el
+motor de hoy —que los nombres derivados aguantan un cambio de cota y la huella
+geométrica no, 0 de 2 caras— y el aviso del `~2` que la 0.18.0 acabó
+arreglando.
 
-Cada parche se ensayó contra la copia de `main` bajada de GitHub y el resultado
-salió **idéntico**, byte por byte, a los archivos con los que corrieron las 673
-comprobaciones. Por eso ninguna ancla puede fallar.
+Así que aquí se borra el código, que es deuda: 22 archivos, 196 KB y once que
+todavía nombran draw101.
 
-Este recado **no crea la rama de publicación**: primero se lee el cuaderno, y
-sólo entonces se dispara el armado.
+Y de paso, `claude/COMO-PUBLICAR.md` se pone al día: decía «45 minutos» cuando
+el armado tarda unos 20, hablaba de 24 pruebas cuando son 28, y explicaba el
+Python empotrado con la `INSTALADOR_ANTERIOR` que la 0.18.0 quitó. Una receta
+equivocada es peor que no tenerla.
+
+**Este recado no cambia la versión ni dispara un armado**: no toca nada que se
+instale.
 """
 from __future__ import annotations
 
@@ -31,8 +38,7 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-VERSION = "0.18.0"
-PARCHES = "claude/parches-0.18.0"
+PARCHES = "claude/parches-limpieza"
 
 lineas: list[str] = []
 
@@ -97,52 +103,38 @@ def aplicar(raiz: pathlib.Path) -> None:
 
 
 def revisar(shape: pathlib.Path) -> None:
-    """Todo lo comprobable sin Windows, antes de gastar un armado."""
+    """Lo comprobable antes de empujar."""
+    if (shape / "poc").exists():
+        raise RuntimeError("poc/ sigue ahí")
+    anotar("poc/ ya no está")
+
+    # Que no quede nadie apuntando a lo borrado. Se busca en el código, no en
+    # las palabras: un comentario que cuente la historia puede seguir diciendo
+    # «poc» sin que eso rompa nada.
+    sueltos = correr(["bash", "-lc",
+                      "grep -rIl --include='*.py' --include='*.yml' --include='*.json' "
+                      "-e 'from poc' -e 'import poc' -e 'poc/' . | grep -v node_modules || true"],
+                     cwd=shape).strip()
+    if sueltos:
+        raise RuntimeError("todavía hay quien apunta a poc/: " + sueltos.replace("\n", ", "))
+    anotar("y nadie apuntaba a ella")
+
     import py_compile
-    for f in ("core/solido/nombres.py", "core/version.py",
-              "pruebas/t025_tiradores.py"):
-        py_compile.compile(str(shape / f), doraise=True)
-    anotar("el Python tocado compila")
+    py_compile.compile(str(shape / "verificar.py"), doraise=True)
+    anotar("verificar.py sigue compilando")
 
-    for f in ("ui/tiradores.js", "ui/historial.js"):
-        correr(["node", "--check", str(shape / f)])
-    anotar("el JavaScript tocado pasa node --check")
+    quedan = correr(["bash", "-lc",
+                     "grep -rIl 'draw101' --include='*.yml' --include='*.py' --include='*.js' "
+                     ". | grep -v node_modules || true"], cwd=shape).strip()
+    anotar("archivos que todavía nombran draw101: "
+           + (quedan.replace("\n", ", ") if quedan else "ninguno"))
 
-    paquete = json.loads((shape / "package.json").read_text(encoding="utf-8"))
-    ver = (shape / "core" / "version.py").read_text(encoding="utf-8")
-    if paquete["version"] != VERSION or f'VERSION = "{VERSION}"' not in ver:
-        raise RuntimeError(f"la versión no dice {VERSION} en los dos sitios")
-    if f'"version": "{VERSION}"' not in ver:
-        raise RuntimeError("falta la entrada de la bitácora")
-    if paquete["build"]["artifactName"] != f"shape101-{VERSION}-setup.${{ext}}":
-        raise RuntimeError("artifactName no trae la versión nueva")
-    anotar(f"la versión dice {VERSION} en los tres sitios y la bitácora la trae")
-
-    # El flujo de armado: que ya no lleve una URL escrita a mano, que siga
-    # siendo YAML válido, y que el manifiesto de verdad dé una URL utilizable.
-    # Si esto no se comprueba aquí, se comprueba gastando un armado entero.
-    flujo = shape / ".github" / "workflows" / "armar-y-publicar.yml"
-    t = flujo.read_text(encoding="utf-8")
-    if "INSTALADOR_ANTERIOR" in t:
-        raise RuntimeError("el flujo todavía lleva la URL escrita a mano")
-    if "MANIFIESTO" not in t:
-        raise RuntimeError("el flujo no sabe de dónde leer el instalador anterior")
-    correr([sys.executable, "-m", "pip", "install", "-q", "pyyaml"])
-    import yaml
-    datos = yaml.safe_load(t)
-    if not datos.get("jobs"):
-        raise RuntimeError("el flujo dejó de ser YAML válido")
-    anotar("el flujo ya no lleva URL a mano y sigue siendo YAML válido")
-
-    import re
-    import urllib.request
-    manifiesto = urllib.request.urlopen(
-        "https://raw.githubusercontent.com/mikebalcazar/descargas/main/shape101.json",
-        timeout=30).read().decode("utf-8")
-    url = re.findall(r'https://github\.com/[^"]*-setup\.exe', manifiesto)
-    if not url:
-        raise RuntimeError("el manifiesto no trae ninguna URL de instalador")
-    anotar("y el manifiesto de verdad da: " + url[0])
+    receta = (shape / "claude" / "COMO-PUBLICAR.md").read_text(encoding="utf-8")
+    if "INSTALADOR_ANTERIOR" in receta or "45 minutos" in receta:
+        raise RuntimeError("la receta de publicar sigue desactualizada")
+    if "MANIFIESTO" not in receta:
+        raise RuntimeError("la receta no explica de dónde sale el instalador anterior")
+    anotar("la receta de publicar está al día")
 
 
 def main() -> int:
@@ -150,7 +142,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado39")
+    tmp = pathlib.Path("/tmp/recado40")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -159,7 +151,12 @@ def main() -> int:
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
 
-    # Esta entrega no trae archivos nuevos: todo son retoques.
+    if (shape / "poc").is_dir():
+        cuantos = len(list((shape / "poc").rglob("*")))
+        correr(["git", "rm", "-r", "-q", "poc"], cwd=shape)
+        anotar(f"borrada poc/ ({cuantos} entradas)")
+    else:
+        anotar("poc/ ya no estaba")
 
     aplicar(shape)
     revisar(shape)
@@ -170,40 +167,41 @@ def main() -> int:
     anotar("parches aplicados y retirados del repositorio")
 
     if not correr(["git", "status", "--porcelain"], cwd=shape).strip():
-        anotar("no había nada que cambiar: main ya trae la 0.18.0")
+        anotar("no había nada que cambiar: main ya estaba limpio")
         return 0
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: 39 · el armado que no se apoya en una URL a mano, y la 0.18.0\n\n```\n"
+        "- recado: 40 · fuera poc/, y la receta de publicar al día\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "El armado deja de apoyarse en una URL a mano, y la 0.18.0\n\n"
-            "El armado de la 0.17.0 murió en un minuto: el flujo llevaba escrita a mano la\n"
-            "URL del instalador del que hereda el Python empotrado, apuntando a la 0.13.0,\n"
-            "y la poda automática que metimos en esa misma versión se la había llevado.\n"
-            "Dos cosas nuestras que funcionan bien, juntas se rompían.\n\n"
-            "Cambiarle el número a la URL habría durado tres versiones. Ahora el flujo lee\n"
-            "cuál es el instalador publicado de descargas/shape101.json, que ya es la única\n"
-            "señal que cuenta para dar una versión por publicada: la poda y el armado dejan\n"
-            "de poder contradecirse.\n\n"
-            "La 0.17.0 no llegó a publicarse, así que su contenido sale en la 0.18.0, que\n"
-            "añade elegir a mano las aristas que se redondean: Ctrl+clic sobre el círculo\n"
-            "de en medio de una arista la elige y REDONDEAR usa ésas. Sin elegir ninguna\n"
-            "sigue tomando las verticales, así que nada de lo de antes cambia. Ctrl y no un\n"
-            "clic pelón porque el clic pelón ya significa jalar esa arista.\n\n"
+            "Fuera poc/, y la receta de publicar al día\n\n"
+            "poc/ era la prueba de concepto del 12 y 13 de septiembre: la medición que\n"
+            "decidió si shape101 iba o no. No era la app, era el estudio previo, y hace\n"
+            "tiempo que no corre: importa de app/motor/, una carpeta que dejó de existir\n"
+            "cuando el motor se mudó a core/solido/. Nada fuera de ella la tocaba.\n\n"
+            "Lo que valía eran los números y ya están guardados en Drive: el plan, la tabla\n"
+            "de resultados y los seis veredictos. Ahí sigue lo que sostiene el motor de hoy\n"
+            "—que los nombres derivados aguantan un cambio de cota y la huella geométrica\n"
+            "no, 0 de 2 caras— y el aviso del ~2 que la 0.18.0 acabó arreglando.\n\n"
+            "Se van 22 archivos y 196 KB, y con ellos los once que todavía nombraban\n"
+            "draw101.\n\n"
+            "Y COMO-PUBLICAR.md se pone al día: decía 45 minutos cuando el armado tarda\n"
+            "unos 20, hablaba de 24 pruebas cuando son 28, y explicaba el Python empotrado\n"
+            "con la INSTALADOR_ANTERIOR que la 0.18.0 quitó. Una receta equivocada es peor\n"
+            "que no tenerla.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
-    anotar("main actualizado · la rama de publicación se crea aparte, tras leer esto")
+    anotar("main actualizado")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado39/shape101")
+    shape = pathlib.Path("/tmp/recado40/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
