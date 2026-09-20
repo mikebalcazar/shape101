@@ -1,25 +1,31 @@
-"""El mandadero · recado 32: fuera draw101 de la maquinaria.
+"""El mandadero · recado 36: la 0.15.0, el historial de la pieza a la vista.
 
-Mike (19-sep): «ya deja de pensar en draw101, haz de cuenta que no existe, esto
-es un producto completamente independiente».
+Mike (19-sep): *«la parametrización del modelo me interesa muchísimo. El
+mantener algo de historial de cómo se generó un barreno… después se quiere
+agrandar o achicar: sólo se podría incrementar o disminuir el diámetro del
+cilindro original sin necesidad de trazarlo todo de nuevo»*.
 
-Lo que quedaba, y era deuda de verdad, no sólo de nombre:
+El motor ya lo hacía: una pieza **es** su lista de operaciones y regenerar es
+volver a correrlas. Lo que faltaba era enseñarlo y dejarlo tocar.
 
-1. `recado.yml` le pasaba a cada recado un `TOKEN_DRAW101` que ya nadie usa. Un
-   secreto de más es una puerta de más, y además decía en voz alta que shape101
-   dependía de otro repositorio.
-2. `armar-y-publicar.yml` hablaba de «la 0.20.x instalada» —la numeración de
-   draw101— y explicaba de dónde venía el Python empotrado citando al otro
-   producto. Ahora sale de shape101 y así debe leerse.
-3. Los recados tapaban `TOKEN_DRAW101` al escribir sus reportes; ya no hace
-   falta tapar lo que no existe.
+**Los parches no viven dentro de este archivo.** Viven en
+`claude/parches-0.15.0/`, cada uno en su propio `.txt`, y aquí sólo se leen y
+se ponen. El recado 35 metió texto dentro de cadenas de Python y sus `\\n` se
+escaparon dos veces: salieron barras literales en el cuaderno y en el mensaje
+del commit. Un archivo de texto no tiene nada que escapar, y además se puede
+mirar en GitHub antes de que esto corra.
 
-Este recado **no toca la rama de publicación**: hay un armado en curso y no
-tiene por qué enterarse.
+Cada parche se probó contra la copia de `main` bajada de GitHub y el resultado
+salió **idéntico**, byte por byte, a los archivos con los que corrieron las 573
+comprobaciones. Por eso ninguna ancla puede fallar.
+
+Este recado **no crea la rama de publicación**: primero se lee el cuaderno, y
+sólo entonces se dispara el armado de 45 minutos.
 """
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import pathlib
 import shutil
@@ -27,6 +33,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
+VERSION = "0.15.0"
+PARCHES = "claude/parches-0.15.0"
 
 lineas: list[str] = []
 
@@ -48,50 +56,72 @@ def correr(orden, cwd=None) -> str:
     return h.stdout
 
 
-def cambiar(texto: str, viejo: str, nuevo: str, donde: str) -> str:
-    n = texto.count(viejo)
-    if n != 1:
-        raise RuntimeError(f"{donde}: «{viejo[:60]}…» aparece {n} veces, esperaba 1")
-    return texto.replace(viejo, nuevo)
+def aplicar(raiz: pathlib.Path) -> None:
+    """Pone cada parche donde dice el índice.
+
+    Dos reglas, y las dos importan: el ancla tiene que aparecer **una sola
+    vez** —si aparece cero o dos, se para, que es mucho mejor que dejar un
+    archivo a medias— y si el parche ya está puesto no se pone dos veces, así
+    repetir el recado es inofensivo.
+    """
+    d = raiz / PARCHES
+    for p in json.loads((d / "indice.json").read_text(encoding="utf-8")):
+        arch, modo, ancla = p["archivo"], p["modo"], p["ancla"]
+        texto = (d / p["texto"]).read_text(encoding="utf-8")
+        f = raiz / arch
+        t = f.read_text(encoding="utf-8")
+        if modo == "final":
+            if t.endswith(texto):
+                anotar(f"  {arch}: ya estaba"); continue
+            t = t + texto
+        elif modo == "antes":
+            if texto in t:
+                anotar(f"  {arch}: ya estaba"); continue
+            if t.count(ancla) != 1:
+                raise RuntimeError(f"{arch}: «{ancla[:50]}» aparece {t.count(ancla)} veces")
+            t = t.replace(ancla, texto + ancla)
+        elif modo == "cambiar":
+            if texto in t:
+                anotar(f"  {arch}: ya estaba"); continue
+            if t.count(ancla) != 1:
+                raise RuntimeError(f"{arch}: «{ancla[:50]}» aparece {t.count(ancla)} veces")
+            t = t.replace(ancla, texto)
+        elif modo == "todos":
+            if ancla not in t:
+                anotar(f"  {arch}: ya estaba"); continue
+            t = t.replace(ancla, texto)
+        else:
+            raise RuntimeError(f"modo desconocido: {modo}")
+        f.write_text(t, encoding="utf-8")
+        anotar(f"  {arch}: {modo} · {p['texto']}")
 
 
-ENCABEZADO_VIEJO = """# Arma el instalador de shape101 en un Windows de GitHub, lo prueba, lo manda a
-# `descargas` por la rama de carga que espera `publicar-instalador.yml`, espera
-# a que esa release exista y entonces deja `shape101.json` y el README de
-# `descargas` diciendo la versión nueva. Al terminar, la 0.20.x instalada en
-# cualquier máquina ve el letrero «Actualizar».
-"""
+def revisar(shape: pathlib.Path) -> None:
+    """Todo lo comprobable sin Windows, antes de gastar 45 minutos."""
+    import py_compile
+    for f in ("core/solido/cuerpo.py", "core/solido/rutas.py", "core/version.py",
+              "pruebas/t026_historial_pieza.py"):
+        py_compile.compile(str(shape / f), doraise=True)
+    anotar("el Python tocado compila")
 
-ENCABEZADO_NUEVO = """# Arma el instalador de shape101 en un Windows de GitHub, lo prueba, lo manda a
-# `descargas` por la rama de carga que espera `publicar-instalador.yml`, espera
-# a que esa release exista y entonces deja `shape101.json` y el README de
-# `descargas` diciendo la versión nueva. Al terminar, cualquier shape101 ya
-# instalada ve el letrero «Actualizar».
-#
-# La receta completa, con sus trampas, está en `claude/COMO-PUBLICAR.md`.
-"""
+    for f in ("ui/historial.js", "ui/cuerpos.js", "ui/app.js"):
+        correr(["node", "--check", str(shape / f)])
+    anotar("el JavaScript tocado pasa node --check")
 
-FUENTE_VIEJA = """  # INSTALADOR_ANTERIOR es la última release de shape101: de ahí sale el Python
-  # de Windows con todo dentro, kernel de sólidos incluido. Hasta 0.11.0 era el
-  # de draw101 0.20.1, y cuando esa release se borró de descargas (19-sep) el
-  # armado murió a los 19 s sin decir por qué. shape101 se alimenta de sí mismo.
-"""
+    paquete = json.loads((shape / "package.json").read_text(encoding="utf-8"))
+    ver = (shape / "core" / "version.py").read_text(encoding="utf-8")
+    if paquete["version"] != VERSION or f'VERSION = "{VERSION}"' not in ver:
+        raise RuntimeError(f"la versión no dice {VERSION} en los dos sitios")
+    if f'"version": "{VERSION}"' not in ver:
+        raise RuntimeError("falta la entrada de la bitácora")
+    if paquete["build"]["artifactName"] != f"shape101-{VERSION}-setup.${{ext}}":
+        raise RuntimeError("artifactName no trae la versión nueva")
+    anotar(f"la versión dice {VERSION} en los tres sitios y la bitácora la trae")
 
-FUENTE_NUEVA = """  # INSTALADOR_ANTERIOR es la última release de shape101: de ahí sale el Python
-  # de Windows con todo dentro, kernel de sólidos incluido. shape101 se alimenta
-  # de sí mismo, así que **esa release no se borra nunca**: es el cimiento del
-  # siguiente armado. (Se aprendió a golpes el 19-sep, cuando desapareció el
-  # archivo del que salía el Python y el armado murió a los 19 s sin decir por
-  # qué. Ver claude/COMO-PUBLICAR.md.)
-"""
-
-ULTIMA_VIEJA = """          echo "- Release \\`shape101-$VER\\` publicada · \\`shape101-ultima\\` movida · \\`shape101.json\\` y README en main." >> "$GITHUB_STEP_SUMMARY"
-          echo "- Las 0.20.x instaladas ya ven el letrero «Actualizar»." >> "$GITHUB_STEP_SUMMARY"
-"""
-
-ULTIMA_NUEVA = """          echo "- Release \\`shape101-$VER\\` publicada · \\`shape101-ultima\\` movida · \\`shape101.json\\` y README en main." >> "$GITHUB_STEP_SUMMARY"
-          echo "- Las shape101 instaladas ya ven el letrero «Actualizar»." >> "$GITHUB_STEP_SUMMARY"
-"""
+    html = (shape / "ui" / "index.html").read_text(encoding="utf-8")
+    if 'src="historial.js"' not in html or 'id="hist-pasos"' not in html:
+        raise RuntimeError("el panel del historial no quedó enganchado en index.html")
+    anotar("el panel está enganchado: script y hueco en su sitio")
 
 
 def main() -> int:
@@ -99,7 +129,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado32")
+    tmp = pathlib.Path("/tmp/recado36")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -108,65 +138,58 @@ def main() -> int:
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
 
-    # 1 · el recado ya no recibe un token de otro producto
-    rec = shape / ".github" / "workflows" / "recado.yml"
-    t = rec.read_text(encoding="utf-8")
-    if "TOKEN_DRAW101" not in t:
-        anotar("recado.yml ya no pasaba TOKEN_DRAW101: no se toca")
-    else:
-        rec.write_text(cambiar(t, "          TOKEN_DRAW101: ${{ secrets.TOKEN_DRAW101 }}\n", "",
-                               "recado.yml"), encoding="utf-8")
-        anotar("recado.yml: fuera TOKEN_DRAW101 (un secreto de más es una puerta de más)")
+    # El panel y su prueba llegaron a main por el conector, comparados byte por
+    # byte contra lo que se probó. Sin ellos, los parches no significan nada.
+    for arch in ("ui/historial.js", "pruebas/t026_historial_pieza.py"):
+        if not (shape / arch).is_file():
+            raise RuntimeError(f"falta {arch}: primero van los archivos, luego el recado")
+    anotar("el panel y su prueba ya están en main")
 
-    # 2 · el flujo de armado habla de shape101 y de nadie más
-    flujo = shape / ".github" / "workflows" / "armar-y-publicar.yml"
-    t = flujo.read_text(encoding="utf-8")
-    if "COMO-PUBLICAR.md" in t:
-        anotar("armar-y-publicar.yml ya estaba limpio: no se toca")
-    else:
-        t = cambiar(t, ENCABEZADO_VIEJO, ENCABEZADO_NUEVO, "flujo (encabezado)")
-        t = cambiar(t, FUENTE_VIEJA, FUENTE_NUEVA, "flujo (fuente)")
-        t = cambiar(t, ULTIMA_VIEJA, ULTIMA_NUEVA, "flujo (resumen)")
-        flujo.write_text(t, encoding="utf-8")
-        anotar("armar-y-publicar.yml: habla de shape101 y de nadie más")
+    aplicar(shape)
+    revisar(shape)
 
-    correr([sys.executable, "-m", "pip", "install", "-q", "pyyaml"])
-    import yaml
-    for f in (rec, flujo):
-        datos = yaml.safe_load(f.read_text(encoding="utf-8"))
-        assert datos["jobs"], f
-    anotar("los dos flujos siguen siendo YAML válido")
-    quedan = correr(["bash", "-lc",
-                     "grep -rIl 'draw101' --include='*.yml' --include='*.py' --include='*.js' "
-                     ". | grep -v '^./claude/COMO-PUBLICAR.md' | grep -v node_modules || true"],
-                    cwd=shape).strip()
-    anotar("archivos que todavía nombran draw101: " + (quedan.replace("\n", ", ") if quedan else "ninguno"))
+    # Los parches ya están puestos en el código: dejarlos ahí sería una copia
+    # de lo mismo esperando a desincronizarse.
+    shutil.rmtree(shape / PARCHES)
+    anotar("parches aplicados y retirados del repositorio")
+
+    if not correr(["git", "status", "--porcelain"], cwd=shape).strip():
+        anotar("no había nada que cambiar: main ya trae la 0.15.0")
+        return 0
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: fuera draw101 de la maquinaria\n\n```\n"
+        "- recado: 36 · la 0.15.0, el historial de la pieza a la vista\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Fuera draw101 de la maquinaria: shape101 se arma solo\n\n"
-            "Mike: «ya deja de pensar en draw101, haz de cuenta que no existe, esto es un\n"
-            "producto completamente independiente».\n\n"
-            "Los recados recibían un TOKEN_DRAW101 que ya nadie usaba —un secreto de más es\n"
-            "una puerta de más—, y el flujo de armado hablaba de la numeración 0.20.x del\n"
-            "otro producto. El Python empotrado sale de la última release de shape101 y el\n"
-            "comentario ahora dice lo que importa: esa release no se borra nunca, porque es\n"
-            "el cimiento del siguiente armado.\n\n"
+            "0.15.0: el historial de la pieza, a la vista y editable\n\n"
+            "Mike: «la parametrización del modelo me interesa muchísimo. El mantener algo\n"
+            "de historial de cómo se generó un barreno… después se quiere agrandar o\n"
+            "achicar: sólo se podría incrementar o disminuir el diámetro del cilindro\n"
+            "original sin necesidad de trazarlo todo de nuevo».\n\n"
+            "El motor ya lo hacía —una pieza es su lista de operaciones y regenerar es\n"
+            "volver a correrlas—; lo que faltaba era enseñarlo. Al señalar una cara, el\n"
+            "panel de la derecha dice con qué se hizo la pieza y deja tocar sus números.\n"
+            "Cada cambio la rehace entera desde el contorno, así que un redondeo hecho\n"
+            "encima de un barreno sigue puesto cuando el barreno cambia de diámetro, y\n"
+            "sigue puesto si el barreno se borra del historial.\n\n"
+            "Si un cambio deja la pieza imposible, el historial vuelve como estaba: el\n"
+            "peor caso de tocar un número es que no pase nada, y por eso se puede tocar\n"
+            "sin miedo.\n\n"
+            "Van también BARRENO y REDONDEAR, que el motor ya sabía hacer y nadie podía\n"
+            "llamar, y t026 con 42 comprobaciones, la pantalla incluida.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
-    anotar("main actualizado (la rama de publicación no se toca: hay un armado en curso)")
+    anotar("main actualizado · la rama de publicación se crea aparte, tras leer esto")
     return 0
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado32/shape101")
+    shape = pathlib.Path("/tmp/recado36/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
