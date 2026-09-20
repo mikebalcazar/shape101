@@ -1,7 +1,0 @@
-    ops = json.loads(json.dumps(operaciones))
-    if not (0 <= i < len(ops)):
-        raise ValueError(f"no hay una operación {i}")
-    for clave, valor in (campos or {}).items():
-        try:
-            _poner(ops[i], clave, valor)
-        except (KeyError, IndexError, TypeError) as e:

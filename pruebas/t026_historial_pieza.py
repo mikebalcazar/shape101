@@ -71,6 +71,8 @@ def _en_palabras(r: comun.Reporte, cuerpo, historial) -> None:
     pasos = cuerpo.describir(_ops() + [_barreno(20.0),
                                        {"op": "redondear", "aristas": ["a|b"], "r": 5.0}])
     r.igual(len(pasos), 4, "cada operación es un paso del historial")
+    r.igual(pasos[0]["titulo"], "Rectángulo 600.0 × 400.0",
+            "el contorno se lee con su medida (0.16.0)")
     r.igual(pasos[1]["titulo"], "Extruir 18.0", "la extrusión se lee como lo que es")
     r.igual(pasos[2]["titulo"], "Barreno ⌀40.0",
             "y un círculo restado se lee «barreno», con su diámetro, no su radio")
@@ -231,13 +233,18 @@ def _en_la_pantalla(r: comun.Reporte) -> None:
             const caja = document.querySelector('#props-historial');
             return { abierto: !caja.hidden,
                      pasos: Historial.pasos.map((p) => p.titulo),
+                     campos0: Historial.pasos[0].campos.map((c) => c.etiqueta),
                      filas: document.querySelectorAll('#hist-pasos .paso').length,
                      cerrar: document.querySelectorAll('#hist-pasos .cerrar').length };
         }""", id_)
         r.cierto(visible["abierto"], "al señalar una cara, el panel se abre solo")
-        r.igual(visible["pasos"], ["Contorno · 1 entidad(es), 4 punto(s)", "Extruir 18.0"],
-                "y dice con qué se hizo la pieza, en palabras")
+        # Desde la 0.16.0 el contorno se lee con su medida, no con su cuenta de
+        # puntos: «Rectángulo 600 × 400» es lo que se dicta en un taller.
+        r.igual(visible["pasos"], ["Rectángulo 600.0 × 400.0", "Extruir 18.0"],
+                "y dice con qué se hizo la pieza, en palabras y con su medida")
         r.igual(visible["filas"], 2, "un bloque por paso")
+        r.igual(visible["campos0"], ["Ancho", "Fondo", "Esquina X", "Esquina Y"],
+                "y el contorno ya trae sus cotas tecleables (0.16.0)")
         r.igual(visible["cerrar"], 0,
                 "sin botón de quitar en los de nacimiento: quitarlos deja sin pieza")
 

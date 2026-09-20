@@ -1,6 +1,0 @@
-    pasos = cuerpo.describir(_ops() + [_barreno(20.0),
-                                       {"op": "redondear", "aristas": ["a|b"], "r": 5.0}])
-    r.igual(len(pasos), 4, "cada operación es un paso del historial")
-    r.igual(pasos[1]["titulo"], "Extruir 18.0", "la extrusión se lee como lo que es")
-    r.igual(pasos[2]["titulo"], "Barreno ⌀40.0",
-            "y un círculo restado se lee «barreno», con su diámetro, no su radio")

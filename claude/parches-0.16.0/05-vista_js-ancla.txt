@@ -1,6 +1,0 @@
-      pintarHule(cc);
-      if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
-      if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
-      // Los tiradores van al final: son lo que se agarra, y lo que se agarra
-      // se pinta encima de todo lo demás.
-      if (typeof Tiradores !== "undefined") Tiradores.pintar(cc);

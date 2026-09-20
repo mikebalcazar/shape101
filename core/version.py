@@ -21,13 +21,33 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.15.0"
+VERSION = "0.16.0"
 FECHA = "2026-09-19"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.16.0",
+        "fecha": "2026-09-19",
+        "cambios": [
+            "El contorno de una pieza ya tiene cotas que se teclean. El paso del historial "
+            "se lee «Rectángulo 600 × 400» y trae Ancho, Fondo y la esquina donde empieza: "
+            "cambiar el ancho a 900 es teclear 900, no arrastrar cuatro puntos.",
+            "Estirar una medida no se lleva lo que hiciste después, y el barreno sigue "
+            "redondo: en madera no hay barrenos ovalados.",
+            "Sirve con cualquier contorno, no sólo rectángulos: una L se estira entera.",
+            "La pieza señalada enseña sus tres medidas encima —ancho, fondo y espesor—. "
+            "Se dibujan en píxeles, así que se leen igual con cualquier zoom. COTAPIEZA "
+            "las apaga y las enciende.",
+            "Y esas cotas se pican: le das clic al número, tecleas la medida y la pieza se "
+            "rehace. Sin abrir el panel y sin comandos.",
+            "El panel del historial ya no se salta una recarga cuando hay otra en vuelo. "
+            "Antes, señalar una pieza y cambiarle un número en seguida podía dejarlo "
+            "enseñando los pasos de antes.",
+        ],
+    },
     {
         "version": "0.15.0",
         "fecha": "2026-09-19",

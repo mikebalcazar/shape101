@@ -1105,6 +1105,9 @@ function _pintarYaCrudo() {
       pintarHule(cc);
       if (typeof Extrusion !== "undefined") Extrusion.pintar(cc);
       if (typeof TresD !== "undefined") TresD.pintarFantasma(cc);
+      // Las cotas de la pieza señalada van antes que los tiradores: son un
+      // letrero, y un letrero no debe taparle a la mano lo que va a agarrar.
+      if (typeof CotasPieza !== "undefined") CotasPieza.pintar(cc);
       // Los tiradores van al final: son lo que se agarra, y lo que se agarra
       // se pinta encima de todo lo demás.
       if (typeof Tiradores !== "undefined") Tiradores.pintar(cc);
@@ -1527,6 +1530,9 @@ lienzo.addEventListener("mousedown", (e) => {
   // Antes que la cara: un tirador se ve encima de ella y se agarra antes.
   // Si el orden fuera el otro, jalar una esquina empezaría a jalar la cara que
   // tiene debajo y no habría manera de llegar nunca a la esquina.
+  // La cota se pinta encima de todo, así que se agarra antes que todo: si
+  // no, picar el número empezaría a jalar el tirador de debajo.
+  if (typeof CotasPieza !== "undefined" && CotasPieza.abajo(e)) { e.preventDefault(); return; }
   if (typeof Tiradores !== "undefined" && Tiradores.abajo(e)) { e.preventDefault(); return; }
   if (typeof TresD !== "undefined" && TresD.abajo(e)) { e.preventDefault(); return; }
   if (cajaZoom) {

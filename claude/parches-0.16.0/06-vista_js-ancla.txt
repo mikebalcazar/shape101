@@ -1,6 +1,0 @@
-  // Antes que la cara: un tirador se ve encima de ella y se agarra antes.
-  // Si el orden fuera el otro, jalar una esquina empezaría a jalar la cara que
-  // tiene debajo y no habría manera de llegar nunca a la esquina.
-  if (typeof Tiradores !== "undefined" && Tiradores.abajo(e)) { e.preventDefault(); return; }
-  if (typeof TresD !== "undefined" && TresD.abajo(e)) { e.preventDefault(); return; }
-  if (cajaZoom) {

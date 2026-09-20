@@ -1,7 +1,0 @@
-const Historial = (() => {
-  let idActual = null;
-  let pasos = [];
-  let pidiendo = false;
-
-  const $ = (s) => document.querySelector(s);
-

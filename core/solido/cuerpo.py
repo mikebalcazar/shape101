@@ -206,6 +206,123 @@ def _campo(clave, etiqueta, valor, unidad="mm", minimo=None):
             "unidad": unidad, "minimo": minimo}
 
 
+# --- las cotas del boceto  ·  0.16.0 -----------------------------------------
+#
+# Mike: *«hoy sólo se mueven los puntos con el ratón; que cambiar el ancho a 900
+# sea teclear 900»*.
+#
+# Un contorno no trae cotas escritas: trae puntos. Así que las cotas se **sacan
+# del contorno** —su caja— y al teclear una se estira el contorno hasta que la
+# caja mida eso. No hay un resolvedor de restricciones detrás, y por eso esto
+# es honesto para un rectángulo y para cualquier contorno de taller: lo que se
+# promete es la medida de fuera, que es la que se corta.
+#
+# Lo que **no** hace, y conviene saberlo: no sostiene un lado paralelo a otro
+# ni un ángulo recto por sí mismo. Si el contorno ya es un rectángulo, estirarlo
+# lo deja rectángulo; si es una L, la L se estira entera, no un solo tramo.
+
+
+def _puntos_del(op) -> list:
+    """Todos los puntos del boceto que se pueden estirar, como referencias
+    vivas (entidad, clave, índice) para poder escribirlos de vuelta."""
+    fuera = []
+    for e in op.get("entidades") or []:
+        t = e.get("tipo")
+        if t == "polilinea":
+            for i, _ in enumerate(e.get("puntos") or []):
+                fuera.append((e, "puntos", i))
+        elif t in ("circulo", "arco"):
+            fuera.append((e, "centro", None))
+        elif t == "linea":
+            fuera.append((e, "p1", None))
+            fuera.append((e, "p2", None))
+    return fuera
+
+
+def _leer(ref) -> tuple:
+    e, clave, i = ref
+    p = e[clave][i] if i is not None else e[clave]
+    return (float(p[0]), float(p[1]))
+
+
+def _escribir(ref, x: float, y: float) -> None:
+    e, clave, i = ref
+    if i is not None:
+        viejo = e[clave][i]
+        bulge = viejo[2] if len(viejo) > 2 else 0
+        e[clave][i] = [float(x), float(y), bulge]     # el bulge es curvatura: no se toca
+    else:
+        e[clave] = [float(x), float(y)]
+
+
+def _caja_del(op) -> tuple:
+    """La caja del boceto: (x0, y0, x1, y1). Un círculo cuenta con su radio,
+    porque lo que mide la pieza es por dónde pasa el filo, no dónde está el
+    centro."""
+    xs, ys = [], []
+    for ref in _puntos_del(op):
+        e = ref[0]
+        x, y = _leer(ref)
+        r = float(e.get("radio", 0)) if e.get("tipo") in ("circulo", "arco") else 0.0
+        xs += [x - r, x + r]
+        ys += [y - r, y + r]
+    if not xs:
+        return (0.0, 0.0, 0.0, 0.0)
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _es_rectangulo(op, tol: float = 1e-6) -> bool:
+    ents = op.get("entidades") or []
+    if len(ents) != 1 or ents[0].get("tipo") != "polilinea":
+        return False
+    e = ents[0]
+    pts = e.get("puntos") or []
+    if len(pts) != 4 or not e.get("cerrada"):
+        return False
+    if any(len(p) > 2 and abs(p[2]) > tol for p in pts):
+        return False                                  # con bulge no es un rectángulo
+    xs = {round(float(p[0]), 6) for p in pts}
+    ys = {round(float(p[1]), 6) for p in pts}
+    return len(xs) == 2 and len(ys) == 2
+
+
+def _estirar(op: dict, eje: int, medida: float) -> None:
+    """Estira el boceto en un eje hasta que su caja mida `medida`.
+
+    Se estira **desde el lado chico**: la esquina de origen se queda donde
+    está y el contorno crece hacia el otro lado. Es lo que uno espera al
+    teclear una medida: el dibujo no se va del lugar.
+
+    Un círculo dentro del boceto —un hueco— **mueve su centro pero conserva su
+    radio**. Estirar un tablero de 600 a 900 no debe dejar el barreno ovalado:
+    en madera no hay barrenos ovalados.
+    """
+    caja = _caja_del(op)
+    a0, a1 = caja[eje], caja[eje + 2]
+    largo = a1 - a0
+    if largo <= 1e-9:
+        raise ValueError("este contorno no tiene medida en ese sentido")
+    if medida <= 0:
+        raise ValueError("una medida tiene que ser mayor que cero")
+    k = float(medida) / largo
+    for ref in _puntos_del(op):
+        p = list(_leer(ref))
+        p[eje] = a0 + (p[eje] - a0) * k
+        _escribir(ref, p[0], p[1])
+
+
+def _correr(op: dict, eje: int, destino: float) -> None:
+    """Lleva la esquina de origen del boceto a esa coordenada, sin deformarlo."""
+    caja = _caja_del(op)
+    d = float(destino) - caja[eje]
+    if abs(d) < 1e-12:
+        return
+    for ref in _puntos_del(op):
+        p = list(_leer(ref))
+        p[eje] += d
+        _escribir(ref, p[0], p[1])
+
+
 def _del_boceto(op) -> tuple:
     """Título y campos de un boceto, según lo que traiga dentro."""
     ents = op.get("entidades") or []
@@ -215,8 +332,17 @@ def _del_boceto(op) -> tuple:
                 [_campo("entidades/0/radio", "Radio", e.get("radio", 0)),
                  _campo("entidades/0/centro/0", "Centro X", (e.get("centro") or [0, 0])[0]),
                  _campo("entidades/0/centro/1", "Centro Y", (e.get("centro") or [0, 0])[1])])
+    x0, y0, x1, y1 = _caja_del(op)
+    ancho, fondo = round(x1 - x0, 2), round(y1 - y0, 2)
     n = sum(len(e.get("puntos") or []) if e.get("tipo") == "polilinea" else 1 for e in ents)
-    return (f"Contorno · {len(ents)} entidad(es), {n} punto(s)", [])
+    if _es_rectangulo(op):
+        titulo = f"Rectángulo {ancho} × {fondo}"
+    else:
+        titulo = f"Contorno {ancho} × {fondo} · {n} punto(s)"
+    campos = [_campo("ancho", "Ancho", ancho, minimo=0.01),
+              _campo("fondo", "Fondo", fondo, minimo=0.01),
+              _campo("x", "Esquina X", x0), _campo("y", "Esquina Y", y0)]
+    return (titulo, campos)
 
 
 def describir(operaciones: list) -> list:
@@ -296,7 +422,17 @@ def cambiar_operacion(operaciones: list, i: int, campos: dict) -> list:
     ops = json.loads(json.dumps(operaciones))
     if not (0 <= i < len(ops)):
         raise ValueError(f"no hay una operación {i}")
+    # Ancho, fondo y esquina no viven en ningún lado dentro de la operación: se
+    # sacan de la caja del contorno. Por eso no son una ruta sino una cuenta.
+    CALCULADAS = {"ancho": (_estirar, 0), "fondo": (_estirar, 1),
+                  "x": (_correr, 0), "y": (_correr, 1)}
     for clave, valor in (campos or {}).items():
+        hacer = CALCULADAS.get(clave)
+        if hacer is not None:
+            if ops[i].get("op") != "boceto":
+                raise ValueError(f"la operación {i} no tiene «{clave}»")
+            hacer[0](ops[i], hacer[1], float(valor))
+            continue
         try:
             _poner(ops[i], clave, valor)
         except (KeyError, IndexError, TypeError) as e:

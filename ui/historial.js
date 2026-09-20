@@ -24,7 +24,16 @@
 const Historial = (() => {
   let idActual = null;
   let pasos = [];
-  let pidiendo = false;
+  /** Las peticiones del panel van **en fila, no a empujones**.
+   *
+   *  Antes había una bandera «pidiendo» y el que llegaba con una en vuelo se
+   *  daba media vuelta sin traer nada. Eso deja el panel con los pasos viejos
+   *  justo cuando más importa: señalas una pieza y en seguida le cambias un
+   *  número, y el segundo `traer()` —el que trae los pasos nuevos— era el que
+   *  se perdía. Con una fila, todos los que piden acaban pidiendo, y en orden.
+   *  (Cazado el 19-sep por la prueba de la etapa B, que fallaba una vez de
+   *  cada tres.) */
+  let fila = Promise.resolve();
 
   const $ = (s) => document.querySelector(s);
 
@@ -37,19 +46,25 @@ const Historial = (() => {
     const id = senalada ? senalada.id : null;
     if (id === idActual) return;
     idActual = id;
-    if (!id) { pasos = []; pintar(); return; }
     await traer();
   }
 
-  async function traer() {
-    if (!idActual || pidiendo) return;
-    pidiendo = true;
+  function traer() {
+    fila = fila.then(_traer, _traer);
+    return fila;
+  }
+
+  async function _traer() {
+    if (!idActual) { pasos = []; pintar(); return; }
+    const id = idActual;
     try {
-      const r = await fetch(`/api/cuerpo/${idActual}/historial`);
+      const r = await fetch(`/api/cuerpo/${id}/historial`);
       const j = await r.json();
+      // Si mientras se pedía se señaló otra pieza, lo que llegó ya no es de
+      // ésta: se tira. Lo trae el siguiente de la fila.
+      if (id !== idActual) return;
       pasos = r.ok ? (j.pasos || []) : [];
-    } catch (e) { pasos = []; }
-    finally { pidiendo = false; }
+    } catch (e) { if (id === idActual) pasos = []; }
     pintar();
   }
 
