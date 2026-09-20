@@ -6,8 +6,8 @@ no—. **No era la app: era el estudio previo.**
 
 Hace tiempo que no corre: importa de `app/motor/`, una carpeta que dejó de
 existir cuando el motor se mudó a `core/solido/`. Los cinco pasos mueren con
-`ModuleNotFoundError: No module named 'app'`. Nada fuera de `poc/` la toca, no
-entra al instalador y no la ve ninguna prueba.
+`ModuleNotFoundError: No module named 'app'`. Nada fuera de esa carpeta la
+toca, no entra al instalador y no la ve ninguna prueba.
 
 **Lo que valía eran los números, y ya están guardados** en Drive
 (`suite101/shape101-prueba-de-concepto-2026-09-12-13 (archivo)`): el plan, la
@@ -105,18 +105,24 @@ def aplicar(raiz: pathlib.Path) -> None:
 def revisar(shape: pathlib.Path) -> None:
     """Lo comprobable antes de empujar."""
     if (shape / "poc").exists():
-        raise RuntimeError("poc/ sigue ahí")
-    anotar("poc/ ya no está")
+        raise RuntimeError("la carpeta sigue ahí")
+    anotar("la carpeta ya no está")
 
-    # Que no quede nadie apuntando a lo borrado. Se busca en el código, no en
-    # las palabras: un comentario que cuente la historia puede seguir diciendo
-    # «poc» sin que eso rompa nada.
+    # Que no quede nadie apuntando a lo borrado. Se busca **lo que se ejecuta**:
+    # un import, o la ruta dentro de una cadena. La palabra suelta no vale, y
+    # esto ya costó una corrida: la primera versión buscaba la ruta a secas y se
+    # delató este mismo archivo, cuya cabecera cuenta qué era esa carpeta.
+    #
+    # `claude/` queda fuera a propósito: ahí no vive nada que corra con la app,
+    # sólo el mandadero y la documentación, que sí deben poder nombrarla.
     sueltos = correr(["bash", "-lc",
                       "grep -rIl --include='*.py' --include='*.yml' --include='*.json' "
-                      "-e 'from poc' -e 'import poc' -e 'poc/' . | grep -v node_modules || true"],
+                      "-e '^from poc' -e '^import poc' -e 'from poc import' "
+                      "-e \"'poc/\" -e '\"poc/' . "
+                      "| grep -v node_modules | grep -v '^./claude/' || true"],
                      cwd=shape).strip()
     if sueltos:
-        raise RuntimeError("todavía hay quien apunta a poc/: " + sueltos.replace("\n", ", "))
+        raise RuntimeError("todavía hay quien apunta ahí: " + sueltos.replace("\n", ", "))
     anotar("y nadie apuntaba a ella")
 
     import py_compile
@@ -154,9 +160,9 @@ def main() -> int:
     if (shape / "poc").is_dir():
         cuantos = len(list((shape / "poc").rglob("*")))
         correr(["git", "rm", "-r", "-q", "poc"], cwd=shape)
-        anotar(f"borrada poc/ ({cuantos} entradas)")
+        anotar(f"borrada la carpeta de la prueba de concepto ({cuantos} entradas)")
     else:
-        anotar("poc/ ya no estaba")
+        anotar("la carpeta ya no estaba")
 
     aplicar(shape)
     revisar(shape)
@@ -173,15 +179,15 @@ def main() -> int:
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: 40 · fuera poc/, y la receta de publicar al día\n\n```\n"
+        "- recado: 40 · fuera la prueba de concepto, y la receta de publicar al día\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Fuera poc/, y la receta de publicar al día\n\n"
-            "poc/ era la prueba de concepto del 12 y 13 de septiembre: la medición que\n"
-            "decidió si shape101 iba o no. No era la app, era el estudio previo, y hace\n"
-            "tiempo que no corre: importa de app/motor/, una carpeta que dejó de existir\n"
-            "cuando el motor se mudó a core/solido/. Nada fuera de ella la tocaba.\n\n"
+            "Fuera la prueba de concepto, y la receta de publicar al día\n\n"
+            "Era la medición del 12 y 13 de septiembre: la que decidió si shape101 iba o\n"
+            "no. No era la app, era el estudio previo, y hace tiempo que no corre: importa\n"
+            "de app/motor/, una carpeta que dejó de existir cuando el motor se mudó a\n"
+            "core/solido/. Nada fuera de ella la tocaba.\n\n"
             "Lo que valía eran los números y ya están guardados en Drive: el plan, la tabla\n"
             "de resultados y los seis veredictos. Ahí sigue lo que sostiene el motor de hoy\n"
             "—que los nombres derivados aguantan un cambio de cota y la huella geométrica\n"
