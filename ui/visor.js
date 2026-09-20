@@ -317,83 +317,106 @@ const Visor = (() => {
     while (paso * porPX > MIN_PX * 10 && g++ < 60) paso = peldano(paso, -1);
     if ((u1 - u0) / paso + (v1 - v0) / paso > MAX_LINEAS) return;
 
+    // --- pintarla ---------------------------------------------------------
     const tinta = ctx.oscuro ? "255,255,255" : "0,0,0";
-    const seg = (au, av, bu, bv) => {
-      const s0 = puntoEn(plano, au, av), s1 = puntoEn(plano, bu, bv);
-      const a1 = aPX(s0[0], s0[1], s0[2]), b1 = aPX(s1[0], s1[1], s1[2]);
-      c.moveTo(a1[0], a1[1]); c.lineTo(b1[0], b1[1]);
+    const A_FINA = ctx.oscuro ? 0.05 : 0.055;
+    const A_GORDA = ctx.oscuro ? 0.11 : 0.12;
+    const A_EJE = ctx.oscuro ? 0.2 : 0.22;
+
+    /** Las líneas del plano, en el contexto que se le dé. `dx, dy` corren el
+     *  origen: sirve para pintar en un lienzo aparte del tamaño de la ventana. */
+    const dibujar = (g, dx, dy) => {
+      const seg = (au, av, bu, bv) => {
+        const s0 = puntoEn(plano, au, av), s1 = puntoEn(plano, bu, bv);
+        const a1 = aPX(s0[0], s0[1], s0[2]), b1 = aPX(s1[0], s1[1], s1[2]);
+        g.moveTo(a1[0] - dx, a1[1] - dy); g.lineTo(b1[0] - dx, b1[1] - dy);
+      };
+      g.lineWidth = 1;
+      // Dos niveles: la fina casi no se ve, la de cada diez sostiene la
+      // lectura. La fina se salta los múltiplos de diez para no encimarse con
+      // la gorda y acabar pintando un tono que nadie eligió.
+      for (const [mult, alfa] of [[1, A_FINA], [10, A_GORDA]]) {
+        const p = paso * mult;
+        if (p * porPX > MIN_PX * 60) continue;     // tan separada que ya no dice nada
+        g.strokeStyle = `rgba(${tinta},${alfa * f})`;
+        g.beginPath();
+        for (let k = Math.ceil(u0 / p); k * p <= u1; k++) {
+          if (k === 0 || (mult === 1 && k % 10 === 0)) continue;
+          seg(k * p, v0, k * p, v1);
+        }
+        for (let k = Math.ceil(v0 / p); k * p <= v1; k++) {
+          if (k === 0 || (mult === 1 && k % 10 === 0)) continue;
+          seg(u0, k * p, u1, k * p);
+        }
+        g.stroke();
+      }
+      // Los dos ejes del plano: sin ellos no se sabe dónde está el cero. Con
+      // los tres planos encimados sólo el suelo los marca fuerte: seis rayas
+      // cruzándose en el origen era justo el amontonamiento que hay que evitar.
+      const mandan = !ctx.persp || plano === "XY";
+      g.strokeStyle = `rgba(${tinta},${A_EJE * (mandan ? 1 : 0.45) * f})`;
+      g.beginPath();
+      seg(0, v0, 0, v1);
+      seg(u0, 0, u1, 0);
+      g.stroke();
     };
+
+    // En las tres ventanas ortogonales no hay horizonte: se pintan todas las
+    // líneas que caben y son exactas. Se acabó.
+    if (!ctx.persp) { c.save(); dibujar(c, 0, 0); c.restore(); return; }
 
     /* En perspectiva no se puede pintar una rejilla infinita y que además se
-     * lea: hacia el horizonte las líneas se juntan hasta volverse una mancha
-     * gris. Así que ahí se pinta una mancha redonda que **se apaga** — tres
-     * pasadas concéntricas, la de en medio encima de la grande y la chica
-     * encima de las dos—: no tiene orilla, no se acaba, se desvanece. Es lo
-     * que hacen todos los programas de 3D y es lo que la deja leerse como
-     * infinita. En las tres ventanas ortogonales no hace falta nada de esto:
-     * ahí no hay horizonte, se pintan todas las que caben y son exactas. */
-    let discos = null;
-    if (ctx.persp) {
-      const dx = (x0 + x1) / 2 - o[0], dy = (y0 + y1) / 2 - o[1];
-      const cu = (dx * vy - dy * vx) * inv, cv = (dy * ux - dx * uy) * inv;
-      const r = Math.max(u1 - u0, v1 - v0) * 0.55;
-      discos = [1, 0.72, 0.46].map((k) => ({ cu, cv, r: r * k }));
-    }
+     * lea: hacia el horizonte las líneas se juntan hasta volverse una mancha.
+     * Hay que desvanecerla, y **cómo** se desvanece importa: la 0.20.0 lo hizo
+     * con tres discos concéntricos, y los extremos de las líneas cortadas en
+     * el borde de cada disco dibujaban tres arcos. Vistos casi de canto cerca
+     * del horizonte, esos arcos se leen como tres planos espaciados — que es
+     * justo lo que Mike vio y reportó.
+     *
+     * Así que el desvanecido no se hace a pasos sino de un golpe: la rejilla
+     * se pinta en un lienzo aparte y se le aplica una máscara de degradado. No
+     * queda ninguna orilla, porque no hay ningún corte: el tono baja hasta
+     * cero y ya. Y el degradado va en **coordenadas del plano**, no de la
+     * pantalla: sobre el suelo es un círculo, y en pantalla cae como la elipse
+     * que le corresponde, así que lo que se apaga es lo lejano y no lo que
+     * queda a los lados. */
+    const dpr = (c.getTransform && c.getTransform().a) || 1;
+    const off = lienzoAparte(ctx.ancho, ctx.alto, dpr);
+    if (!off) { c.save(); dibujar(c, 0, 0); c.restore(); return; }
+    const gc = off.getContext("2d");
+    gc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gc.clearRect(0, 0, ctx.ancho, ctx.alto);
+    dibujar(gc, ctx.ox || 0, ctx.oy || 0);
 
-    // Una línea del nivel, recortada al disco que toque (o entera si no hay).
-    const filas = (p, saltarDiez, d) => {
-      for (let k = Math.ceil(u0 / p); k * p <= u1; k++) {
-        if (k === 0 || (saltarDiez && k % 10 === 0)) continue;
-        const u = k * p;
-        if (!d) { seg(u, v0, u, v1); continue; }
-        const h = d.r * d.r - (u - d.cu) * (u - d.cu);
-        if (h <= 0) continue;
-        const dv = Math.sqrt(h);
-        seg(u, d.cv - dv, u, d.cv + dv);
-      }
-      for (let k = Math.ceil(v0 / p); k * p <= v1; k++) {
-        if (k === 0 || (saltarDiez && k % 10 === 0)) continue;
-        const v = k * p;
-        if (!d) { seg(u0, v, u1, v); continue; }
-        const h = d.r * d.r - (v - d.cv) * (v - d.cv);
-        if (h <= 0) continue;
-        const du = Math.sqrt(h);
-        seg(d.cu - du, v, d.cu + du, v);
-      }
-    };
+    const dx = (x0 + x1) / 2 - o[0], dy = (y0 + y1) / 2 - o[1];
+    const cu = (dx * vy - dy * vx) * inv, cv = (dy * ux - dx * uy) * inv;
+    const radio = Math.max(u1 - u0, v1 - v0) * 0.72;
+    gc.transform(ux, uy, vx, vy, o[0] - (ctx.ox || 0), o[1] - (ctx.oy || 0));
+    gc.globalCompositeOperation = "destination-in";
+    const grad = gc.createRadialGradient(cu, cv, 0, cu, cv, radio);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(0.55, "rgba(0,0,0,1)");
+    grad.addColorStop(0.82, "rgba(0,0,0,0.45)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    gc.fillStyle = grad;
+    // El cuadrado contiene al círculo, y fuera del círculo el degradado ya es
+    // transparente: rellenar sólo esto es lo mismo que rellenarlo todo.
+    gc.fillRect(cu - radio, cv - radio, radio * 2, radio * 2);
+    gc.globalCompositeOperation = "source-over";
+    gc.setTransform(1, 0, 0, 1, 0, 0);
+    c.drawImage(off, ctx.ox || 0, ctx.oy || 0, ctx.ancho, ctx.alto);
+  }
 
-    c.save();
-    c.lineWidth = 1;
-    // Dos niveles: la fina casi no se ve, la de cada diez sostiene la lectura.
-    // La fina se salta los múltiplos de diez para no encimarse con la gorda y
-    // acabar pintando un tono que nadie eligió.
-    const pases = discos || [null];
-    // Repartida entre las tres pasadas, para que las tres juntas den el tono
-    // de una sola en el centro y menos conforme se aleja.
-    const reparto = discos ? 0.45 : 1;
-    for (const [mult, alfa] of [[1, ctx.oscuro ? 0.05 : 0.055], [10, ctx.oscuro ? 0.11 : 0.12]]) {
-      const p = paso * mult;
-      if (p * porPX > MIN_PX * 60) continue;       // tan separada que ya no dice nada
-      c.strokeStyle = `rgba(${tinta},${alfa * f * reparto})`;
-      for (const d of pases) { c.beginPath(); filas(p, mult === 1, d); c.stroke(); }
-    }
-    // Los dos ejes del plano: sin ellos no se sabe dónde está el cero. Con los
-    // tres planos encimados sólo el suelo los marca fuerte: seis rayas negras
-    // cruzándose en el origen era justo el amontonamiento que había que evitar.
-    const mandan = !ctx.persp || plano === "XY";
-    c.strokeStyle = `rgba(${tinta},${(mandan ? (ctx.oscuro ? 0.2 : 0.22) : (ctx.oscuro ? 0.09 : 0.1)) * f})`;
-    for (const d of pases) {
-      c.beginPath();
-      if (!d) { seg(0, v0, 0, v1); seg(u0, 0, u1, 0); }
-      else {
-        let h = d.r * d.r - d.cu * d.cu;
-        if (h > 0) { const dv = Math.sqrt(h); seg(0, d.cv - dv, 0, d.cv + dv); }
-        h = d.r * d.r - d.cv * d.cv;
-        if (h > 0) { const du = Math.sqrt(h); seg(d.cu - du, 0, d.cu + du, 0); }
-      }
-      c.stroke();
-    }
-    c.restore();
+  /** Un lienzo aparte del tamaño de la ventana, reusado entre cuadros: crear
+   *  uno por cuadro es basura que el navegador tiene que recoger sesenta veces
+   *  por segundo mientras se orbita. */
+  let aparte = null;
+  function lienzoAparte(w, h, dpr) {
+    if (typeof document === "undefined" || !(w > 0) || !(h > 0)) return null;
+    const pw = Math.max(1, Math.round(w * dpr)), ph = Math.max(1, Math.round(h * dpr));
+    if (!aparte) aparte = document.createElement("canvas");
+    if (aparte.width !== pw || aparte.height !== ph) { aparte.width = pw; aparte.height = ph; }
+    return aparte;
   }
 
   /** Los textos, como los pintaba el lienzo viejo: en su punto, con su altura,
