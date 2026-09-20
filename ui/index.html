@@ -306,6 +306,17 @@
           <span id="p-imprime-txt">sí</span></div>
       </div>
     </div>
+    <!-- El historial de la pieza señalada  ·  0.15.0.
+         Mike (19-sep): «el mantener algo de historial de cómo se generó un
+         barreno… después se quiere agrandar o achicar, sólo se podría
+         incrementar el diámetro del cilindro original sin necesidad de
+         trazarlo todo de nuevo». Cada número de aquí rehace la pieza entera
+         desde el contorno; por eso un redondeo hecho después sobrevive. -->
+    <div class="props historial" id="props-historial" hidden>
+      <h2>Historial de la pieza</h2>
+      <div id="hist-pasos"></div>
+    </div>
+
     <div class="props objeto" id="props-obj" hidden>
       <h2>Objeto</h2>
       <div id="obj-campos"></div>
@@ -379,6 +390,7 @@
 <script src="extruir.js"></script>
 <script src="planos.js"></script>
 <script src="tiradores.js"></script>
+<script src="historial.js"></script>
 <script src="marco.js"></script>
 </body>
 </html>

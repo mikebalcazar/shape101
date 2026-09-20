@@ -502,6 +502,9 @@ async function trasDeshacerORehacer(r, verbo) {
     Cuerpos.olvidar();
     if (window.Tiradores) Tiradores.olvidar();
     Cuerpos.refrescar();
+    // Deshacer también deshace pasos del historial: el panel tiene que volver
+    // a preguntar, porque los pasos de la pieza ya son otros.
+    if (window.Historial) Historial.traer();
   }
   if (window.invalidarPlano) window.invalidarPlano();
   pintar();

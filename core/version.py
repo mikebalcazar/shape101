@@ -21,13 +21,33 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.14.0"
+VERSION = "0.15.0"
 FECHA = "2026-09-19"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.15.0",
+        "fecha": "2026-09-19",
+        "cambios": [
+            "Las piezas traen su historial a la vista: al señalar una cara, el panel de la "
+            "derecha dice con qué se hizo la pieza —contorno, extrusión, barrenos, redondeos— "
+            "en palabras y no en código.",
+            "Y sus números se tocan. Un barreno se agranda cambiando su diámetro en la "
+            "cajita: no hay que volver a trazar el círculo ni repetir la resta.",
+            "Lo que se hizo después sobrevive al cambio. Si redondeaste unas aristas encima "
+            "de un barreno, siguen redondeadas cuando el barreno cambia de tamaño, y siguen "
+            "redondeadas si borras el barreno del historial.",
+            "Cada paso se puede quitar con su ×, menos el contorno y la extrusión: sin esos "
+            "dos no hay pieza.",
+            "Si un cambio deja la pieza imposible, se niega y la pieza queda como estaba. "
+            "Tocar un número no puede romper nada.",
+            "Dos comandos nuevos: BARRENO —se pica el centro y se da el diámetro— y "
+            "REDONDEAR, que redondea las aristas verticales de la pieza señalada.",
+        ],
+    },
     {
         "version": "0.14.0",
         "fecha": "2026-09-19",

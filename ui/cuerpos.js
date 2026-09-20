@@ -165,6 +165,10 @@ const Cuerpos = (() => {
 
   function senalar(cual) {
     senalada = cual ? { id: cual.id, cara: cual.cara } : null;
+    // El panel del historial sigue a la pieza señalada: señalar una cara es
+    // decir «de ésta quiero ver cómo se hizo». No se espera a la respuesta
+    // porque pintar no debe quedarse esperando a la red.
+    if (window.Historial) Historial.alSenalar(senalada);
     if (window.invalidarPlano) window.invalidarPlano();
     if (window.pintar) window.pintar();
     return senalada;

@@ -782,3 +782,20 @@ select.campo-hoja{position:absolute;z-index:6;box-sizing:border-box;padding:2px 
   border-radius:var(--r);box-shadow:0 6px 20px var(--sombra);font-size:12.5px}
 #letrero-version span{color:var(--txt)}
 #letrero-version button{white-space:nowrap}
+
+/* El historial de la pieza  ·  0.15.0
+   Un bloque por paso, con su título y sus números. Se lee de arriba abajo
+   como se hizo la pieza: contorno, extruir, y después lo que se le fue
+   haciendo. El mismo panel que todo lo demás —misma rejilla, mismas
+   cajitas— para que no parezca otro programa. */
+.props.historial{background:var(--panel3);max-height:38vh;overflow:auto}
+.props.historial h2{padding:0 0 6px}
+.props.historial .fila{grid-template-columns:88px 1fr}
+.props.historial[hidden]{display:none}
+.paso{border-left:2px solid var(--linea3);padding:0 0 6px 8px;margin-bottom:8px}
+.paso:last-child{margin-bottom:0;border-left-color:var(--acc2)}
+.paso-cab{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.paso-cab b{font-size:12px;color:var(--txt);font-weight:600}
+.paso-cab .cerrar{margin-left:auto;background:transparent;border:none;font-size:15px;
+  color:var(--txt3);padding:0 2px;line-height:1;cursor:pointer}
+.paso-cab .cerrar:hover{color:var(--malo,#e06c6c)}
