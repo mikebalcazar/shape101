@@ -1,39 +1,27 @@
-"""El mandadero · recado 42: la rejilla, y el cero al centro de las cuatro.
+"""El mandadero · recado 43: la rejilla de la Perspectiva, sin orillas.
 
-Mike, 20-sep: *«cuando recién abres shape101, la ventana superior y la de
-perspectiva tienen todo descentrado el grid, y la frontal y lateral no tienen
-grid… el grid debería ser infinito, es una referencia»*. Y media hora después,
-sobre CRECER: *«NO SIRVIÓ»*.
+Mike, 20-sep, sobre la 0.20.0 ya publicada: *«se dibuja mal el grid en
+perspectiva. se ven como 3 planos espaciados»* —con una foto y sólo el plano XY
+prendido—.
 
-Eran el mismo defecto visto por dos lados. Las tres ventanas que no son la
-Superior nacían con el origen del mundo **en su esquina de arriba a la
-izquierda**, así que una pieza levantada después caía fuera de la Perspectiva:
-no había cara que picar, y CRECER contestaba, con razón, «primero señala una
-cara». Medido antes de tocar nada, con una pieza de 400 × 300 × 100: la
-Perspectiva la proyectaba entre −225 y 0 píxeles, y su ventana empieza en 0.
+Eran los tres discos concéntricos con que la 0.20.0 desvanecía la rejilla en
+perspectiva. Las líneas quedaban cortadas en el borde de cada disco, y los
+extremos de todas esas líneas trazaban tres arcos. Vistos casi de canto cerca
+del horizonte, esos arcos se leen como tres planos espaciados. El desvanecido
+estaba bien pensado y mal hecho: a pasos, cuando tenía que ser de un golpe.
 
-Lo que va aquí:
+Ahora la rejilla de la Perspectiva se pinta en un lienzo aparte y se le aplica
+una máscara de degradado, en coordenadas del plano y no de la pantalla. No
+queda ninguna orilla porque no hay ningún corte: el tono baja hasta cero y ya.
 
-  · La rejilla es infinita. Se averigua al revés —de las cuatro esquinas de la
-    ventana al plano— y salen exactamente las líneas que se ven. Antes era un
-    cuadro fijo de mil milímetros alrededor del cero, con su orilla pintada.
-  · Cada ventana pinta **su** plano: XY la Superior, XZ la Frontal, YZ la
-    Lateral. El suelo visto desde la Frontal es una raya, y por eso esas dos
-    salían vacías.
-  · Se prende y se apaga por ventana —el cuadrito del título— y en la
-    Perspectiva por plano. El botón REJILLA manda sobre todas sin borrar lo que
-    cada una tenía elegido.
-  · Y el botón REJILLA apaga de verdad: la rejilla se pinta dentro de algo que
-    va en caché, y la llave de esa caché no la miraba.
-  · Las cuatro ventanas miran al cero al abrir, y Extents encuadra las cuatro
-    contando también las piezas, no sólo los trazos.
+`t032` crece con una comprobación que no habla de discos ni de máscaras sino de
+lo que se ve, y por eso seguirá valiendo si mañana el desvanecido se hace de
+otra manera: **acercándose, la rejilla nunca puede volverse más tenue**.
+Medido: 0.013 de salto con el desvanecido nuevo, 0.142 con el de la 0.20.0.
+La prueba falla contra el visor publicado.
 
-Probado aquí antes de mandarlo: la suite entera, 808 comprobaciones en 32
-pruebas. `t032` es la nueva y falla contra el código de la 0.19.0.
-
-Los parches viajan como texto pelón en `claude/parches-0.20.0/`: ni el ancla ni
-el texto viven dentro de una cadena de Python, que es como se han colado los
-errores de comillas y de sangría en los recados anteriores.
+Probado aquí antes de mandarlo: la suite entera, 810 comprobaciones en 32
+pruebas.
 """
 from __future__ import annotations
 
@@ -46,9 +34,9 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-PARCHES = "claude/parches-0.20.0"
-NUMERO = 42
-ASUNTO = "la rejilla infinita y el cero al centro de las cuatro ventanas"
+PARCHES = "claude/parches-0.20.1"
+NUMERO = 43
+ASUNTO = "la rejilla de la Perspectiva, sin orillas"
 
 lineas: list[str] = []
 
@@ -77,10 +65,6 @@ def aplicar(raiz: pathlib.Path) -> None:
     vez** —si aparece cero o dos, se para, que es mucho mejor que dejar un
     archivo a medias— y si el parche ya está puesto no se pone dos veces, así
     repetir el recado es inofensivo.
-
-    `entero` es de este recado: el archivo se reemplaza completo. Se usa cuando
-    lo que cambió está tan repartido que describirlo por anclas sería más
-    frágil que mandar el archivo, que es el caso de `visor.js` y `ventanas.js`.
     """
     d = raiz / PARCHES
     for p in json.loads((d / "indice.json").read_text(encoding="utf-8")):
@@ -124,69 +108,44 @@ def aplicar(raiz: pathlib.Path) -> None:
 
 
 def revisar(shape: pathlib.Path) -> None:
-    """Lo comprobable sin el motor de sólidos, que aquí no está instalado.
-
-    No se corre la suite: son 350 MB de OpenCascade y catorce minutos. La suite
-    ya corrió entera en el chat, con estos mismos parches puestos sobre una
-    copia de main, y eso es lo que autoriza a mandarlos. Aquí se comprueba lo
-    que sí se puede comprobar en treinta segundos y que es justo lo que se
-    rompe al transportar texto: que todo compile y que las piezas se encuentren
-    unas a otras.
-    """
+    """Lo comprobable sin navegador y sin el motor de sólidos, que aquí no
+    están. La suite ya corrió entera en el chat con estos mismos parches sobre
+    una copia de main, y eso es lo que autoriza a mandarlos. Aquí se comprueba
+    lo que se rompe al transportar texto."""
     import py_compile
 
-    for arch in ("core/preferencias.py", "core/version.py", "verificar.py",
-                 "pruebas/t032_rejilla_y_encuadre.py"):
+    for arch in ("core/version.py", "verificar.py", "pruebas/t032_rejilla_y_encuadre.py"):
         py_compile.compile(str(shape / arch), doraise=True)
-    anotar("los cuatro archivos de Python compilan")
+    anotar("los tres archivos de Python compilan")
 
-    # La versión vive en dos sitios y tienen que decir lo mismo: un instalador
-    # que se llama de una manera y se presenta de otra ya pasó ocho veces.
     v = json.loads((shape / "package.json").read_text(encoding="utf-8"))["version"]
     if f'VERSION = "{v}"' not in (shape / "core" / "version.py").read_text(encoding="utf-8"):
         raise RuntimeError(f"package.json dice {v} y core/version.py dice otra cosa")
-    if v != "0.20.0":
-        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.20.0")
+    if v != "0.20.1":
+        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.20.1")
     anotar(f"la versión dice {v} en los dos sitios")
 
-    # Las preferencias nuevas: sin ellas los interruptores del título no tienen
-    # dónde guardarse y se olvidan al cerrar.
-    prefs = (shape / "core" / "preferencias.py").read_text(encoding="utf-8")
-    for clave in ("rejilla_ventanas", "rejilla_planos"):
-        if clave not in prefs:
-            raise RuntimeError(f"falta la preferencia {clave}")
-    anotar("las preferencias por ventana y por plano están puestas")
-
-    # Las piezas se buscan por nombre entre archivos: si una se queda con el
-    # nombre viejo, el programa arranca y la rejilla no aparece nunca.
-    ventanas = (shape / "ui" / "ventanas.js").read_text(encoding="utf-8")
-    for f in ("planosRejilla", "botonEn", "alternarRejilla", "centrarEnOrigen"):
-        if f"function {f}" not in ventanas or f not in ventanas.split("return {")[-1]:
-            raise RuntimeError(f"ventanas.js no ofrece {f}")
-    anotar("ventanas.js ofrece las cuatro funciones nuevas")
-
     visor = (shape / "ui" / "visor.js").read_text(encoding="utf-8")
-    if "dibujarSuelo" in visor:
-        raise RuntimeError("visor.js todavía pinta el suelo con orilla")
-    for clave in ("BASES", "XZ: [[1, 0, 0]", "YZ: [[0, 1, 0]", "MIN_PX"):
+    # Lo que se fue: el desvanecido a tres discos, que es el defecto. Se busca
+    # el código y no la palabra: «discos» aparece en el comentario que explica
+    # justamente por qué ya no se hacen así.
+    for rastro in ("let discos = null", "discos || [null]", "[1, 0.72, 0.46]"):
+        if rastro in visor:
+            raise RuntimeError(f"visor.js todavía desvanece a discos: «{rastro}»")
+    # Y lo que llegó: el lienzo aparte con su máscara de degradado.
+    for clave in ("lienzoAparte", "createRadialGradient", "destination-in"):
         if clave not in visor:
-            raise RuntimeError(f"visor.js no trae {clave}")
-    anotar("visor.js pinta los tres planos y ya no pinta la orilla")
+            raise RuntimeError(f"visor.js no trae {clave}: el desvanecido no es de una pieza")
+    # La `g` de la escalera y el contexto aparte comparten función: ya se
+    # colaron una vez y el ensayo lo cazó con la ventana en blanco.
+    if "const grad = g.createRadialGradient" in visor:
+        raise RuntimeError("visor.js confunde el contador `g` con el contexto del lienzo aparte")
+    anotar("visor.js desvanece la rejilla de una sola pieza")
 
-    vista = (shape / "ui" / "vista.js").read_text(encoding="utf-8")
-    for clave in ("Ventanas.planosRejilla(v)", "Ventanas.botonEn", "Cuerpos.esquinas"):
-        if clave not in vista:
-            raise RuntimeError(f"vista.js no llama a {clave}")
-    # La llave de la caché del plano: sin la rejilla dentro, el botón REJILLA
-    # cambia la preferencia y la pantalla se queda igual. Fue el defecto.
-    llave = vista.split("function llavePlano()")[1].split("\n}")[0]
-    if "rejilla" not in llave:
-        raise RuntimeError("la llave del plano no mira la rejilla: el botón no la borraría")
-    anotar("vista.js engancha las cuatro ventanas y la llave mira la rejilla")
-
-    if "esquinas" not in (shape / "ui" / "cuerpos.js").read_text(encoding="utf-8").split("return {")[-1]:
-        raise RuntimeError("cuerpos.js no ofrece esquinas(): Extents dejaría piezas fuera")
-    anotar("cuerpos.js ofrece la caja de las piezas para encuadrar")
+    prueba = (shape / "pruebas" / "t032_rejilla_y_encuadre.py").read_text(encoding="utf-8")
+    if "_sin_orillas" not in prueba or "nunca se vuelve más tenue" not in prueba:
+        raise RuntimeError("t032 no fija la regla de las orillas")
+    anotar("t032 fija que acercándose la rejilla nunca se vuelve más tenue")
 
 
 def main() -> int:
@@ -222,28 +181,25 @@ def main() -> int:
         encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "La rejilla infinita, por ventana y por plano; y el cero al centro\n\n"
-            "Mike reporto dos cosas con media hora de diferencia: que al abrir el grid\n"
-            "sale descentrado y que la Frontal y la Lateral no tienen, y que CRECER no\n"
-            "sirvio. Eran el mismo defecto visto por dos lados.\n\n"
-            "Las tres ventanas que no son la Superior nacian con el origen del mundo en\n"
-            "su esquina de arriba a la izquierda. Medido con una pieza de 400x300x100: la\n"
-            "Perspectiva la proyectaba entre -225 y 0 pixeles, y su ventana empieza en 0.\n"
-            "La pieza caia fuera, no habia cara que picar, y CRECER contestaba con razon\n"
-            "que primero habia que senalar una.\n\n"
-            "La rejilla: ahora se averigua al reves -de las cuatro esquinas de la ventana\n"
-            "al plano- y salen exactamente las lineas que se ven, a cualquier zoom. Cada\n"
-            "ventana pinta su plano (XY, XZ, YZ); el suelo visto desde la Frontal es una\n"
-            "raya, y por eso esas dos salian vacias. En la Perspectiva se desvanece hacia\n"
-            "el horizonte en vez de apelmazarse.\n\n"
-            "Se prende y se apaga por ventana, con el cuadrito del titulo, y en la\n"
-            "Perspectiva por plano. El boton REJILLA manda sobre todas sin borrar lo que\n"
-            "cada una tenia elegido, y ahora apaga de verdad: la rejilla se pinta dentro\n"
-            "de algo que va en cache y la llave de esa cache no la miraba.\n\n"
-            "Extents encuadra las cuatro y cuenta tambien las piezas, no solo los trazos.\n\n"
-            "t032, 36 comprobaciones, mirando el lienzo pixel por pixel en las orillas de\n"
-            "cada ventana a tres zooms, y picando una cara con el raton de verdad.\n\n"
-            "Suite completa en el chat: 808 comprobaciones en 32 pruebas.\n\n"
+            "La rejilla de la Perspectiva, sin orillas\n\n"
+            "Mike, sobre la 0.20.0 ya publicada: se dibuja mal el grid en perspectiva, se\n"
+            "ven como 3 planos espaciados. Con foto y solo el plano XY prendido.\n\n"
+            "Eran los tres discos concentricos con que la 0.20.0 desvanecia la rejilla.\n"
+            "Las lineas quedaban cortadas en el borde de cada disco, y los extremos de\n"
+            "todas esas lineas trazaban tres arcos; vistos casi de canto cerca del\n"
+            "horizonte, esos arcos se leen como tres planos. El desvanecido estaba bien\n"
+            "pensado y mal hecho: a pasos, cuando tenia que ser de un golpe.\n\n"
+            "Ahora la rejilla de la Perspectiva se pinta en un lienzo aparte y se le\n"
+            "aplica una mascara de degradado, en coordenadas del plano y no de la\n"
+            "pantalla: sobre el suelo es un circulo y en pantalla cae como la elipse que\n"
+            "le toca, asi que lo que se apaga es lo lejano y no lo que queda a los lados.\n"
+            "No hay ninguna orilla porque no hay ningun corte. 5 ms por cuadro con las\n"
+            "cuatro ventanas y los tres planos.\n\n"
+            "t032 crece con una comprobacion que no habla de discos ni de mascaras sino\n"
+            "de lo que se ve, y por eso seguira valiendo si el desvanecido cambia:\n"
+            "acercandose, la rejilla nunca puede volverse mas tenue. Medido 0.013 con lo\n"
+            "nuevo y 0.142 con lo publicado; la prueba falla contra el visor de la 0.20.0.\n\n"
+            "Suite completa en el chat: 810 comprobaciones en 32 pruebas.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
