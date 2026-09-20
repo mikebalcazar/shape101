@@ -10,9 +10,14 @@ La caché es por **huella de las operaciones**: si la lista no cambió, el sóli
 tampoco. Nada de invalidar a mano, que es de donde salen los errores que nadie
 logra reproducir.
 
-Las tres cosas que se pueden hacer con un cuerpo, y lo que significan:
+Lo que se puede hacer con un cuerpo, y lo que significa:
 
 - **extruir**: un contorno cerrado del dibujo se levanta y se vuelve sólido.
+- **revolver, barrer, loft**: las otras tres maneras de que nazca un cuerpo.
+  Torneado alrededor de un eje, perfil recorriendo un camino, y piel que pasa
+  por varias secciones. No son para madera: son para cualquier pieza.
+- **extruir_cara**: material nuevo con el perfil de una cara. No estira la
+  cara: agrega un sólido encima.
 - **empujar una cara**: la cara se mueve y el sólido se rehace. Positivo es
   hacia afuera. La cara se nombra por lo que es, no por un número: sigue siendo
   «arriba» aunque el boceto cambie.
@@ -105,8 +110,25 @@ def ops_de_contorno(entidades: list[dict], mm: float) -> list[dict]:
         raise ValueError("no hay contorno que extruir")
     if mm == 0:
         raise ValueError("un espesor de cero no hace un sólido")
-    return [{"op": "boceto", "entidades": json.loads(json.dumps(entidades))},
-            {"op": "extruir", "mm": float(mm)}]
+    # La extrusión dice **de qué boceto** sale, por id. Antes se sobreentendía
+    # («el de arriba») y eso se rompía en cuanto hubiera dos bocetos, que es
+    # justo lo que hace falta para un loft o un barrido.
+    return historial.asegurar_ids(
+        [{"op": "boceto", "entidades": json.loads(json.dumps(entidades))},
+         {"op": "extruir", "mm": float(mm), "perfil": "0"}])
+
+
+def agregar(operaciones: list, op: dict) -> list:
+    """Una operación más al final, con su id recién puesto.
+
+    Todo lo que agregue pasos pasa por aquí: así no hay dos maneras de darle
+    identidad a una operación, y nunca nace una sin ella.
+    """
+    ops = historial.asegurar_ids(operaciones)
+    nueva = json.loads(json.dumps(op))
+    if nueva.get("id") in (None, ""):
+        nueva["id"] = historial.id_libre(ops)
+    return ops + [nueva]
 
 
 def mover_punto(operaciones: list[dict], entidad: int, punto: int, x: float, y: float) -> list[dict]:
@@ -117,7 +139,7 @@ def mover_punto(operaciones: list[dict], entidad: int, punto: int, x: float, y: 
     y se vuelven a aplicar solas al regenerar. Eso es justo lo que hace que
     valga la pena guardar cómo se hizo en vez de guardar la geometría.
     """
-    ops = json.loads(json.dumps(operaciones))
+    ops = historial.asegurar_ids(operaciones)
     for op in ops:
         if op.get("op") != "boceto":
             continue
@@ -176,13 +198,13 @@ def tiradores(cuerpo) -> dict:
 def mover_vertice(operaciones: list, nombre: str, d) -> list:
     """Una operación más al final: esa esquina, corrida. No se toca nada de lo
     anterior, así que deshacer es quitar la última y ya."""
-    return json.loads(json.dumps(operaciones)) + [
-        {"op": "mover_vertice", "vertice": nombre, "d": [float(k) for k in d]}]
+    return agregar(operaciones, {"op": "mover_vertice", "vertice": nombre,
+                                 "d": [float(k) for k in d]})
 
 
 def mover_arista(operaciones: list, nombre: str, d) -> list:
-    return json.loads(json.dumps(operaciones)) + [
-        {"op": "mover_arista", "arista": nombre, "d": [float(k) for k in d]}]
+    return agregar(operaciones, {"op": "mover_arista", "arista": nombre,
+                                 "d": [float(k) for k in d]})
 
 
 # --- el historial, para verlo y editarlo -----------------------------------
@@ -352,7 +374,9 @@ def describir(operaciones: list) -> list:
     pieza. Van marcados para que la pantalla no ofrezca borrarlos.
     """
     salida = []
-    for i, op in enumerate(operaciones):
+    ops = historial.asegurar_ids(operaciones)
+    mapa, nace = historial.enlaces(ops), historial.nace_el_solido(ops)
+    for i, op in enumerate(ops):
         clase = op.get("op")
         campos, titulo = [], clase
         if clase == "boceto":
@@ -360,6 +384,17 @@ def describir(operaciones: list) -> list:
         elif clase == "extruir":
             titulo = f"Extruir {op.get('mm')}"
             campos = [_campo("mm", "Espesor", op.get("mm", 0))]
+        elif clase == "revolver":
+            g = op.get("grados", 360)
+            titulo = f"Torneado {g}°" if g != 360 else "Torneado"
+            campos = [_campo("grados", "Grados", g, unidad="°", minimo=0.01)]
+        elif clase == "barrer":
+            titulo = "Barrido por un camino"
+        elif clase == "loft":
+            titulo = f"Loft entre {len(op.get('perfiles') or [])} perfiles"
+        elif clase == "extruir_cara":
+            titulo = f"Cara «{op.get('cara')}» crecida {op.get('mm')}"
+            campos = [_campo("mm", "Cuánto", op.get("mm", 0))]
         elif clase == "restar":
             ents = op.get("entidades") or []
             forma = ents[0].get("tipo") if ents else "?"
@@ -389,8 +424,11 @@ def describir(operaciones: list) -> list:
             titulo = f"{que} «{nombre}» movido"
             campos = [_campo("d/0", "En X", d[0]), _campo("d/1", "En Y", d[1]),
                       _campo("d/2", "En Z", d[2])]
-        salida.append({"i": i, "op": clase, "titulo": titulo, "campos": campos,
-                       "de_nacimiento": clase in ("boceto", "extruir") and i < 2})
+        # «De nacimiento» ya no es una posición: es que quitarlo rompería algo.
+        # La pantalla esconde la × exactamente donde el motor se negaría.
+        salida.append({"i": i, "id": op.get("id"), "op": clase, "titulo": titulo,
+                       "campos": campos,
+                       "de_nacimiento": bool(_por_que_no_se_quita(ops, i, mapa, nace))})
     return salida
 
 
@@ -419,7 +457,7 @@ def _poner(op: dict, clave: str, valor: float) -> None:
 def cambiar_operacion(operaciones: list, i: int, campos: dict) -> list:
     """Los números nuevos de una operación. El resto del historial no se toca:
     por eso un barreno se agranda sin volver a trazar nada."""
-    ops = json.loads(json.dumps(operaciones))
+    ops = historial.asegurar_ids(operaciones)
     if not (0 <= i < len(ops)):
         raise ValueError(f"no hay una operación {i}")
     # Ancho, fondo y esquina no viven en ningún lado dentro de la operación: se
@@ -442,13 +480,39 @@ def cambiar_operacion(operaciones: list, i: int, campos: dict) -> list:
 
 def quitar_operacion(operaciones: list, i: int) -> list:
     """Quita un paso. Las de nacimiento no se quitan: sin ellas no hay pieza."""
-    ops = json.loads(json.dumps(operaciones))
+    ops = historial.asegurar_ids(operaciones)
     if not (0 <= i < len(ops)):
         raise ValueError(f"no hay una operación {i}")
-    if ops[i].get("op") in ("boceto", "extruir") and i < 2:
-        raise ValueError("el contorno y la extrusión son de nacimiento: sin ellos no hay pieza")
+    porque = _por_que_no_se_quita(ops, i)
+    if porque:
+        raise ValueError(porque)
     del ops[i]
     return ops
+
+
+def _por_que_no_se_quita(ops: list, i: int, mapa=None, nace=None) -> str:
+    """Vacío si ese paso se puede quitar; si no, por qué no.
+
+    Hasta la 0.18.0 la regla era por **posición**: los dos primeros no se
+    quitan. Con ids eso deja de valer —un loft son dos bocetos y luego el
+    loft, así que la posición 1 es un boceto que sí se puede quitar si nadie
+    lo usa—. La regla ahora es la de verdad: **no se quita lo que sostiene a
+    otra cosa**.
+    """
+    # `mapa` y `nace` se pasan hechos cuando se pregunta por todos los pasos
+    # seguidos —`describir`—: calcularlos una vez por paso sería cuadrático, y
+    # un historial largo es justo donde se nota.
+    if mapa is None:
+        mapa = historial.enlaces(ops)
+    if nace is None:
+        nace = historial.nace_el_solido(ops)
+    id_ = str(ops[i]["id"])
+    if id_ == nace:
+        return "sin la operación que crea el sólido no hay pieza"
+    usan = [k for k, usa in mapa.items() if id_ in usa]
+    if usan:
+        return f"no se puede quitar: lo usa(n) {', '.join(usan)}"
+    return ""
 
 
 def ops_de_barreno(centro, radio: float, mm: float, plano_ref=None) -> dict:
