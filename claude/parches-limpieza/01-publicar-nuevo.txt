@@ -1,0 +1,11 @@
+2. **La versión, en dos sitios que deben decir lo mismo:**
+   - `core/version.py` → `VERSION = "X.Y.Z"` y una entrada arriba en `BITACORA`
+   - `package.json` → `"version"`, `"_versionApp"` y `"artifactName"`
+   Si no coinciden, el armado se niega en el segundo paso y no gasta un armado.
+3. **Crear la rama `claude/publicar-X.Y.Z`** apuntando al commit que quieres
+   publicar. Eso dispara `armar-y-publicar.yml` y ya no hay que hacer nada más.
+
+Unos 20 minutos después, `descargas/shape101.json` dice la versión nueva y el
+instalador se puede bajar. Esa es la única señal que cuenta: **nunca des por
+publicada una versión sin leer ese archivo.**
+

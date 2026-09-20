@@ -1,0 +1,7 @@
+4. **El kernel de sólidos** — `build123d` dentro de ese Python, y una prueba de
+   que el kernel y la app conviven (una caja de 6 caras).
+5. **Dependencias de Electron** y **motores DWG presentes**.
+6. **Pruebas** — `python verificar.py`, las 28 pruebas. Si una falla, se detiene
+   aquí y no se publica nada. Esto es lo que nos ha salvado más veces.
+7. **Armar el instalador** — `electron-builder --win nsis`, ~250 MB.
+8. **Preparar la carga** — se parte en pedazos y se calcula la huella sha256.
