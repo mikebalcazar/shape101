@@ -1,0 +1,30 @@
+        # Lo que sobra con la MISMA superficie que una cara ya nombrada es una
+        # continuación de ésa (el kernel no siempre funde dos caras coplanares
+        # o coaxiales tras una booleana): se llama «nombre~2», «nombre~3»…
+        # También en orden de posición, por lo mismo de arriba.
+        for f in sorted(libres, key=_orden):
+            sf = superficies[id(f)]
+            base = next((n for n, g in asignadas.items() if "~" not in n and misma_superficie(sf, superficie(g))), None)
+            if base:
+                asignadas[_siguiente(base)] = f
+                libres.remove(f)
+        k = 0
+        for f in sorted(libres, key=_orden):
+            while f"anonima[{k}]" in asignadas:      # nunca pisar un nombre que ya existe
+                k += 1
+            asignadas[f"anonima[{k}]"] = f
+            k += 1
+        for viejo, nuevo_ in (heredan or {}).items():
+            if nuevo_ not in asignadas:
+                continue
+            # La cara que ya tenía ese nombre no se tira: se corre a un
+            # «~k». Antes se perdía, y con ella el nombre de sus aristas y sus
+            # vértices. Medido el 19-sep: jalar `lado[0]` con la cara ya
+            # partida dejaba el otro trozo sin nombre.
+            desplazada = asignadas.get(viejo)
+            asignadas[viejo] = asignadas.pop(nuevo_)
+            if desplazada is not None and desplazada is not asignadas[viejo]:
+                asignadas[_siguiente(viejo)] = desplazada
+        perdidas = [n for n in self.caras if n not in asignadas]
+        self.caras = asignadas
+        return perdidas

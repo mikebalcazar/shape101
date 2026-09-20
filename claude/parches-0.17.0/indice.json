@@ -1,0 +1,38 @@
+[
+ {
+  "archivo": "core/solido/nombres.py",
+  "modo": "cambiar",
+  "ancla_txt": "01-nombres_py-ancla.txt",
+  "texto": "01-nombres_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/solido/nombres.py",
+  "modo": "cambiar",
+  "ancla_txt": "02-nombres_py-ancla.txt",
+  "texto": "02-nombres_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/solido/nombres.py",
+  "modo": "cambiar",
+  "ancla_txt": "03-nombres_py-ancla.txt",
+  "texto": "03-nombres_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/version.py",
+  "modo": "cambiar",
+  "ancla_txt": "04-version_py-ancla.txt",
+  "texto": "04-version_py-nuevo.txt"
+ },
+ {
+  "archivo": "core/version.py",
+  "modo": "cambiar",
+  "ancla_txt": "05-version_py-ancla.txt",
+  "texto": "05-version_py-nuevo.txt"
+ },
+ {
+  "archivo": "package.json",
+  "modo": "todos",
+  "ancla_txt": "06-package_json-ancla.txt",
+  "texto": "06-package_json-nuevo.txt"
+ }
+]

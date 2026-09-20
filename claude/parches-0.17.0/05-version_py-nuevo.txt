@@ -1,0 +1,19 @@
+BITACORA: list[dict] = [
+    {
+        "version": "0.17.0",
+        "fecha": "2026-09-19",
+        "cambios": [
+            "Cuando una operación parte una cara en dos —una muesca que entra por un "
+            "costado, una ranura que cruza la pieza—, cada trozo se queda con su propio "
+            "nombre: «lado[0]» y «lado[0]~2». Antes los dos trozos se peleaban el mismo.",
+            "Y el nombre se queda en el mismo trozo aunque cambie la medida de la pieza. "
+            "Antes, al estirar el tablero, el nombre saltaba al otro trozo sin avisar: una "
+            "cara jalada se iba al otro lado de la pieza y el programa no decía nada. "
+            "Comprobado con anchos de 450, 600, 900 y 2000.",
+            "Jalar un trozo ya no deja al otro sin nombre. Antes se perdía, y con él se "
+            "perdían los nombres de sus aristas y sus vértices, así que ya no se podía "
+            "trabajar sobre ese trozo.",
+            "Una ranura que parte la pieza en dos sólidos ya no pierde ni un nombre.",
+        ],
+    },
+    {

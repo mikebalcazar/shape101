@@ -1,0 +1,6 @@
+            continue
+        hallazgos.append(f)
+    return hallazgos[0] if len(hallazgos) == 1 else None
+
+
+# ---------------------------------------------------------------- nombrador

@@ -1,0 +1,17 @@
+        superficies = {id(f): superficie(f) for f in libres}
+        asignadas: dict[str, Face] = {}
+
+        def repartir(diccionario: dict[str, Face]):
+            for nombre, vieja in diccionario.items():
+                sv = superficie(vieja)
+                casan = [f for f in libres if misma_superficie(superficies[id(f)], sv)]
+                if not casan:
+                    continue
+                if len(casan) == 1:
+                    elegida = casan[0]
+                else:
+                    cv = vieja.center()
+                    elegida = min(casan, key=lambda f: (f.center() - cv).length)
+                asignadas[nombre] = elegida
+                libres.remove(elegida)
+
