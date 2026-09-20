@@ -127,6 +127,18 @@ def por_huella(caras: list[Face], h: tuple, tol_dist=0.5, tol_area=0.01) -> Face
     return hallazgos[0] if len(hallazgos) == 1 else None
 
 
+def _orden(cara: Face) -> tuple:
+    """El orden en que se reparten los trozos de una cara partida.
+
+    Tiene que ser **geométrico y no del kernel**: el kernel devuelve las caras
+    en el orden en que las fue creando, que cambia con la operación. El centro,
+    eje por eje, no cambia de orden cuando la pieza se estira, y por eso el
+    mismo trozo se queda con el mismo nombre al cambiar una cota.
+    """
+    c = cara.center()
+    return (round(c.X, 4), round(c.Y, 4), round(c.Z, 4), round(cara.area, 4))
+
+
 # ---------------------------------------------------------------- nombrador
 class Nombrador:
     """Lleva `nombre → cara` para el sólido vigente y lo rehace tras cada
@@ -278,17 +290,58 @@ class Nombrador:
         superficies = {id(f): superficie(f) for f in libres}
         asignadas: dict[str, Face] = {}
 
+        def _siguiente(base: str) -> str:
+            k = 2
+            while f"{base}~{k}" in asignadas:
+                k += 1
+            return f"{base}~{k}"
+
         def repartir(diccionario: dict[str, Face]):
+            # Primero, quién compite con quién. Un nombre que es el **único**
+            # que casa con dos o más caras no está compitiendo: su cara se
+            # partió. Un nombre que comparte candidatos con otro sí compite, y
+            # ahí manda la cercanía (el caso de los cajeados coplanares).
+            candidatos = {}
             for nombre, vieja in diccionario.items():
                 sv = superficie(vieja)
                 casan = [f for f in libres if misma_superficie(superficies[id(f)], sv)]
+                if casan:
+                    candidatos[nombre] = casan
+
+            solos, disputados = [], []
+            for nombre, casan in candidatos.items():
+                otros = [n for n, c in candidatos.items()
+                         if n != nombre and any(f in casan for f in c)]
+                (solos if not otros else disputados).append(nombre)
+
+            # --- la cara se partió: se reparte por POSICIÓN, no por cercanía.
+            #
+            # Aquí estaba el defecto que hacía que el historial se equivocara
+            # en silencio. Con «la más cercana a la vieja», el nombre base
+            # saltaba de un trozo al otro al cambiar una cota: medido el
+            # 19-sep sobre un tablero con una muesca, `lado[0]` era el trozo
+            # izquierdo con 600 y 450 de ancho, y el **derecho** con 900 y
+            # 2000. Una cara jalada se iba al otro lado de la pieza sin avisar.
+            #
+            # Con el orden del centro, el mismo trozo se queda con el mismo
+            # nombre a cualquier medida: comprobado con 450, 600, 900 y 2000.
+            for nombre in solos:
+                casan = [f for f in candidatos[nombre] if f in libres]
                 if not casan:
                     continue
-                if len(casan) == 1:
-                    elegida = casan[0]
-                else:
-                    cv = vieja.center()
-                    elegida = min(casan, key=lambda f: (f.center() - cv).length)
+                casan.sort(key=_orden)
+                asignadas[nombre] = casan[0]
+                libres.remove(casan[0])
+                for f in casan[1:]:
+                    asignadas[_siguiente(nombre)] = f
+                    libres.remove(f)
+
+            for nombre in disputados:
+                casan = [f for f in candidatos[nombre] if f in libres]
+                if not casan:
+                    continue
+                cv = diccionario[nombre].center()
+                elegida = min(casan, key=lambda f: ((f.center() - cv).length, _orden(f)))
                 asignadas[nombre] = elegida
                 libres.remove(elegida)
 
@@ -297,24 +350,30 @@ class Nombrador:
         # Lo que sobra con la MISMA superficie que una cara ya nombrada es una
         # continuación de ésa (el kernel no siempre funde dos caras coplanares
         # o coaxiales tras una booleana): se llama «nombre~2», «nombre~3»…
-        for f in list(libres):
+        # También en orden de posición, por lo mismo de arriba.
+        for f in sorted(libres, key=_orden):
             sf = superficies[id(f)]
             base = next((n for n, g in asignadas.items() if "~" not in n and misma_superficie(sf, superficie(g))), None)
             if base:
-                k = 2
-                while f"{base}~{k}" in asignadas:
-                    k += 1
-                asignadas[f"{base}~{k}"] = f
+                asignadas[_siguiente(base)] = f
                 libres.remove(f)
         k = 0
-        for f in libres:
+        for f in sorted(libres, key=_orden):
             while f"anonima[{k}]" in asignadas:      # nunca pisar un nombre que ya existe
                 k += 1
             asignadas[f"anonima[{k}]"] = f
             k += 1
-        for viejo, nuevo in (heredan or {}).items():
-            if nuevo in asignadas:
-                asignadas[viejo] = asignadas.pop(nuevo)
+        for viejo, nuevo_ in (heredan or {}).items():
+            if nuevo_ not in asignadas:
+                continue
+            # La cara que ya tenía ese nombre no se tira: se corre a un
+            # «~k». Antes se perdía, y con ella el nombre de sus aristas y sus
+            # vértices. Medido el 19-sep: jalar `lado[0]` con la cara ya
+            # partida dejaba el otro trozo sin nombre.
+            desplazada = asignadas.get(viejo)
+            asignadas[viejo] = asignadas.pop(nuevo_)
+            if desplazada is not None and desplazada is not asignadas[viejo]:
+                asignadas[_siguiente(viejo)] = desplazada
         perdidas = [n for n in self.caras if n not in asignadas]
         self.caras = asignadas
         return perdidas
