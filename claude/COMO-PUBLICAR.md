@@ -16,11 +16,11 @@ o en un flujo, es deuda: bórrala.
 2. **La versión, en dos sitios que deben decir lo mismo:**
    - `core/version.py` → `VERSION = "X.Y.Z"` y una entrada arriba en `BITACORA`
    - `package.json` → `"version"`, `"_versionApp"` y `"artifactName"`
-   Si no coinciden, el armado se niega en el segundo paso y no gasta 45 minutos.
+   Si no coinciden, el armado se niega en el segundo paso y no gasta un armado.
 3. **Crear la rama `claude/publicar-X.Y.Z`** apuntando al commit que quieres
    publicar. Eso dispara `armar-y-publicar.yml` y ya no hay que hacer nada más.
 
-Unos 45 minutos después, `descargas/shape101.json` dice la versión nueva y el
+Unos 20 minutos después, `descargas/shape101.json` dice la versión nueva y el
 instalador se puede bajar. Esa es la única señal que cuenta: **nunca des por
 publicada una versión sin leer ese archivo.**
 
@@ -37,7 +37,7 @@ Corre en `windows-latest` porque el producto es para Windows.
 4. **El kernel de sólidos** — `build123d` dentro de ese Python, y una prueba de
    que el kernel y la app conviven (una caja de 6 caras).
 5. **Dependencias de Electron** y **motores DWG presentes**.
-6. **Pruebas** — `python verificar.py`, las 24 pruebas. Si una falla, se detiene
+6. **Pruebas** — `python verificar.py`, las 28 pruebas. Si una falla, se detiene
    aquí y no se publica nada. Esto es lo que nos ha salvado más veces.
 7. **Armar el instalador** — `electron-builder --win nsis`, ~250 MB.
 8. **Preparar la carga** — se parte en pedazos y se calcula la huella sha256.
@@ -58,11 +58,21 @@ El instalador lleva dentro un Python de Windows con todo puesto: `ezdxf`,
 desde cero en cada corrida sería lentísimo, así que **cada armado lo hereda del
 instalador anterior de shape101** y sólo le pone encima lo que falte.
 
+**Cuál es ese instalador no se escribe a mano.** El flujo lo saca del
+manifiesto de `descargas`:
+
 ```yaml
-INSTALADOR_ANTERIOR: .../releases/download/shape101-0.11.0/shape101-0.11.0-setup.exe
+MANIFIESTO: https://raw.githubusercontent.com/mikebalcazar/descargas/main/shape101.json
 ```
 
-Dos cosas que hay que saber:
+y de ahí lee la URL del `.exe` publicado ahora mismo. Se hizo así en la 0.18.0
+después de que el armado de la 0.17.0 muriera en un minuto: la URL estaba
+escrita a mano apuntando a la 0.13.0, y la poda automática —que deja las 3
+releases más nuevas— se había llevado esa release. **Dos cosas nuestras que
+funcionan bien, juntas se rompían.** Ahora la poda y el armado no se pueden
+contradecir, porque los dos miran el mismo archivo.
+
+Dos cosas más que hay que saber:
 
 **1. Está en dos capas.** El NSIS de electron-builder guarda toda la app dentro
 de `$PLUGINSDIR/app-64.7z` y sólo deja el icono suelto. Hay que abrir el `.exe`
@@ -73,10 +83,13 @@ $PLUGINSDIR/app-64.7z   248 MB   ← aquí vive resources/python
 resources/icon.ico       53 KB   ← lo único suelto
 ```
 
-**2. REGLA QUE NO SE ROMPE: la última release publicada de shape101 nunca se
+**2. REGLA QUE NO SE ROMPE: la release que anuncia el manifiesto nunca se
 borra.** Es el cimiento del siguiente armado. El 19-sep se limpiaron releases
 viejas y con ellas se fue el archivo del que salía el Python; el armado murió
-en 19 segundos durante horas sin que nadie entendiera por qué.
+en 19 segundos durante horas sin que nadie entendiera por qué. La poda
+automática deja las 3 más nuevas y el manifiesto anuncia la más nueva de todas,
+así que hoy la regla se cumple sola — pero si alguien borra releases a mano,
+que mire antes qué dice `descargas/shape101.json`.
 
 ---
 
