@@ -1,0 +1,8 @@
+    }
+  }
+
+  return { pintar, abajo, mover, arriba, bajo, cargar, olvidar, delMundo,
+           planoDeArrastre, arrastrando: () => !!arrastre };
+})();
+
+if (typeof window !== "undefined") window.Tiradores = Tiradores;

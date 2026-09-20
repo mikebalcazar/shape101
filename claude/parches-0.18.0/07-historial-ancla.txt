@@ -1,0 +1,7 @@
+
+  Comandos.registrar({
+    nombre: "REDONDEAR", alias: ["RED", "FILLET"],
+    ayuda: "REDONDEAR [r] — redondea las aristas verticales de la pieza señalada",
+    correr: async (args) => {
+      const id = (typeof Cuerpos !== "undefined" && Cuerpos.senalada) ? Cuerpos.senalada.id : null;
+      if (!id) {

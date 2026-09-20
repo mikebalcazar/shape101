@@ -1,0 +1,6 @@
+    const [px, py] = coords(e);
+    const t = bajo(px, py);
+    if (!t) return false;
+    const plano = planoDeArrastre();
+    const inv = inversaDelPlano(plano, t.p);
+    if (!inv) {

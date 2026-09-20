@@ -1,0 +1,11 @@
+        });
+        const j = await resp.json();
+        if (!resp.ok) throw new Error(j.detail || resp.status);
+        // Ya se usaron: se sueltan, o el siguiente REDONDEAR repetiría éstas
+        // sin que nadie se lo pidiera.
+        if (aMano && typeof Tiradores !== "undefined") Tiradores.soltarElegidas(id);
+        await Historial.trasCambiar(j, `${aristas.length} arista(s) redondeada(s) r${r}`
+          + (aMano ? " (las elegidas)" : " (las verticales)"));
+      } catch (e) { Comandos.eco("No se pudo redondear: " + e.message, "malo"); }
+    },
+  });

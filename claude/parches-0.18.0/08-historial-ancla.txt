@@ -1,0 +1,12 @@
+      }
+      if (!isFinite(r) || r <= 0) return;
+      try {
+        const refs = await fetch(`/api/cuerpo/${id}/referencias`).then((x) => x.json());
+        // Las verticales son las que separan dos lados: son las que un taller
+        // redondea. Elegirlas a mano con el ratón es el paso siguiente.
+        const aristas = (refs.aristas || []).filter((a) => (a.match(/lado\[/g) || []).length === 2);
+        if (!aristas.length) {
+          Comandos.eco("Esta pieza no tiene aristas verticales que redondear.", "malo");
+          return;
+        }
+        const resp = await fetch(`/api/cuerpo/${id}/redondear`, {

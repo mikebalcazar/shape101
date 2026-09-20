@@ -1,0 +1,19 @@
+        run: |
+          set -euo pipefail
+          exec > >(tee -a "$GITHUB_WORKSPACE/armado.log") 2>&1
+          # Cuál es el instalador anterior lo dice el manifiesto de `descargas`,
+          # no una URL escrita a mano. Ver el comentario de MANIFIESTO arriba.
+          curl -fsSL -o manifiesto.json "$MANIFIESTO" || { echo "no se pudo leer $MANIFIESTO"; exit 1; }
+          ANTERIOR=$(grep -o 'https://github.com/[^"]*-setup\.exe' manifiesto.json | head -1)
+          if [ -z "$ANTERIOR" ]; then
+            echo "el manifiesto no dice de qué instalador heredar el Python. Esto trae:"
+            cat manifiesto.json
+            exit 1
+          fi
+          echo "Python empotrado heredado de: $ANTERIOR"
+          # -f: si la release ya no existe, que falle aquí con un mensaje y no
+          # tres líneas después en 7z con un «exit 2» que no explica nada.
+          curl -fsSL -o anterior.exe "$ANTERIOR" || { echo "no existe $ANTERIOR: la release que anuncia el manifiesto no está publicada"; exit 1; }
+          # El NSIS de electron-builder guarda toda la app dentro de
+          # $PLUGINSDIR/app-64.7z y deja sólo el icono suelto: hay que abrir dos
+          # capas. El instalador viejo de draw101 dejaba el árbol a la vista, así

@@ -1,0 +1,25 @@
+  cancel-in-progress: false
+
+env:
+  # De dónde sale el Python empotrado: del **último instalador publicado**, que
+  # trae Windows con todo dentro, kernel de sólidos incluido. Construirlo de
+  # cero en cada corrida sería lentísimo, así que shape101 se alimenta de sí
+  # mismo.
+  #
+  # Cuál es ese instalador **no se escribe a mano**. Se leía así —una URL fija
+  # a la 0.13.0— y el 19-sep, armando la 0.17.0, el armado murió en un minuto:
+  # la poda automática que metimos en la 0.13.0 deja las 3 releases más nuevas,
+  # se llevó la 0.13.0, y la URL se quedó apuntando a un hueco. Dos cosas
+  # nuestras que funcionan bien, juntas se rompían.
+  #
+  # Ahora se saca de MANIFIESTO, que es el archivo que ya es la única señal que
+  # cuenta para dar una versión por publicada. Mientras la poda deje en pie la
+  # versión que el manifiesto anuncia —y la deja: es la más nueva—, la poda y el
+  # armado no se pueden contradecir.
+  # El Windows del runner escribe cp1252: sin esto, una «→» en la salida de
+  # verificar.py tumba las pruebas (corrida 34794283220).
+  PYTHONUTF8: '1'
+  MANIFIESTO: https://raw.githubusercontent.com/mikebalcazar/descargas/main/shape101.json
+
+jobs:
+  armar:
