@@ -1,6 +1,0 @@
-  if (typeof Ventanas !== "undefined") {
-    const cajaV = lienzo.getBoundingClientRect();
-    const vx0 = e.clientX - cajaV.left, vy0 = e.clientY - cajaV.top;
-    const t = Ventanas.enTitulo(vx0, vy0);
-    if (t >= 0) {
-      if (e.detail >= 2) Ventanas.maximizar(t); else Ventanas.activar(t);

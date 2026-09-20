@@ -1,6 +1,0 @@
-OMISION = {
-    # Rejilla  ·  feature 12
-    "rejilla": True,
-    # Modo borrador (LibreCAD/QCAD «draft»): líneas de 1 px, sin patrones,
-    # textos como cajas. Para navegar un plano pesado en una máquina floja.
-    "borrador": False,

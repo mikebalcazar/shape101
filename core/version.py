@@ -21,13 +21,43 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.19.0"
+VERSION = "0.20.0"
 FECHA = "2026-09-20"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.20.0",
+        "fecha": "2026-09-20",
+        "cambios": [
+            "La rejilla es una referencia de verdad: infinita. No se acaba en una orilla ni "
+            "se queda descentrada —era un cuadro fijo de mil milímetros alrededor del cero—. "
+            "Ahora se pinta lo que cabe en cada ventana, y el paso crece o se achica solo "
+            "con el zoom, así que sirve igual para una pieza de 20 mm que para una nave.",
+            "La Frontal y la Lateral tienen rejilla. No la tenían porque se pintaba siempre "
+            "sobre el suelo, y el suelo desde la Frontal se ve de canto: era una raya. Cada "
+            "ventana pinta ahora el plano en el que se dibuja.",
+            "Se prende y se apaga por ventana, con el cuadrito del título, y en la "
+            "Perspectiva por plano —XY, XZ, YZ—, con los tres cuadritos de su título. El "
+            "botón REJILLA de abajo sigue mandando sobre todas, y apagarlo no borra lo que "
+            "cada ventana tenía elegido.",
+            "El botón REJILLA ahora apaga de verdad. Cambiaba la preferencia y la pantalla "
+            "se quedaba igual, porque la rejilla se pinta dentro de algo que va en caché y "
+            "nadie avisaba de que había cambiado.",
+            "Más clara, y más clara todavía cuando hay varios planos encimados en la "
+            "Perspectiva. Y ahí se desvanece hacia el horizonte en vez de apelmazarse: una "
+            "rejilla en perspectiva junta las líneas hasta volverlas una mancha gris.",
+            "Al abrir, las cuatro ventanas miran al cero. Las tres que no eran la Superior "
+            "nacían con el origen en su esquina de arriba a la izquierda, y eso no era sólo "
+            "feo: una pieza levantada después caía fuera de la Perspectiva, no se le podía "
+            "picar una cara, y JALAR y CRECER se quedaban sin cara que mover.",
+            "Extents encuadra las cuatro ventanas, no sólo la activa, y toma en cuenta las "
+            "piezas y no sólo los trazos del dibujo: una pieza cuyo contorno se borró "
+            "después de levantarla ya no se queda fuera de la cuenta.",
+        ],
+    },
     {
         "version": "0.19.0",
         "fecha": "2026-09-20",

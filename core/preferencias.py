@@ -36,6 +36,13 @@ MODOS_OSNAP = {
 OMISION = {
     # Rejilla  ·  feature 12
     "rejilla": True,
+    # 0.20.0 (Mike, 20-sep): la rejilla se prende y se apaga **por ventana**, y
+    # en la Perspectiva **por plano**. El interruptor de arriba manda sobre
+    # todas: apagarlo las apaga sin perder lo que cada una tenía prendido.
+    "rejilla_ventanas": {
+        "Superior": True, "Perspectiva": True, "Frontal": True, "Lateral": True,
+    },
+    "rejilla_planos": {"XY": True, "XZ": True, "YZ": True},
     # Modo borrador (LibreCAD/QCAD «draft»): líneas de 1 px, sin patrones,
     # textos como cajas. Para navegar un plano pesado en una máquina floja.
     "borrador": False,

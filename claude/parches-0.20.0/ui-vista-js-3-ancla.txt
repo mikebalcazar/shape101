@@ -1,6 +1,0 @@
-      escala: v.escala, trazos: estado.trazos,
-      borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
-      rx: v.rx || 0, rz: v.rz || 0,
-      colorDe: (hex) => colorDeTrazo(hex, oscuro),
-    }), oscuro);
-    return;

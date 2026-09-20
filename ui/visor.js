@@ -169,9 +169,11 @@ const Visor = (() => {
       }
       c.lineCap = "round";
       c.lineJoin = "round";
-      // El plano de trabajo, apenas insinuado: sin él no se sabe dónde está el
-      // suelo cuando la pieza es lo único que hay.
-      dibujarSuelo(c, ctx);
+      // El plano de trabajo lo dice la rejilla, y nada más: hasta 0.19.0 se
+      // pintaba además un rectángulo gris del tamaño del dibujo, y ése era el
+      // borde que se veía en la Superior. Un suelo con orilla dice «el mundo
+      // se acaba aquí», que es mentira. Mike, 20-sep: la rejilla es referencia
+      // y la referencia no se acaba.
       dibujarRejilla(c, ctx);
       const textos = [];
       for (const t of ctx.trazos || []) {
@@ -217,31 +219,180 @@ const Visor = (() => {
     }
   }
 
-  /** La rejilla, sobre el plano de trabajo y proyectada: girada se ve en
-   *  perspectiva, que es lo que dice dónde está el suelo. El paso se elige
-   *  para que las líneas queden a 12 px o más; más juntas son ruido. */
+  /* --- La rejilla  ·  0.20.0 -----------------------------------------------
+   *
+   * Tres cosas que Mike pidió el 20-sep y que hasta la 0.19.0 no se cumplían:
+   *
+   * **Infinita.** No se pinta una caja alrededor del cero: se pinta lo que cabe
+   * en la ventana. La cuenta va al revés —de las cuatro esquinas de la ventana
+   * al plano— y salen exactamente las líneas que se ven, ni una más. Alejarse
+   * no cuesta más caro porque el paso crece con el zoom. Antes era un cuadro
+   * fijo de mil milímetros en el origen, y por eso se veía descentrada y con
+   * orilla.
+   *
+   * **Sobre el plano que le toca a cada ventana.** El suelo visto desde la
+   * Frontal no es una rejilla, es una raya: por eso la Frontal y la Lateral
+   * salían vacías. Cada ventana pinta el plano en el que se dibuja —XY, XZ o
+   * YZ— y la Perspectiva puede pintar los tres.
+   *
+   * **Clara.** Con los tres planos encimados en la Perspectiva, cada uno pesa
+   * menos: tres rejillas al mismo tono son una maraña. Y en vez de un solo
+   * tono hay dos —la fina y la de cada diez— más los ejes: así la fina puede
+   * ser casi invisible y la referencia se sigue leyendo.
+   */
+  const BASES = {
+    XY: [[1, 0, 0], [0, 1, 0]],    // el suelo    · la Superior
+    XZ: [[1, 0, 0], [0, 0, 1]],    // de frente   · la Frontal
+    YZ: [[0, 1, 0], [0, 0, 1]],    // de costado  · la Lateral
+  };
+  const MIN_PX = 14;               // más juntas que esto son ruido, no referencia
+  const MAX_LINEAS = 500;          // freno duro: nunca se pintan más
+
+  /** Un punto del plano, en coordenadas del mundo. */
+  function puntoEn(plano, u, v) {
+    return plano === "XY" ? [u, v, 0] : plano === "XZ" ? [u, 0, v] : [0, u, v];
+  }
+
+  /** El siguiente peldaño de la escalera 1-2-5, arriba o abajo. Trabaja por
+   *  décadas, así que no se acaba: sirve para 0.2 mm y para 200 m. */
+  function peldano(p, dir) {
+    const d = Math.pow(10, Math.floor(Math.log10(p) + 1e-9));
+    const m = p / d;
+    const i = (m < 1.5 ? 0 : m < 3.5 ? 1 : 2) + dir;
+    if (i > 2) return d * 10;
+    if (i < 0) return d / 2;
+    return d * [1, 2, 5][i];
+  }
+
   function dibujarRejilla(c, ctx) {
-    if (ctx.rejilla === false) return;
-    const { aPX, escala } = ctx;
-    const pasos = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
-    const paso = pasos.find((p) => p * escala >= 12) || 10000;
-    const lim = ctx.extension || { x0: -500, y0: -500, x1: 500, y1: 500 };
-    const x0 = Math.floor(lim.x0 / paso) * paso, x1 = Math.ceil(lim.x1 / paso) * paso;
-    const y0 = Math.floor(lim.y0 / paso) * paso, y1 = Math.ceil(lim.y1 / paso) * paso;
-    if ((x1 - x0) / paso > 400 || (y1 - y0) / paso > 400) return;   // un plano enorme: sin rejilla
+    const planos = ctx.rejilla === false ? [] : (ctx.planos || ["XY"]);
+    if (!planos.length) return;
+    const x0 = ctx.ox || 0, x1 = x0 + ctx.ancho;
+    const y0 = (ctx.oy || 0) + (ctx.titulo || 0), y1 = (ctx.oy || 0) + ctx.alto;
+    // Con varios planos encimados cada uno pesa menos.
+    const f = planos.length > 1 ? 0.6 : 1;
+    for (const plano of planos) unPlano(c, ctx, plano, x0, y0, x1, y1, f);
+  }
+
+  function unPlano(c, ctx, plano, x0, y0, x1, y1, f) {
+    const base = BASES[plano];
+    if (!base) return;
+    const { aPX } = ctx;
+    const o = aPX(0, 0, 0);
+    const a = aPX(base[0][0], base[0][1], base[0][2]);
+    const b = aPX(base[1][0], base[1][1], base[1][2]);
+    const ux = a[0] - o[0], uy = a[1] - o[1];
+    const vx = b[0] - o[0], vy = b[1] - o[1];
+    const det = ux * vy - uy * vx;
+    // De canto: su rejilla sería una raya. Es el suelo visto desde la Frontal,
+    // y es la razón de que ahí se pinte el XZ y no el XY.
+    if (!isFinite(det) || Math.abs(det) < 1e-9) return;
+
+    // Las cuatro esquinas de la ventana, llevadas al plano. Eso es la rejilla
+    // infinita: no hay más líneas que las que caen aquí dentro.
+    const inv = 1 / det;
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const [px, py] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) {
+      const dx = px - o[0], dy = py - o[1];
+      const u = (dx * vy - dy * vx) * inv, v = (dy * ux - dx * uy) * inv;
+      if (u < u0) u0 = u; if (u > u1) u1 = u;
+      if (v < v0) v0 = v; if (v > v1) v1 = v;
+    }
+    // En la Perspectiva la cuenta de arriba es aproximada —esa proyección no es
+    // afín—, así que se pide de más y sobra un poco por los cuatro lados. Sobra
+    // barato: lo que cae fuera lo recorta el lienzo.
+    if (ctx.persp) {
+      const mu = (u1 - u0) * 0.8, mv = (v1 - v0) * 0.8;
+      u0 -= mu; u1 += mu; v0 -= mv; v1 += mv;
+    }
+
+    // El paso de las preferencias, subido o bajado por la escalera 1-2-5 hasta
+    // que la celda quede por encima de MIN_PX. Es lo que hace que la misma
+    // rejilla sirva con una pieza de 20 mm y con una nave de 80 m.
+    const porPX = Math.min(Math.hypot(ux, uy), Math.hypot(vx, vy));
+    if (!(porPX > 0)) return;
+    let paso = Math.max(1e-6, ctx.paso || 10), g = 0;
+    while (paso * porPX < MIN_PX && g++ < 60) paso = peldano(paso, +1);
+    g = 0;
+    while (paso * porPX > MIN_PX * 10 && g++ < 60) paso = peldano(paso, -1);
+    if ((u1 - u0) / paso + (v1 - v0) / paso > MAX_LINEAS) return;
+
+    const tinta = ctx.oscuro ? "255,255,255" : "0,0,0";
+    const seg = (au, av, bu, bv) => {
+      const s0 = puntoEn(plano, au, av), s1 = puntoEn(plano, bu, bv);
+      const a1 = aPX(s0[0], s0[1], s0[2]), b1 = aPX(s1[0], s1[1], s1[2]);
+      c.moveTo(a1[0], a1[1]); c.lineTo(b1[0], b1[1]);
+    };
+
+    /* En perspectiva no se puede pintar una rejilla infinita y que además se
+     * lea: hacia el horizonte las líneas se juntan hasta volverse una mancha
+     * gris. Así que ahí se pinta una mancha redonda que **se apaga** — tres
+     * pasadas concéntricas, la de en medio encima de la grande y la chica
+     * encima de las dos—: no tiene orilla, no se acaba, se desvanece. Es lo
+     * que hacen todos los programas de 3D y es lo que la deja leerse como
+     * infinita. En las tres ventanas ortogonales no hace falta nada de esto:
+     * ahí no hay horizonte, se pintan todas las que caben y son exactas. */
+    let discos = null;
+    if (ctx.persp) {
+      const dx = (x0 + x1) / 2 - o[0], dy = (y0 + y1) / 2 - o[1];
+      const cu = (dx * vy - dy * vx) * inv, cv = (dy * ux - dx * uy) * inv;
+      const r = Math.max(u1 - u0, v1 - v0) * 0.55;
+      discos = [1, 0.72, 0.46].map((k) => ({ cu, cv, r: r * k }));
+    }
+
+    // Una línea del nivel, recortada al disco que toque (o entera si no hay).
+    const filas = (p, saltarDiez, d) => {
+      for (let k = Math.ceil(u0 / p); k * p <= u1; k++) {
+        if (k === 0 || (saltarDiez && k % 10 === 0)) continue;
+        const u = k * p;
+        if (!d) { seg(u, v0, u, v1); continue; }
+        const h = d.r * d.r - (u - d.cu) * (u - d.cu);
+        if (h <= 0) continue;
+        const dv = Math.sqrt(h);
+        seg(u, d.cv - dv, u, d.cv + dv);
+      }
+      for (let k = Math.ceil(v0 / p); k * p <= v1; k++) {
+        if (k === 0 || (saltarDiez && k % 10 === 0)) continue;
+        const v = k * p;
+        if (!d) { seg(u0, v, u1, v); continue; }
+        const h = d.r * d.r - (v - d.cv) * (v - d.cv);
+        if (h <= 0) continue;
+        const du = Math.sqrt(h);
+        seg(d.cu - du, v, d.cu + du, v);
+      }
+    };
+
     c.save();
     c.lineWidth = 1;
-    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
-    c.beginPath();
-    for (let x = x0; x <= x1; x += paso) { const a = aPX(x, y0, 0), b = aPX(x, y1, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
-    for (let y = y0; y <= y1; y += paso) { const a = aPX(x0, y, 0), b = aPX(x1, y, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
-    c.stroke();
-    // Los ejes, un poco más marcados: sin ellos no se sabe dónde está el cero.
-    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.2)";
-    c.beginPath();
-    let a = aPX(x0, 0, 0), b = aPX(x1, 0, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
-    a = aPX(0, y0, 0); b = aPX(0, y1, 0); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
-    c.stroke();
+    // Dos niveles: la fina casi no se ve, la de cada diez sostiene la lectura.
+    // La fina se salta los múltiplos de diez para no encimarse con la gorda y
+    // acabar pintando un tono que nadie eligió.
+    const pases = discos || [null];
+    // Repartida entre las tres pasadas, para que las tres juntas den el tono
+    // de una sola en el centro y menos conforme se aleja.
+    const reparto = discos ? 0.45 : 1;
+    for (const [mult, alfa] of [[1, ctx.oscuro ? 0.05 : 0.055], [10, ctx.oscuro ? 0.11 : 0.12]]) {
+      const p = paso * mult;
+      if (p * porPX > MIN_PX * 60) continue;       // tan separada que ya no dice nada
+      c.strokeStyle = `rgba(${tinta},${alfa * f * reparto})`;
+      for (const d of pases) { c.beginPath(); filas(p, mult === 1, d); c.stroke(); }
+    }
+    // Los dos ejes del plano: sin ellos no se sabe dónde está el cero. Con los
+    // tres planos encimados sólo el suelo los marca fuerte: seis rayas negras
+    // cruzándose en el origen era justo el amontonamiento que había que evitar.
+    const mandan = !ctx.persp || plano === "XY";
+    c.strokeStyle = `rgba(${tinta},${(mandan ? (ctx.oscuro ? 0.2 : 0.22) : (ctx.oscuro ? 0.09 : 0.1)) * f})`;
+    for (const d of pases) {
+      c.beginPath();
+      if (!d) { seg(0, v0, 0, v1); seg(u0, 0, u1, 0); }
+      else {
+        let h = d.r * d.r - d.cu * d.cu;
+        if (h > 0) { const dv = Math.sqrt(h); seg(0, d.cv - dv, 0, d.cv + dv); }
+        h = d.r * d.r - d.cv * d.cv;
+        if (h > 0) { const du = Math.sqrt(h); seg(d.cu - du, 0, d.cu + du, 0); }
+      }
+      c.stroke();
+    }
     c.restore();
   }
 
@@ -265,30 +416,6 @@ const Visor = (() => {
       for (let i = 0; i < lineas.length; i++) c.fillText(lineas[i], 0, i * alturaPX * 1.25);
       c.restore();
     }
-  }
-
-  function dibujarSuelo(c, ctx) {
-    const { aPX } = ctx;
-    // Un rectángulo del tamaño de lo que hay, o de un metro si no hay nada.
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const t of ctx.trazos || []) for (const p of (t.puntos || [])) {
-      if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
-      if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
-    }
-    if (!isFinite(x0)) { x0 = -500; y0 = -500; x1 = 500; y1 = 500; }
-    const mx = (x1 - x0) * 0.25 + 50, my = (y1 - y0) * 0.25 + 50;
-    ctx.extension = { x0: x0 - mx, y0: y0 - my, x1: x1 + mx, y1: y1 + my };
-    const esquinas = [[x0 - mx, y0 - my], [x1 + mx, y0 - my], [x1 + mx, y1 + my], [x0 - mx, y1 + my]];
-    c.save();
-    c.fillStyle = ctx.oscuro ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";
-    c.strokeStyle = ctx.oscuro ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
-    c.lineWidth = 1;
-    c.beginPath();
-    esquinas.forEach((p, i) => { const q = aPX(p[0], p[1], 0); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
-    c.closePath();
-    c.fill();
-    c.stroke();
-    c.restore();
   }
 
   return { camara, tamano, enPlanta, aPantalla, aPlano, girar, acercar, desplazar,

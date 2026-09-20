@@ -127,10 +127,15 @@ function encuadrar(recordar = true) {
   const caja = estado.resumen && estado.resumen.extension;
   const { ancho, alto, titulo } = tamanoActivo();
   if (recordar) recordarVista();
-  // Girada, se encuadra desde su ángulo: la caja en planta no dice dónde caen
-  // las cosas vistas de frente.
-  if ((estado.vista.rx || estado.vista.rz) && typeof Ventanas !== "undefined" && estado.vista.w) {
-    Ventanas.encuadrarUna(estado.vista.i, puntosDelDibujo());
+  // Con las cuatro ventanas, Extents encuadra **las cuatro**: es lo que la
+  // palabra significa cuando hay cuatro cámaras mirando la misma pieza, y es
+  // la única manera de recuperar una ventana que se quedó viendo al vacío.
+  // Cada una desde su ángulo: la caja en planta no dice dónde caen las cosas
+  // vistas de frente.
+  if (typeof Ventanas !== "undefined" && estado.vista && estado.vista.w) {
+    const puntos = puntosDelDibujo();
+    if (puntos.length) { Ventanas.encuadrarTodas(puntos); return pintar(); }
+    Ventanas.centrarEnOrigen();
     return pintar();
   }
   if (!caja) {
@@ -725,8 +730,20 @@ function llavePlano() {
   // cursor, y si su cámara cambia el plano tiene que redibujarse.
   const todas = typeof Ventanas !== "undefined"
     ? Ventanas.ventanas.map((q) => `${q.x}|${q.y}|${q.escala}|${q.rx}|${q.rz}|${q.ox}|${q.oy}|${q.w}|${q.h}`).join(";") : "";
+  // La rejilla también: se pinta dentro del plano, que va en caché, así que si
+  // no entra aquí apagarla no borra nada de la pantalla hasta que la vista se
+  // mueva. Era justo lo que pasaba hasta la 0.19.0 con el botón REJILLA: la
+  // preferencia cambiaba, el dibujo no. Con la llave puesta, el botón de
+  // abajo, el comando REJILLA, F7 y los interruptores del título se arreglan
+  // todos de una vez, y ninguno tiene que acordarse de invalidar nada.
+  const pr = estado.prefs || {};
+  const rv = pr.rejilla_ventanas || {}, rp = pr.rejilla_planos || {};
+  const rej = `${pr.rejilla === false ? 0 : 1}${pr.rejilla_paso || 10}` +
+    `${rv.Superior === false ? 0 : 1}${rv.Perspectiva === false ? 0 : 1}` +
+    `${rv.Frontal === false ? 0 : 1}${rv.Lateral === false ? 0 : 1}` +
+    `${rp.XY === false ? 0 : 1}${rp.XZ === false ? 0 : 1}${rp.YZ === false ? 0 : 1}`;
   return `${todas}#${v.x}|${v.y}|${v.escala}|${v.rx || 0}|${v.rz || 0}|${lienzo.width}|${lienzo.height}|` +
-         `${tema().cual}|${estado.modo}|${estado.prefs && estado.prefs.borrador ? "b" : ""}`;
+         `${tema().cual}|${estado.modo}|${estado.prefs && estado.prefs.borrador ? "b" : ""}|${rej}`;
 }
 
 /* En espacio papel el «plano» es la hoja, y ésa cambia sin que cambie la vista
@@ -810,8 +827,12 @@ function puntosDelDibujo() {
     if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
     if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
   }
-  if (!isFinite(x0)) return [];
-  return [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+  // Y las piezas: una pieza cuyo contorno se borró después de levantarla no
+  // tiene trazos, y hasta la 0.19.0 encuadrar la dejaba fuera.
+  const solidos = (typeof Cuerpos !== "undefined" && Cuerpos.esquinas) ? Cuerpos.esquinas() : [];
+  if (!isFinite(x0)) return solidos;
+  const planos = [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+  return solidos.length ? planos.concat(solidos) : planos;
 }
 
 function dibujarPlano(c, fondo = true) {
@@ -838,6 +859,14 @@ function dibujarPlano(c, fondo = true) {
       escala: v.escala, trazos: estado.trazos,
       borrador: !!(estado.prefs && estado.prefs.borrador), aPX,
       rx: v.rx || 0, rz: v.rz || 0,
+      // La rejilla necesita saber dónde empieza y acaba **esta** ventana para
+      // pintar sólo lo que cabe en ella. Hasta la 0.19.0 no se le pasaba nada
+      // de esto y el interruptor REJILLA no hacía absolutamente nada: el visor
+      // preguntaba por `ctx.rejilla` y nadie se lo mandaba.
+      ox: v.ox, oy: v.oy, titulo: Ventanas.TITULO, persp: !!v.persp,
+      rejilla: !!(estado.prefs && estado.prefs.rejilla),
+      planos: Ventanas.planosRejilla(v),
+      paso: (estado.prefs && estado.prefs.rejilla_paso) || 10,
       colorDe: (hex) => colorDeTrazo(hex, oscuro),
     }), oscuro);
     return;
@@ -1503,6 +1532,16 @@ lienzo.addEventListener("mousedown", (e) => {
   if (typeof Ventanas !== "undefined") {
     const cajaV = lienzo.getBoundingClientRect();
     const vx0 = e.clientX - cajaV.left, vy0 = e.clientY - cajaV.top;
+    // Los interruptores de rejilla del título van antes que nada: caen dentro
+    // de la franja del título, y si no se atienden aquí el clic se lo come el
+    // «activar esta ventana» de abajo.
+    const bot = Ventanas.botonEn(vx0, vy0);
+    if (bot) {
+      const cambio = Ventanas.alternarRejilla(bot);
+      if (typeof guardarPrefs === "function") guardarPrefs(cambio);
+      if (typeof pintarInterruptores === "function") pintarInterruptores();
+      invalidarPlano(); pintar(); e.preventDefault(); return;
+    }
     const t = Ventanas.enTitulo(vx0, vy0);
     if (t >= 0) {
       if (e.detail >= 2) Ventanas.maximizar(t); else Ventanas.activar(t);
