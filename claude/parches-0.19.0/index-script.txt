@@ -1,2 +1,0 @@
-<script src="tresd-comandos.js"></script>
-<script src="model.js"></script>

@@ -96,6 +96,15 @@ const Radial = (() => {
    * 3D para levantar un contorno. */
   const RUEDA_3D = [
     { et: "Extruir",  icono: "⬒",  cmd: "EXTRUIR" },
+    // El resto del grupo `model` cuelga de un gajo suyo: son hermanas de
+    // Extruir —las cinco hacen un sólido de la nada— y así el gajo de Extruir
+    // no se mueve del ángulo que la mano ya tiene aprendido.
+    { et: "Model",    icono: "◆",  hijos: [
+        { et: "Revolver", icono: "◕", cmd: "REVOLVER" },
+        { et: "Barrer",   icono: "➟", cmd: "BARRER" },
+        { et: "Loft",     icono: "⧉", cmd: "LOFT" },
+        { et: "Crecer",   icono: "⬈", cmd: "CRECER" },
+      ] },
     { et: "Ver 3D",   icono: "◳",  cmd: "3D" },
     { et: "Jalar",    icono: "↕",  cmd: "JALAR" },
     { et: "Orbitar",  icono: "⟳",  cmd: "ORBITAR" },

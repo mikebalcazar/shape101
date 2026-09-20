@@ -162,6 +162,164 @@ def extruir(entrada: Extruir):
     return salida
 
 
+# --- el grupo model  ·  0.19.0 ---------------------------------------------
+#
+# Las tres puertas de abajo son hermanas de `/extruir`: reciben lo que el
+# usuario señaló en el dibujo y devuelven la pieza ya hecha. Todo el trabajo
+# de armar el historial vive en `cuerpo.ops_de_*`, no aquí: esto sólo traduce
+# ids del dibujo a entidades y errores del kernel a español.
+
+
+def _entidades_de(doc, ids: list[str], que: str) -> list[dict]:
+    fuera = []
+    for id_ in ids:
+        e = doc.entidades.get(id_)
+        if e is None:
+            raise HTTPException(404, f"no existe la entidad {id_}")
+        fuera.append(e.a_dict())
+    if not fuera:
+        raise HTTPException(400, f"elige primero {que}")
+    return fuera
+
+
+def _nace(doc, ops: list, entidades: list[dict], como: str):
+    """La pieza nueva, ya en el documento y con su malla de vuelta.
+
+    El `plano` del cuerpo se queda en XY a propósito: en el grupo model cada
+    boceto ya viene colocado en el plano de su ventana, así que la pieza nace
+    en el mundo y no hay que rotarla al salir. Rotarla otra vez la mandaría al
+    doble de su sitio.
+    """
+    from core.entidades import Cuerpo
+    import time
+
+    t0 = time.perf_counter()
+    nuevo = Cuerpo(operaciones=ops, capa=entidades[0].get("capa", "0"), plano="XY")
+    with doc.transaccion(como):
+        doc.agregar(nuevo)
+    salida = _malla(nuevo)
+    salida["ms"] = round((time.perf_counter() - t0) * 1000)
+    return salida
+
+
+# Las tres reciben **la selección entera** y la reparten ellas. Es la manera
+# en que ya se trabaja aquí: se señala lo que hace falta y se da el comando.
+# Un contorno de líneas sueltas cuenta como abierto: se junta antes con UNIR, y
+# el aviso lo dice así en vez de adivinar.
+JUNTAR = "Si tu contorno son líneas sueltas, júntalas primero con UNIR."
+
+
+class Seleccion(BaseModel):
+    ids: list[str]
+    grados: float = 360.0
+    separacion: float = 0.0
+    reglado: bool = False
+
+
+@router.post("/revolver")
+def revolver(entrada: Seleccion):
+    """Torneado: un contorno cerrado gira alrededor de una línea del dibujo.
+
+    De la selección, la línea abierta es el eje y el contorno cerrado el perfil.
+    """
+    from core.solido import cuerpo as mod
+
+    doc = _doc()
+    todo = _entidades_de(doc, entrada.ids, "el contorno que va a girar y la línea del eje")
+    cerradas, abiertas = mod.repartir(todo)
+    if len(cerradas) != 1:
+        raise HTTPException(400, f"REVOLVER quiere un contorno cerrado y una línea de eje; "
+                                 f"señalaste {len(cerradas)} contornos cerrados. {JUNTAR}")
+    if len(abiertas) != 1:
+        raise HTTPException(400, f"REVOLVER quiere **una** línea de eje; señalaste {len(abiertas)}.")
+    try:
+        ops = mod.ops_de_revolver(cerradas, abiertas[0], entrada.grados)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return _nace(doc, ops, cerradas, "revolver")
+
+
+@router.post("/barrer")
+def barrer(entrada: Seleccion):
+    """El contorno recorre un camino. De la selección, el contorno cerrado es
+    el perfil y lo abierto es el camino.
+
+    Los dos pueden venir de ventanas distintas —perfil en la Frontal, camino en
+    la Superior— y cada uno se coloca en la suya."""
+    from core.solido import cuerpo as mod
+
+    doc = _doc()
+    todo = _entidades_de(doc, entrada.ids, "el contorno que va a barrer y el camino")
+    cerradas, abiertas = mod.repartir(todo)
+    if len(cerradas) != 1:
+        raise HTTPException(400, f"BARRER quiere un contorno cerrado y un camino abierto; "
+                                 f"señalaste {len(cerradas)} contornos cerrados. {JUNTAR}")
+    if not abiertas:
+        raise HTTPException(400, "BARRER necesita el camino por donde va el contorno: "
+                                 "una línea, un arco o una polilínea abierta.")
+    try:
+        ops = mod.ops_de_barrer(cerradas, abiertas)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return _nace(doc, ops, cerradas, "barrer")
+
+
+@router.post("/loft")
+def loft(entrada: Seleccion):
+    """Una piel que pasa por varias secciones, en el orden en que se señalaron.
+
+    `separacion` las aparta a lo largo de la normal de su ventana: hace falta
+    cuando se dibujaron todas en la misma, porque dos contornos en el mismo
+    plano no encierran volumen.
+    """
+    from core.solido import cuerpo as mod
+
+    doc = _doc()
+    todo = _entidades_de(doc, entrada.ids, "las secciones por donde pasa la piel")
+    cerradas, abiertas = mod.repartir(todo)
+    if len(cerradas) < 2:
+        raise HTTPException(400, f"LOFT quiere al menos dos contornos cerrados; "
+                                 f"señalaste {len(cerradas)}. {JUNTAR}")
+    if abiertas:
+        raise HTTPException(400, f"LOFT sólo toma contornos cerrados, y señalaste "
+                                 f"{len(abiertas)} cosas abiertas. {JUNTAR}")
+    d = float(entrada.separacion or 0.0)
+    # Todas en la misma ventana y sin separación: estarían una encima de otra y
+    # la piel saldría plana. Se dice antes de llamar al kernel, que de esto
+    # contesta «BRep_API: command not done» y no ayuda a nadie.
+    ventanas = {c.get("plano", "XY") for c in cerradas}
+    if len(ventanas) == 1 and abs(d) < 1e-9:
+        raise HTTPException(400, "Esas secciones están todas en la misma ventana y a la misma "
+                                 "altura: una piel entre ellas no tendría volumen. Dale una "
+                                 "separación, o dibújalas en ventanas distintas.")
+    alturas = [d * k for k in range(len(cerradas))]
+    try:
+        ops = mod.ops_de_loft([[c] for c in cerradas], alturas, entrada.reglado)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return _nace(doc, ops, cerradas, "loft")
+
+
+class Crecer(BaseModel):
+    cara: str
+    mm: float
+    unir: bool = True
+
+
+@router.post("/{id_}/crecer-cara")
+def crecer_cara(id_: str, entrada: Crecer):
+    """Material nuevo con el perfil de una cara. No estira la cara: la cara se
+    queda donde está y encima nace un sólido. Mike, 19-sep."""
+    from core.solido import cuerpo as mod
+
+    c = _cuerpo(id_)
+    if entrada.mm == 0:
+        raise HTTPException(400, "una extrusión de cero no hace nada")
+    nuevas = mod.agregar(c.operaciones, {"op": "extruir_cara", "cara": entrada.cara,
+                                         "mm": float(entrada.mm), "unir": bool(entrada.unir)})
+    return _rehacer(id_, nuevas, "crecer cara")
+
+
 @router.get("/lista")
 def lista():
     """Los ids de las piezas del dibujo, para que la pantalla sepa qué pintar."""

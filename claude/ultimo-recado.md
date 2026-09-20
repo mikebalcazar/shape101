@@ -2,19 +2,24 @@
 
 *Lo escribe `claude/recado.py` al correr en Actions.*
 
-- corrido: 2026-09-20T03:40:42+00:00
-- recado: 40 · fuera la prueba de concepto, y la receta de publicar al día
+- corrido: 2026-09-20T06:17:15+00:00
+- recado: 41 · el grupo model, alcanzable desde el dibujo
 
 ```
-borrada la carpeta de la prueba de concepto (25 entradas)
-  claude/COMO-PUBLICAR.md: cambiar · 01-publicar-nuevo.txt
-  claude/COMO-PUBLICAR.md: cambiar · 02-publicar-nuevo.txt
-  claude/COMO-PUBLICAR.md: cambiar · 03-publicar-nuevo.txt
-  claude/COMO-PUBLICAR.md: cambiar · 04-publicar-nuevo.txt
-la carpeta ya no está
-y nadie apuntaba a ella
-verificar.py sigue compilando
-archivos que todavía nombran draw101: ./pruebas/t001_dxf.py, ./build/imagenes.py, ./core/version.py, ./claude/recado.py, ./.github/workflows/armar-y-publicar.yml
-la receta de publicar está al día
+  core/solido/planos.py: final · planos-ventanas.txt
+  core/solido/cuerpo.py: cambiar · cuerpo-import.txt
+  core/solido/cuerpo.py: antes · cuerpo-model.txt
+  core/solido/rutas.py: antes · rutas-model.txt
+  core/version.py: cambiar · version-numero.txt
+  core/version.py: cambiar · version-bitacora.txt
+  package.json: todos · package-version.txt
+  ui/index.html: cambiar · index-botones.txt
+  ui/index.html: cambiar · index-script.txt
+  ui/radial.js: cambiar · radial-model.txt
+los seis archivos de Python compilan
+la versión dice 0.19.0 en los dos sitios
+los cuatro comandos se cargan y tienen botón
+y están en la rueda, detrás de Extruir
+las cuatro rutas están puestas
 parches aplicados y retirados del repositorio
 ```
