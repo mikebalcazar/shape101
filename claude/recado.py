@@ -1,22 +1,20 @@
-"""El mandadero · recado 37: la 0.16.0, el boceto con cotas que se teclean.
+"""El mandadero · recado 38: la 0.17.0, el nombrado de las caras partidas.
 
-Mike, sobre la etapa B: *«hoy sólo se mueven los puntos con el ratón; que
-cambiar el ancho a 900 sea teclear 900»*.
-
-Un contorno no trae cotas escritas: trae puntos. Así que las cotas se sacan de
-su caja, y teclear una estira el contorno hasta que la caja mida eso.
+El rumbo llama al nombrado topológico *«el riesgo que gobierna todo»*. Se
+midió sobre un tablero con una muesca y salieron dos defectos silenciosos: el
+nombre base saltaba de un trozo al otro al cambiar una cota, y jalar un trozo
+dejaba al otro sin nombre.
 
 **Los parches no viven dentro de este archivo.** Viven en
-`claude/parches-0.16.0/`, cada uno en dos `.txt` —el ancla y el texto nuevo—, y
+`claude/parches-0.17.0/`, cada uno en dos `.txt` —el ancla y el texto nuevo—, y
 aquí sólo se leen y se ponen. El recado 35 metió texto dentro de cadenas de
 Python y sus `\\n` se escaparon dos veces: salieron barras literales en el
 cuaderno y en el mensaje del commit. Desde el 37 **ni el ancla va en el JSON**:
-un ancla de varias líneas obligaría a escaparla, y escapar a mano es justo lo
-que rompió aquello. Un archivo de texto no tiene nada que escapar, y además se
-puede mirar en GitHub antes de que esto corra.
+un archivo de texto no tiene nada que escapar, y además se puede mirar en
+GitHub antes de que esto corra.
 
 Cada parche se ensayó contra la copia de `main` bajada de GitHub y el resultado
-salió **idéntico**, byte por byte, a los archivos con los que corrieron las 626
+salió **idéntico**, byte por byte, a los archivos con los que corrieron las 662
 comprobaciones. Por eso ninguna ancla puede fallar.
 
 Este recado **no crea la rama de publicación**: primero se lee el cuaderno, y
@@ -33,8 +31,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-VERSION = "0.16.0"
-PARCHES = "claude/parches-0.16.0"
+VERSION = "0.17.0"
+PARCHES = "claude/parches-0.17.0"
 
 lineas: list[str] = []
 
@@ -67,9 +65,6 @@ def aplicar(raiz: pathlib.Path) -> None:
     d = raiz / PARCHES
     for p in json.loads((d / "indice.json").read_text(encoding="utf-8")):
         arch, modo = p["archivo"], p["modo"]
-        # El ancla también puede venir en su propio archivo. Desde la 0.16.0 se
-        # usa siempre así: un ancla de varias líneas metida en el JSON obliga a
-        # escaparla, y escapar a mano es exactamente lo que rompió el recado 35.
         ancla = ((d / p["ancla_txt"]).read_text(encoding="utf-8")
                  if p.get("ancla_txt") else p.get("ancla", ""))
         texto = (d / p["texto"]).read_text(encoding="utf-8")
@@ -104,14 +99,12 @@ def aplicar(raiz: pathlib.Path) -> None:
 def revisar(shape: pathlib.Path) -> None:
     """Todo lo comprobable sin Windows, antes de gastar 45 minutos."""
     import py_compile
-    for f in ("core/solido/cuerpo.py", "core/solido/rutas.py", "core/version.py",
-              "pruebas/t026_historial_pieza.py", "pruebas/t027_boceto_cotas.py"):
+    for f in ("core/solido/nombres.py", "core/solido/cuerpo.py", "core/version.py",
+              "pruebas/t028_nombrado_partido.py"):
         py_compile.compile(str(shape / f), doraise=True)
     anotar("el Python tocado compila")
 
-    for f in ("ui/historial.js", "ui/cotaspieza.js", "ui/vista.js"):
-        correr(["node", "--check", str(shape / f)])
-    anotar("el JavaScript tocado pasa node --check")
+    # Esta entrega no toca JavaScript: no hay nada que revisar ahí.
 
     paquete = json.loads((shape / "package.json").read_text(encoding="utf-8"))
     ver = (shape / "core" / "version.py").read_text(encoding="utf-8")
@@ -123,13 +116,10 @@ def revisar(shape: pathlib.Path) -> None:
         raise RuntimeError("artifactName no trae la versión nueva")
     anotar(f"la versión dice {VERSION} en los tres sitios y la bitácora la trae")
 
-    html = (shape / "ui" / "index.html").read_text(encoding="utf-8")
-    if 'src="cotaspieza.js"' not in html or 'src="historial.js"' not in html:
-        raise RuntimeError("el letrero de cotas no quedó enganchado en index.html")
-    vista = (shape / "ui" / "vista.js").read_text(encoding="utf-8")
-    if "CotasPieza.pintar" not in vista or "CotasPieza.abajo" not in vista:
-        raise RuntimeError("el letrero de cotas no se pinta o no se pica")
-    anotar("el letrero está enganchado: se carga, se pinta y se pica")
+    nom = (shape / "core" / "solido" / "nombres.py").read_text(encoding="utf-8")
+    if "_orden" not in nom or "disputados" not in nom:
+        raise RuntimeError("el reparto por posición no quedó puesto en nombres.py")
+    anotar("el reparto de caras partidas va por posición, no por cercanía")
 
 
 def main() -> int:
@@ -137,7 +127,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado37")
+    tmp = pathlib.Path("/tmp/recado38")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -146,13 +136,10 @@ def main() -> int:
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
 
-    # Los dos archivos nuevos llegaron a main por el conector, comparados byte
-    # por byte contra lo que se probó. Sin ellos, los parches no significan
-    # nada.
-    for arch in ("ui/cotaspieza.js", "pruebas/t027_boceto_cotas.py"):
+    for arch in ("pruebas/t028_nombrado_partido.py",):
         if not (shape / arch).is_file():
             raise RuntimeError(f"falta {arch}: primero van los archivos, luego el recado")
-    anotar("el letrero de cotas y su prueba ya están en main")
+    anotar("la prueba del nombrado partido ya está en main")
 
     aplicar(shape)
     revisar(shape)
@@ -163,33 +150,31 @@ def main() -> int:
     anotar("parches aplicados y retirados del repositorio")
 
     if not correr(["git", "status", "--porcelain"], cwd=shape).strip():
-        anotar("no había nada que cambiar: main ya trae la 0.16.0")
+        anotar("no había nada que cambiar: main ya trae la 0.17.0")
         return 0
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: 37 · la 0.16.0, el boceto con cotas que se teclean\n\n```\n"
+        "- recado: 38 · la 0.17.0, el nombrado de las caras partidas\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "0.16.0: el boceto con cotas, y las cotas de la pieza en pantalla\n\n"
-            "Mike, sobre la etapa B: «hoy sólo se mueven los puntos con el ratón; que\n"
-            "cambiar el ancho a 900 sea teclear 900».\n\n"
-            "Un contorno no trae cotas escritas: trae puntos. Así que las cotas se sacan\n"
-            "de su caja y teclear una estira el contorno hasta que la caja mida eso. El\n"
-            "paso del historial se lee ahora «Rectángulo 600 × 400» y trae Ancho, Fondo y\n"
-            "la esquina donde empieza.\n\n"
-            "Estirar no se lleva lo que se hizo después, y el barreno sigue redondo: su\n"
-            "centro está en milímetros de la pieza, no en fracciones de ella. En madera no\n"
-            "hay barrenos ovalados.\n\n"
-            "Y la pieza señalada enseña sus tres medidas encima, en píxeles para que se\n"
-            "lean igual con cualquier zoom. Se pican: clic al número, tecleas la medida y\n"
-            "la pieza se rehace, sin abrir el panel y sin comandos.\n\n"
-            "Va también un defecto del panel del historial cazado por la prueba nueva: se\n"
-            "saltaba una recarga si había otra petición en vuelo, así que señalar una\n"
-            "pieza y cambiarle un número en seguida podía dejarlo enseñando los pasos de\n"
-            "antes. Ahora las peticiones van en fila.\n\n"
+            "0.17.0: cuando una operación parte una cara en dos\n\n"
+            "El rumbo llama al nombrado topológico «el riesgo que gobierna todo». Se midió\n"
+            "sobre un tablero con una muesca y salieron dos defectos, los dos silenciosos.\n\n"
+            "Uno: el nombre base saltaba de un trozo al otro al cambiar una cota. El trozo\n"
+            "se elegía «el más cercano a la cara vieja», y la cara vieja era la entera,\n"
+            "cuyo centro se mueve al estirar la pieza. Medido: lado[0] era el trozo\n"
+            "izquierdo con 600 y 450 de ancho, y el derecho con 900 y 2000. Una cara jalada\n"
+            "se iba al otro lado de la pieza sin que el programa dijera nada.\n\n"
+            "Dos: jalar una cara ya partida dejaba a su hermana sin nombre, y con ella sin\n"
+            "nombre sus aristas y sus vértices.\n\n"
+            "Ahora los trozos se reparten por posición —el centro, eje por eje—, que no\n"
+            "cambia de orden cuando la pieza se estira, y una cara desplazada por herencia\n"
+            "se corre a un ~k en vez de perderse.\n\n"
+            "t028 trae 36 comprobaciones. Contra el código de la 0.16.0 falla con 8\n"
+            "errores: prueba el arreglo, no se prueba a sí misma.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
@@ -199,7 +184,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado37/shape101")
+    shape = pathlib.Path("/tmp/recado38/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
