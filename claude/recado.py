@@ -1,22 +1,22 @@
-"""El mandadero · recado 36: la 0.15.0, el historial de la pieza a la vista.
+"""El mandadero · recado 37: la 0.16.0, el boceto con cotas que se teclean.
 
-Mike (19-sep): *«la parametrización del modelo me interesa muchísimo. El
-mantener algo de historial de cómo se generó un barreno… después se quiere
-agrandar o achicar: sólo se podría incrementar o disminuir el diámetro del
-cilindro original sin necesidad de trazarlo todo de nuevo»*.
+Mike, sobre la etapa B: *«hoy sólo se mueven los puntos con el ratón; que
+cambiar el ancho a 900 sea teclear 900»*.
 
-El motor ya lo hacía: una pieza **es** su lista de operaciones y regenerar es
-volver a correrlas. Lo que faltaba era enseñarlo y dejarlo tocar.
+Un contorno no trae cotas escritas: trae puntos. Así que las cotas se sacan de
+su caja, y teclear una estira el contorno hasta que la caja mida eso.
 
 **Los parches no viven dentro de este archivo.** Viven en
-`claude/parches-0.15.0/`, cada uno en su propio `.txt`, y aquí sólo se leen y
-se ponen. El recado 35 metió texto dentro de cadenas de Python y sus `\\n` se
-escaparon dos veces: salieron barras literales en el cuaderno y en el mensaje
-del commit. Un archivo de texto no tiene nada que escapar, y además se puede
-mirar en GitHub antes de que esto corra.
+`claude/parches-0.16.0/`, cada uno en dos `.txt` —el ancla y el texto nuevo—, y
+aquí sólo se leen y se ponen. El recado 35 metió texto dentro de cadenas de
+Python y sus `\\n` se escaparon dos veces: salieron barras literales en el
+cuaderno y en el mensaje del commit. Desde el 37 **ni el ancla va en el JSON**:
+un ancla de varias líneas obligaría a escaparla, y escapar a mano es justo lo
+que rompió aquello. Un archivo de texto no tiene nada que escapar, y además se
+puede mirar en GitHub antes de que esto corra.
 
-Cada parche se probó contra la copia de `main` bajada de GitHub y el resultado
-salió **idéntico**, byte por byte, a los archivos con los que corrieron las 573
+Cada parche se ensayó contra la copia de `main` bajada de GitHub y el resultado
+salió **idéntico**, byte por byte, a los archivos con los que corrieron las 626
 comprobaciones. Por eso ninguna ancla puede fallar.
 
 Este recado **no crea la rama de publicación**: primero se lee el cuaderno, y
@@ -33,8 +33,8 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-VERSION = "0.15.0"
-PARCHES = "claude/parches-0.15.0"
+VERSION = "0.16.0"
+PARCHES = "claude/parches-0.16.0"
 
 lineas: list[str] = []
 
@@ -66,7 +66,12 @@ def aplicar(raiz: pathlib.Path) -> None:
     """
     d = raiz / PARCHES
     for p in json.loads((d / "indice.json").read_text(encoding="utf-8")):
-        arch, modo, ancla = p["archivo"], p["modo"], p["ancla"]
+        arch, modo = p["archivo"], p["modo"]
+        # El ancla también puede venir en su propio archivo. Desde la 0.16.0 se
+        # usa siempre así: un ancla de varias líneas metida en el JSON obliga a
+        # escaparla, y escapar a mano es exactamente lo que rompió el recado 35.
+        ancla = ((d / p["ancla_txt"]).read_text(encoding="utf-8")
+                 if p.get("ancla_txt") else p.get("ancla", ""))
         texto = (d / p["texto"]).read_text(encoding="utf-8")
         f = raiz / arch
         t = f.read_text(encoding="utf-8")
@@ -100,11 +105,11 @@ def revisar(shape: pathlib.Path) -> None:
     """Todo lo comprobable sin Windows, antes de gastar 45 minutos."""
     import py_compile
     for f in ("core/solido/cuerpo.py", "core/solido/rutas.py", "core/version.py",
-              "pruebas/t026_historial_pieza.py"):
+              "pruebas/t026_historial_pieza.py", "pruebas/t027_boceto_cotas.py"):
         py_compile.compile(str(shape / f), doraise=True)
     anotar("el Python tocado compila")
 
-    for f in ("ui/historial.js", "ui/cuerpos.js", "ui/app.js"):
+    for f in ("ui/historial.js", "ui/cotaspieza.js", "ui/vista.js"):
         correr(["node", "--check", str(shape / f)])
     anotar("el JavaScript tocado pasa node --check")
 
@@ -119,9 +124,12 @@ def revisar(shape: pathlib.Path) -> None:
     anotar(f"la versión dice {VERSION} en los tres sitios y la bitácora la trae")
 
     html = (shape / "ui" / "index.html").read_text(encoding="utf-8")
-    if 'src="historial.js"' not in html or 'id="hist-pasos"' not in html:
-        raise RuntimeError("el panel del historial no quedó enganchado en index.html")
-    anotar("el panel está enganchado: script y hueco en su sitio")
+    if 'src="cotaspieza.js"' not in html or 'src="historial.js"' not in html:
+        raise RuntimeError("el letrero de cotas no quedó enganchado en index.html")
+    vista = (shape / "ui" / "vista.js").read_text(encoding="utf-8")
+    if "CotasPieza.pintar" not in vista or "CotasPieza.abajo" not in vista:
+        raise RuntimeError("el letrero de cotas no se pinta o no se pica")
+    anotar("el letrero está enganchado: se carga, se pinta y se pica")
 
 
 def main() -> int:
@@ -129,7 +137,7 @@ def main() -> int:
     if not t_shape:
         print("falta TOKEN_SHAPE101")
         return 1
-    tmp = pathlib.Path("/tmp/recado36")
+    tmp = pathlib.Path("/tmp/recado37")
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     shape = tmp / "shape101"
@@ -138,12 +146,13 @@ def main() -> int:
     correr(["git", "config", "user.name", "shape101 (recado)"], cwd=shape)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=shape)
 
-    # El panel y su prueba llegaron a main por el conector, comparados byte por
-    # byte contra lo que se probó. Sin ellos, los parches no significan nada.
-    for arch in ("ui/historial.js", "pruebas/t026_historial_pieza.py"):
+    # Los dos archivos nuevos llegaron a main por el conector, comparados byte
+    # por byte contra lo que se probó. Sin ellos, los parches no significan
+    # nada.
+    for arch in ("ui/cotaspieza.js", "pruebas/t027_boceto_cotas.py"):
         if not (shape / arch).is_file():
             raise RuntimeError(f"falta {arch}: primero van los archivos, luego el recado")
-    anotar("el panel y su prueba ya están en main")
+    anotar("el letrero de cotas y su prueba ya están en main")
 
     aplicar(shape)
     revisar(shape)
@@ -154,32 +163,33 @@ def main() -> int:
     anotar("parches aplicados y retirados del repositorio")
 
     if not correr(["git", "status", "--porcelain"], cwd=shape).strip():
-        anotar("no había nada que cambiar: main ya trae la 0.15.0")
+        anotar("no había nada que cambiar: main ya trae la 0.16.0")
         return 0
 
     (shape / "claude" / "ultimo-recado.md").write_text(
         "# Último recado\n\n*Lo escribe `claude/recado.py` al correr en Actions.*\n\n"
         f"- corrido: {dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')}\n"
-        "- recado: 36 · la 0.15.0, el historial de la pieza a la vista\n\n```\n"
+        "- recado: 37 · la 0.16.0, el boceto con cotas que se teclean\n\n```\n"
         + "\n".join(lineas) + "\n```\n", encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "0.15.0: el historial de la pieza, a la vista y editable\n\n"
-            "Mike: «la parametrización del modelo me interesa muchísimo. El mantener algo\n"
-            "de historial de cómo se generó un barreno… después se quiere agrandar o\n"
-            "achicar: sólo se podría incrementar o disminuir el diámetro del cilindro\n"
-            "original sin necesidad de trazarlo todo de nuevo».\n\n"
-            "El motor ya lo hacía —una pieza es su lista de operaciones y regenerar es\n"
-            "volver a correrlas—; lo que faltaba era enseñarlo. Al señalar una cara, el\n"
-            "panel de la derecha dice con qué se hizo la pieza y deja tocar sus números.\n"
-            "Cada cambio la rehace entera desde el contorno, así que un redondeo hecho\n"
-            "encima de un barreno sigue puesto cuando el barreno cambia de diámetro, y\n"
-            "sigue puesto si el barreno se borra del historial.\n\n"
-            "Si un cambio deja la pieza imposible, el historial vuelve como estaba: el\n"
-            "peor caso de tocar un número es que no pase nada, y por eso se puede tocar\n"
-            "sin miedo.\n\n"
-            "Van también BARRENO y REDONDEAR, que el motor ya sabía hacer y nadie podía\n"
-            "llamar, y t026 con 42 comprobaciones, la pantalla incluida.\n\n"
+            "0.16.0: el boceto con cotas, y las cotas de la pieza en pantalla\n\n"
+            "Mike, sobre la etapa B: «hoy sólo se mueven los puntos con el ratón; que\n"
+            "cambiar el ancho a 900 sea teclear 900».\n\n"
+            "Un contorno no trae cotas escritas: trae puntos. Así que las cotas se sacan\n"
+            "de su caja y teclear una estira el contorno hasta que la caja mida eso. El\n"
+            "paso del historial se lee ahora «Rectángulo 600 × 400» y trae Ancho, Fondo y\n"
+            "la esquina donde empieza.\n\n"
+            "Estirar no se lleva lo que se hizo después, y el barreno sigue redondo: su\n"
+            "centro está en milímetros de la pieza, no en fracciones de ella. En madera no\n"
+            "hay barrenos ovalados.\n\n"
+            "Y la pieza señalada enseña sus tres medidas encima, en píxeles para que se\n"
+            "lean igual con cualquier zoom. Se pican: clic al número, tecleas la medida y\n"
+            "la pieza se rehace, sin abrir el panel y sin comandos.\n\n"
+            "Va también un defecto del panel del historial cazado por la prueba nueva: se\n"
+            "saltaba una recarga si había otra petición en vuelo, así que señalar una\n"
+            "pieza y cambiarle un número en seguida podía dejarlo enseñando los pasos de\n"
+            "antes. Ahora las peticiones van en fila.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
@@ -189,7 +199,7 @@ def main() -> int:
 
 
 def avisar_del_fracaso(error: str) -> None:
-    shape = pathlib.Path("/tmp/recado36/shape101")
+    shape = pathlib.Path("/tmp/recado37/shape101")
     if not (shape / ".git").is_dir():
         return
     try:
