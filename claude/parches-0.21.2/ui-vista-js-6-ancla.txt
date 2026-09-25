@@ -1,7 +1,0 @@
-function pintarHule(c = ctx) {
-  const h = estado.hule;
-  if (!h) return;
-  pintarFantasma(h.fantasma, c);
-  const T = tema();
-  const css = { getPropertyValue: (n) => ({ "--acc2": T.acc2, "--texto3": T.texto3, "--lienzo": T.lienzo })[n] || "" };
-  c.save();

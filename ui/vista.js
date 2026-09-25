@@ -1208,6 +1208,19 @@ function pintarImagenRef(t, c = ctx) {
 // La goma: lo que la herramienta en curso quiere enseñar mientras el usuario
 // mueve el cursor. Una herramienta devuelve una parte, o varias; así la
 // polilínea puede pintar a la vez lo que ya lleva y el tramo que va colgando.
+// El arco de a0 a a1 (grados, en el sentido del dibujo), en coordenadas del
+// plano, recorrido cada 5° como mucho. Vale para el círculo entero (0 → 360).
+function arcoPorElPlano(centro, r, a0, a1, P, c) {
+  let barrido = ((a1 - a0) % 360 + 360) % 360;
+  if (barrido === 0) barrido = 360;
+  const n = Math.max(8, Math.ceil(barrido / 5));
+  for (let i = 0; i <= n; i++) {
+    const t = (a0 + barrido * i / n) * Math.PI / 180;
+    const [px, py] = P(centro[0] + r * Math.cos(t), centro[1] + r * Math.sin(t));
+    i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+  }
+}
+
 function pintarParte(h, c = ctx) {
   // Cada parte va por su plano, o por el de la ventana activa si no lo trae.
   const P = (x, y) => { const m = typeof Planos !== "undefined" ? Planos.aMundo(h.plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0]; return aPX(m[0], m[1], m[2]); };
@@ -1218,9 +1231,17 @@ function pintarParte(h, c = ctx) {
     const [bx, by] = P(h.b[0], h.b[1]);
     c.moveTo(ax, ay); c.lineTo(bx, by);
   } else if (h.tipo === "caja") {
-    const [ax, ay] = P(h.a[0], h.a[1]);
-    const [bx, by] = P(h.b[0], h.b[1]);
-    c.rect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    // Las cuatro esquinas, cada una por su plano. Con dos esquinas y c.rect
+    // salía un cuadro derecho de pantalla, así que en la Perspectiva el
+    // rectángulo en curso se veía flotando, no acostado en el suelo como va a
+    // quedar. Lo pidió Mike el 24-sep: «ir representando el dibujo real sobre
+    // el XY de la perspectiva», como Rhino.
+    const esquinas = [[h.a[0], h.a[1]], [h.b[0], h.a[1]], [h.b[0], h.b[1]], [h.a[0], h.b[1]]];
+    esquinas.forEach(([x, y], i) => {
+      const [px, py] = P(x, y);
+      i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+    });
+    c.closePath();
   } else if (h.tipo === "polilinea") {
     const pts = h.puntos || [];
     for (let i = 0; i < pts.length; i++) {
@@ -1229,14 +1250,12 @@ function pintarParte(h, c = ctx) {
     }
     if (h.cerrada && pts.length > 2) c.closePath();
   } else if (h.tipo === "circulo") {
-    const [cx, cy] = P(h.c[0], h.c[1]);
-    c.arc(cx, cy, Math.abs(h.r) * estado.vista.escala, 0, Math.PI * 2);
+    // Un círculo sobre el suelo, visto en la Perspectiva, es una elipse; y de
+    // canto, una raya. c.arc con radio de pantalla siempre da un círculo, así
+    // que el contorno se recorre punto a punto y cada punto pasa por el plano.
+    arcoPorElPlano(h.c, Math.abs(h.r), 0, 360, P, c);
   } else if (h.tipo === "arco") {
-    const [cx, cy] = P(h.c[0], h.c[1]);
-    // El lienzo tiene la Y al revés que el dibujo, así que el sentido del
-    // barrido también se invierte.
-    c.arc(cx, cy, Math.abs(h.r) * estado.vista.escala,
-            -h.a0 * Math.PI / 180, -h.a1 * Math.PI / 180, true);
+    arcoPorElPlano(h.c, Math.abs(h.r), h.a0, h.a1, P, c);
   } else if (h.tipo === "texto") {
     // Texto de una previa (la cifra de una cota): mismo tamaño y giro que
     // tendrá la entidad, para que lo que se ve sea lo que va a quedar.
@@ -1289,8 +1308,16 @@ function pintarParte(h, c = ctx) {
  * Va translúcido y de un solo color a propósito. Si se pintara con los colores
  * de sus capas no se distinguiría del dibujo de verdad, y el usuario no sabría
  * cuál de las dos figuras es la que existe. */
-function pintarFantasma(trazos, c) {
+function pintarFantasma(trazos, c, plano) {
   if (!trazos || !trazos.length) return;
+  // El fantasma también va por el plano del trazo: sin esto, en la
+  // Perspectiva se pintaba como si todo estuviera en el suelo, y en la
+  // Frontal como si el suelo fuera la pared.
+  const P = (x, y) => {
+    const m = typeof Planos !== "undefined"
+      ? Planos.aMundo(plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0];
+    return aPX(m[0], m[1], m[2]);
+  };
   c.save();
   c.globalAlpha = 0.45;
   c.strokeStyle = tema().acc2;
@@ -1301,7 +1328,7 @@ function pintarFantasma(trazos, c) {
     if (t.clase === "texto") {
       const alturaPX = t.altura * estado.vista.escala;
       if (alturaPX < 4) continue;
-      const [px, py] = aPX(t.p[0], t.p[1]);
+      const [px, py] = P(t.p[0], t.p[1]);
       c.save();
       c.translate(px, py);
       if (t.rotacion) c.rotate(-t.rotacion * Math.PI / 180);
@@ -1317,7 +1344,7 @@ function pintarFantasma(trazos, c) {
     if (pts.length < 2) continue;
     c.beginPath();
     for (let i = 0; i < pts.length; i++) {
-      const [px, py] = aPX(pts[i][0], pts[i][1]);
+      const [px, py] = P(pts[i][0], pts[i][1]);
       i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
     }
     c.stroke();
@@ -1328,7 +1355,7 @@ function pintarFantasma(trazos, c) {
 function pintarHule(c = ctx) {
   const h = estado.hule;
   if (!h) return;
-  pintarFantasma(h.fantasma, c);
+  pintarFantasma(h.fantasma, c, h.plano);
   const T = tema();
   const css = { getPropertyValue: (n) => ({ "--acc2": T.acc2, "--texto3": T.texto3, "--lienzo": T.lienzo })[n] || "" };
   c.save();

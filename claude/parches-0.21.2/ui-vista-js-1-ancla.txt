@@ -1,9 +1,0 @@
-    const [bx, by] = P(h.b[0], h.b[1]);
-    c.moveTo(ax, ay); c.lineTo(bx, by);
-  } else if (h.tipo === "caja") {
-    const [ax, ay] = P(h.a[0], h.a[1]);
-    const [bx, by] = P(h.b[0], h.b[1]);
-    c.rect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
-  } else if (h.tipo === "polilinea") {
-    const pts = h.puntos || [];
-    for (let i = 0; i < pts.length; i++) {

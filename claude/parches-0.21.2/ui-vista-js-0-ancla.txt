@@ -1,6 +1,0 @@
-// La goma: lo que la herramienta en curso quiere enseñar mientras el usuario
-// mueve el cursor. Una herramienta devuelve una parte, o varias; así la
-// polilínea puede pintar a la vez lo que ya lleva y el tramo que va colgando.
-function pintarParte(h, c = ctx) {
-  // Cada parte va por su plano, o por el de la ventana activa si no lo trae.
-  const P = (x, y) => { const m = typeof Planos !== "undefined" ? Planos.aMundo(h.plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0]; return aPX(m[0], m[1], m[2]); };

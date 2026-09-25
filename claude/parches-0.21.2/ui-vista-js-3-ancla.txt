@@ -1,8 +1,0 @@
- * Va translúcido y de un solo color a propósito. Si se pintara con los colores
- * de sus capas no se distinguiría del dibujo de verdad, y el usuario no sabría
- * cuál de las dos figuras es la que existe. */
-function pintarFantasma(trazos, c) {
-  if (!trazos || !trazos.length) return;
-  c.save();
-  c.globalAlpha = 0.45;
-  c.strokeStyle = tema().acc2;
