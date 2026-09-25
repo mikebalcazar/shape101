@@ -1,0 +1,7 @@
+  const espejo = eu[0] * ev[1] - eu[1] * ev[0] < 0;
+  const K = deg(Math.atan2(eu[1], eu[0]));
+  return {
+    plano,
+    t: {
+      punto: (p) => [A[0] + p[0] * eu[0] + p[1] * ev[0], A[1] + p[0] * eu[1] + p[1] * ev[1]],
+      angulo: (a) => espejo ? (K - a + 720) % 360 : (a + K + 360) % 360,

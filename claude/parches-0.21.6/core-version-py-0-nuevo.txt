@@ -1,0 +1,25 @@
+
+from __future__ import annotations
+
+VERSION = "0.21.6"
+FECHA = "2026-09-24"
+
+# Qué trae cada entrega, en el idioma del taller y no en el del código.
+# La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
+# enseña en la consola.
+BITACORA: list[dict] = [
+    {
+        "version": "0.21.6",
+        "fecha": "2026-09-24",
+        "cambios": [
+            "ROTAR entre planos con el centro de giro donde lo piques. Con el centro fuera del "
+            "origen, el dibujo girado caía en una pared paralela (a y = 350, por ejemplo), y "
+            "como aquí sólo existen los tres planos por el origen el programa se negaba: «ese "
+            "giro no deja el dibujo en ningún plano». Ahora hace el giro alrededor del eje que "
+            "pasa por tu punto, lo deja en el plano por el origen —que es de donde salen las "
+            "extrusiones— y te lo dice.",
+        ],
+    },
+    {
+        "version": "0.21.5",
+        "fecha": "2026-09-24",

@@ -1,56 +1,29 @@
 {
-  "numero": 49,
-  "asunto": "seleccionar desde cualquier ventana; el recuadro de selección en pantalla",
-  "parches": "claude/parches-0.21.5",
-  "version": "0.21.5",
+  "numero": 50,
+  "asunto": "ROTAR entre planos con el centro donde lo piques",
+  "parches": "claude/parches-0.21.6",
+  "version": "0.21.6",
   "compilar": [
     "core/version.py",
-    "core/geometria.py",
     "verificar.py",
     "pruebas/t038_seleccion_entre_planos.py"
   ],
   "js": [
-    "ui/indice.js",
-    "ui/seleccion.js",
-    "ui/vista.js"
+    "ui/editar.js"
   ],
   "revisar": [
     {
-      "archivo": "core/geometria.py",
+      "archivo": "ui/editar.js",
       "trae": [
-        "pr[\"plano\"] = getattr(e, \"plano\", \"XY\") or \"XY\""
-      ],
-      "dice": "cada primitiva sabe su plano"
-    },
-    {
-      "archivo": "ui/indice.js",
-      "trae": [
-        "function todas() {",
-        "return { primitivas, trazos, ids, todas, caja,"
-      ],
-      "dice": "el índice entrega todas las primitivas"
-    },
-    {
-      "archivo": "ui/seleccion.js",
-      "trae": [
-        "function deOtroPlano() {",
-        "const otro = deOtroPlano();",
-        "function dentroDeCajaPx(id, cajaPx, cruce) {",
-        "if (dentroDeCajaPx(id, cajaPx, cruce)) estado.sel.add(id);",
-        "estado.hule = { tipo: \"cajaPantalla\", a: cajaSel.pa, b: cajaSel.pb, punteado: cruce };"
+        "let plano = null, loc = null, altura = 0;",
+        "if (Math.max(...ws) - Math.min(...ws) < 1e-6) { plano = cand; loc = l; altura = ws[0]; break; }",
+        "if (Math.abs(g.altura) > 1e-6) {"
       ],
       "no_trae": [
-        "if (dentroDeCaja(id, caja, cruce)) estado.sel.add(id);"
+        "if (l.every((q) => Math.abs(q[2]) < 1e-6)) { plano = cand; loc = l; break; }"
       ],
-      "dice": "se pica lo de otro plano, y la caja de selección se arma y se decide en píxeles"
-    },
-    {
-      "archivo": "ui/vista.js",
-      "trae": [
-        "} else if (h.tipo === \"cajaPantalla\") {"
-      ],
-      "dice": "el recuadro de selección se pinta en pantalla"
+      "dice": "el plano se elige por la altura constante, y se avisa cuando se corrió hasta el plano por el origen"
     }
   ],
-  "commit": "Seleccionar desde cualquier ventana; el recuadro de seleccion en pantalla\n\nMike, 24-sep: cuando quiero seleccionar los objetos 2d desde la vista lateral\no frontal no me deja; y por eso mismo, sigo sin poder rotar los objetos desde\nla vista lateral. Y: la ventana de seleccion se dibuja sobre el plano en la\nvista de perspectiva; esa si debe dibujarse sobre la pantalla porque es el\narea de seleccion, no un dibujo.\n\nLo que era: el indice guarda cada primitiva en las (u, v) de su plano, y el\ncursor llega en las (u, v) del plano de la ventana. Un dibujo del suelo visto\ndesde la Lateral esta de canto y sus (u, v) no tienen nada que ver con las de\nla ventana: no se podia picar ni encajonar. Medido en main: clic sobre la raya\nde canto, seleccion vacia; caja alrededor, vacia. ROTAR ya giraba alrededor\ndel eje de la ventana desde la 0.21.3, pero nunca llegaba a tener seleccion.\n\nAhora el motor marca cada primitiva con su plano, y lo de otro plano se pica\nllevandolo al espacio de la ventana por el mundo (a las (u, v) del plano de\nla ventana en las ortogonales, a pixeles en la Perspectiva; los arcos se\nvuelven tramos). La caja de seleccion se arma y se decide en pixeles en todas\nlas ventanas -en las ortogonales es lo mismo que en mm, en la Perspectiva es\nlo unico que tiene sentido- y su recuadro es de pantalla.\n\nt038, 10 comprobaciones, con el flujo de Mike de punta a punta: caja desde la\nLateral, ROTAR, 0,0, 90, y el dibujo queda en XZ. Contra main falla 8 de 10.\nSuite completa en el chat: 895 comprobaciones en 38 pruebas."
+  "commit": "ROTAR entre planos con el centro de giro donde lo piques\n\nMike, 24-sep, con 65 entidades seleccionadas desde la Lateral: no me deja\ngirarlo. En pantalla: ese giro no deja el dibujo en ningun plano.\n\nMedido: con el centro de giro fuera del origen (300, 50 en la Lateral), el\ndibujo girado 90 grados cae en una pared paralela a XZ a y = 350. Aqui solo\nexisten los tres planos por el origen -las extrusiones tambien salen de ahi-\ny giroEntrePlanos exigia altura cero, asi que se negaba. Con el centro en\n0,0 funcionaba, que es como se habia probado.\n\nAhora el plano destino se elige por la altura constante de las tres\nmuestras, se hace el giro alrededor del eje que pasa por el punto picado, se\ndeja el dibujo en el plano por el origen, y se avisa en la linea de comandos\ncuanto se corrio. Medido con rectangulo, linea y cota.\n\nt038 ahora gira con el centro en 300,50 y comprueba el corrimiento y el aviso.\nSuite completa en el chat: 896 comprobaciones en 38 pruebas."
 }
