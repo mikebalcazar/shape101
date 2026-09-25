@@ -1,0 +1,60 @@
+{
+  "numero": 47,
+  "asunto": "Supr borra la pieza señalada · EXTRUIR + valor + Enter · ROTAR entre planos",
+  "parches": "claude/parches-0.21.3",
+  "version": "0.21.3",
+  "compilar": [
+    "core/version.py",
+    "verificar.py",
+    "pruebas/t036_supr_extruir_rotar.py"
+  ],
+  "js": [
+    "ui/editar.js",
+    "ui/seleccion.js",
+    "ui/comandos.js",
+    "ui/extruir.js",
+    "ui/vista.js"
+  ],
+  "revisar": [
+    {
+      "archivo": "ui/editar.js",
+      "trae": [
+        "const senalada = typeof Cuerpos !== \"undefined\" && Cuerpos.senalada;",
+        "function giroEntrePlanos(origen, ventana, c, ang) {",
+        "async function transformarSeleccion(ids, t, accion, copia = false, extra = null) {",
+        "if (extra) Object.assign(c, extra);"
+      ],
+      "dice": "BORRAR ve la pieza señalada, y ROTAR sabe girar entre planos"
+    },
+    {
+      "archivo": "ui/seleccion.js",
+      "trae": [
+        "(estado.sel.size || piezaSenalada) && !pendiente"
+      ],
+      "dice": "Supr con una pieza señalada llama a BORRAR"
+    },
+    {
+      "archivo": "ui/comandos.js",
+      "trae": [
+        "(estado.sel.size || piezaSenalada) && !Seleccion.pidiendo"
+      ],
+      "dice": "y también con la línea de comandos enfocada"
+    },
+    {
+      "archivo": "ui/extruir.js",
+      "trae": [
+        "const tecleado = parseFloat(texto.replace(\",\", \".\"));",
+        "await levantar(ids, tecleado);"
+      ],
+      "dice": "EXTRUIR toma lo tecleado en la línea de comandos como espesor"
+    },
+    {
+      "archivo": "ui/vista.js",
+      "trae": [
+        "const P = (x, y, propio) => {"
+      ],
+      "dice": "el fantasma admite un plano por trazo (ROTAR entre planos lo enseña ya parado)"
+    }
+  ],
+  "commit": "Supr borra la pieza senalada, EXTRUIR toma el valor tecleado, ROTAR entre planos\n\nTres cosas del backlog de Mike, 24-sep, medidas con teclado y raton de verdad.\n\n1. No podia borrar solidos con Supr. Senalar una cara no mete la pieza en la\n   seleccion, y Supr solo miraba la seleccion. Medido: cara senalada, seleccion\n   vacia, Supr, y la pieza seguia. Ahora BORRAR y Supr borran la pieza senalada.\n\n2. EXTRUIR, 50, Enter abria la cajita con 18 y tiraba el 50; el segundo Enter\n   levantaba 18, no 50. Ahora lo tecleado en la linea de comandos mientras se\n   arrastra es el espesor: EXTRUIR, 50, Enter, y ya.\n\n3. Importo un dibujo de draw101 -que cae en el suelo- y quiso pararlo en la\n   pared: rotarlo 90 desde la vista lateral y no podia. ROTAR giraba siempre\n   dentro del plano de la entidad. Ahora, desde otra ventana, gira alrededor del\n   eje de esa ventana y el dibujo cambia de plano, de 90 en 90; el fantasma lo\n   ensena ya parado. La cuenta va por el mundo de tres y vuelve a las dos\n   coordenadas del plano al que cayo. Dentro de la ventana de su plano, ROTAR\n   sigue igual (y acepta los grados tecleados).\n\nt036, 18 comprobaciones. Suite completa en el chat: 872 en 36 pruebas.\n\nY el mandadero se vuelve generico: lo que cambia por recado vive en\nclaude/recado.json. Hasta ahora se copiaba entero en cada envio, y tres de los\nseis errores de copia que el ensayo atrapo estaban ahi."
+}
