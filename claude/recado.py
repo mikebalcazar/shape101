@@ -1,41 +1,37 @@
-"""El mandadero · recado 44: traer un dibujo 2D de draw101.
+"""El mandadero · recado 45: dibujar donde está el ratón, sobre su plano.
 
-Mike, 24-sep: *«necesito poder importar dibujo 2D desde draw. El formato 101d»*.
+Mike, 24-sep, sobre la 0.21.0 recién mandada: *«sigue sin dibujarse en
+perspectiva de manera real sobre el plano xy cuando estás trazando»*.
 
-Lo primero que se midió, antes de escribir una línea: **el documento de los dos
-programas es idéntico campo por campo**. Se escribió un dibujo con el propio
-draw101 0.21.0 y el motor de aquí lo abrió entero — 3 entidades, 2 capas. Así
-que un dibujo de draw101 nunca necesitó traducción; necesitaba que alguien lo
-dejara entrar. `/api/abrir` repartía por extensión, `.t101d` no estaba en la
-lista, y el archivo acababa en el lector de DXF contestando «is not a DXF file».
+**Seguía porque el arreglo nunca llegó a main.** Estaba escrito desde el 23-sep
+y vivía en un documento del proyecto (`shape101-033-dibujo-en-perspectiva.patch`)
+que nadie aplicó. Medido antes de tocar nada: `grep -c planoComando ui/entrada.js`
+daba 0 contra main. Mike no estaba viendo un arreglo incompleto; estaba viendo el
+código de siempre. Eso es lo primero que hay que decir, porque el defecto real
+fue del proceso, no del código.
 
-Lo que va aquí:
+Eran dos defectos que se ven como uno. Los dos medidos aquí, en main, antes de
+escribir una línea:
 
-  · `IMPORTAR` (y el botón «Importar…») mete el dibujo **adentro** de la pieza
-    abierta, sin borrar lo que haya. Lo que entra es geometría de verdad: se
-    selecciona y se levanta con EXTRUIR. Ni Abrir —que reemplaza— ni REFEXT
-    —que entra bloqueado, para calcar— servían para eso.
-  · Cae siempre en el suelo (XY). Lo eligió Mike.
-  · Las capas que trae y aquí no están se crean; las que ya existen no se tocan.
-  · Abrir acepta `.101d` y `.t101d`, y abrir uno **no** lo vuelve el archivo de
-    guardado: el 2D sigue siendo de draw101.
+  · **El punto se leía con la cámara de la ventana activa**, no con la de la
+    ventana donde está el ratón. Apuntando al centro de la Perspectiva con la
+    Superior activa, el programa tomaba un punto a **558 mm** del señalado. Eso
+    es lo que Mike describió el 23-sep como *«aparece en un lugar que no tienes
+    control»*. Medido después del arreglo: **1.1 mm**.
 
-Y dos defectos que aparecieron al medir, los dos ya publicados:
+  · **El hule no se acordaba de su plano**, así que cada ventana lo pintaba con
+    el suyo. El mismo punto salía en `[76.2, -62.3, 0]` en la Superior y en
+    `[76.2, 0, -62.3]` en la Frontal: el trazo sobre el suelo se veía parado,
+    *«como en vista frontal»*. Ahora el hule nace con el plano puesto y las
+    cuatro ventanas lo pintan en el mismo punto del mundo.
 
-  · La interfaz decía `.t101d` mientras el motor guardaba `.101s`. Las piezas
-    que Mike guardaba **no aparecían en su propio diálogo de Abrir**, Guardar le
-    volvía a pedir la ruta cada vez, y el doble clic de Windows no abría una
-    pieza propia.
-  · El peligroso: traer otro dibujo encima de una pieza levantada **la borraba
-    sin avisar**. `nuevo_id()` cuenta desde un contador global que se resiembra
-    al leer cualquier archivo; los ids de draw101 no son `e1, e2, …`, así que el
-    contador volvía a cero y `Documento.agregar`, que guarda por llave, pisaba
-    lo que ya estaba. Medido: la polilínea y el sólido desaparecían. Tocaba
-    también a la referencia externa, y ahí queda arreglado igual.
+Y una regla que protege la geometría: una vez tomado el primer punto, una
+ventana de **otro** plano ya no se lleva el trazo. Una línea no puede tener un
+extremo en el suelo y el otro en la pared, así que el hule se queda quieto.
 
-Probado aquí antes de mandarlo: la suite entera, 834 comprobaciones en 33
-pruebas. `t033` es la nueva y falla contra el código publicado — su primer
-fallo es justamente el de las extensiones.
+`t034` son 10 comprobaciones y **fallaba 6 contra main**: existe para que el
+arreglo no pueda volver a desaparecer en silencio. Suite entera en el chat antes
+de mandar esto: 844 comprobaciones en 34 pruebas.
 """
 from __future__ import annotations
 
@@ -48,9 +44,9 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-PARCHES = "claude/parches-0.21.0"
-NUMERO = 44
-ASUNTO = "traer un dibujo 2D de draw101"
+PARCHES = "claude/parches-0.21.1"
+NUMERO = 45
+ASUNTO = "dibujar donde está el ratón, sobre su plano"
 
 lineas: list[str] = []
 
@@ -124,53 +120,66 @@ def aplicar(raiz: pathlib.Path) -> None:
 def revisar(shape: pathlib.Path) -> None:
     """Lo comprobable sin navegador y sin el motor de sólidos, que aquí no
     están. La suite ya corrió entera en el chat con estos mismos parches sobre
-    una copia de main, y eso es lo que autoriza a mandarlos."""
-    import py_compile
+    una copia de main, y eso es lo que autoriza a mandarlos.
 
-    for arch in ("core/config.py", "core/version.py", "server.py", "verificar.py",
-                 "pruebas/t033_importar_de_draw.py"):
+    Este recado revisa una cosa más que los anteriores: que el arreglo **esté**.
+    El defecto que Mike reportó dos veces seguía vivo porque el código se
+    escribió y nunca llegó al repositorio, así que aquí se para el recado si
+    falta cualquiera de las piezas."""
+    import py_compile
+    import shutil as sh
+    import subprocess as sp
+
+    for arch in ("core/version.py", "verificar.py",
+                 "pruebas/t034_dibujo_en_perspectiva.py"):
         py_compile.compile(str(shape / arch), doraise=True)
-    anotar("los cinco archivos de Python compilan")
+    anotar("los tres archivos de Python compilan")
+
+    # Aquí se toca interfaz, no motor: si el runner trae node, se revisa que el
+    # JavaScript por lo menos se lea. Un paréntesis de más no debe llegar a Mike.
+    if sh.which("node"):
+        for arch in ("ui/entrada.js", "ui/vista.js"):
+            h = sp.run(["node", "--check", str(shape / arch)], capture_output=True, text=True)
+            if h.returncode != 0:
+                raise RuntimeError(f"{arch} no es JavaScript válido: {h.stderr.strip()[-300:]}")
+        anotar("entrada.js y vista.js son JavaScript válido")
 
     v = json.loads((shape / "package.json").read_text(encoding="utf-8"))["version"]
     if f'VERSION = "{v}"' not in (shape / "core" / "version.py").read_text(encoding="utf-8"):
         raise RuntimeError(f"package.json dice {v} y core/version.py dice otra cosa")
-    if v != "0.21.0":
-        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.21.0")
+    if v != "0.21.1":
+        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.21.1")
     anotar(f"la versión dice {v} en los dos sitios")
 
-    # El defecto que Mike vivía: el motor guardaba .101s y la interfaz decía
-    # .t101d. Se comprueba aquí y además en t033, porque es la clase de cosa
-    # que se vuelve a desincronizar sola.
-    cfg = (shape / "core" / "config.py").read_text(encoding="utf-8")
-    app = (shape / "ui" / "app.js").read_text(encoding="utf-8")
-    if 'EXT_PROYECTO = ".101s"' not in cfg:
-        raise RuntimeError("core/config.py ya no guarda en .101s")
-    if 'const EXT_PROPIA = "101s"' not in app:
-        raise RuntimeError("ui/app.js y core/config.py no dicen la misma extensión")
-    for clave in ("EXT_DRAW101", "def es_propio", "def es_de_draw"):
-        if clave not in cfg:
-            raise RuntimeError(f"core/config.py no trae {clave}")
-    anotar("el motor y la interfaz guardan con la misma extensión, y reconocen draw101")
+    ent = (shape / "ui" / "entrada.js").read_text(encoding="utf-8")
+    vis = (shape / "ui" / "vista.js").read_text(encoding="utf-8")
 
-    srv = (shape / "server.py").read_text(encoding="utf-8")
-    if 'ruta.suffix.lower() == config.EXT_PROYECTO' in srv:
-        raise RuntimeError("queda una puerta repartiendo por una sola extensión")
-    for clave in ('@app.post("/api/importar")', "def _id_libre", "config.es_de_draw(ruta)"):
-        if clave not in srv:
-            raise RuntimeError(f"server.py no trae {clave}")
-    # El que borraba piezas: si alguien vuelve a pedir un id sin mirar lo que
-    # hay abierto, importar vuelve a pisar lo que ya estaba.
-    if "copia.id = ent_mod.nuevo_id()" in srv:
-        raise RuntimeError("alguna puerta vuelve a pedir ids sin mirar el documento abierto")
-    anotar("la puerta de importar está puesta y los ids ya no pisan lo que hay")
+    # 1 · el plano del comando: se guarda, se limpia y se puede preguntar.
+    for clave in ("let planoComando = null", "planoComando = null;",
+                  "planoComando: () => planoComando,"):
+        if clave not in ent:
+            raise RuntimeError(f"ui/entrada.js no trae «{clave}»")
+    anotar("el plano del comando se guarda y se puede preguntar")
 
-    for arch, clave in (("ui/suite.js", 'nombre: "IMPORTAR"'),
-                        ("ui/index.html", 'id="b-importar"'),
-                        ("electron/main.js", '".101s"')):
-        if clave not in (shape / arch).read_text(encoding="utf-8"):
-            raise RuntimeError(f"{arch} no trae {clave}")
-    anotar("el comando, el botón y el doble clic de Windows están enganchados")
+    # 2 · el hule nace con su plano: esto es lo que hacía que el trazo sobre el
+    # suelo se viera parado en las otras ventanas.
+    if "if (!h.plano) h.plano = plano;" not in ent:
+        raise RuntimeError("ui/entrada.js: el hule vuelve a nacer sin plano")
+    if "if (parte && !parte.plano) parte.plano = plano;" not in ent:
+        raise RuntimeError("ui/entrada.js: las partes del hule vuelven a nacer sin plano")
+    anotar("el hule nace con el plano en el que se está trazando")
+
+    # 3 · manda la ventana bajo el cursor, y el plano del comando la frena.
+    if "Ventanas.bajo(px, py)" not in vis:
+        raise RuntimeError("ui/vista.js: el ratón ya no manda sobre la ventana activa")
+    if "Entrada.planoComando()" not in vis:
+        raise RuntimeError("ui/vista.js: ya nada frena el salto de plano a media línea")
+    anotar("manda la ventana bajo el cursor, y a media línea el plano la frena")
+
+    if "DESVIO_DE_ANTES_MM = 558" not in (
+            shape / "pruebas" / "t034_dibujo_en_perspectiva.py").read_text(encoding="utf-8"):
+        raise RuntimeError("t034 perdió la medida de antes, que es lo que hace legible el fallo")
+    anotar("t034 está puesta, con los 558 mm de antes escritos")
 
 
 def main() -> int:
@@ -206,32 +215,29 @@ def main() -> int:
         encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Traer un dibujo 2D de draw101, y dos defectos que salieron al medir\n\n"
-            "Mike: necesito poder importar dibujo 2D desde draw, el formato 101d.\n\n"
-            "Lo primero que se midio: el documento de los dos programas es identico\n"
-            "campo por campo. Se escribio un dibujo con draw101 0.21.0 de verdad y el\n"
-            "motor de aqui lo abrio entero. Nunca necesito traduccion; necesitaba que\n"
-            "alguien lo dejara entrar. /api/abrir repartia por extension, .t101d no\n"
-            "estaba en la lista, y acababa en el lector de DXF diciendo is not a DXF.\n\n"
-            "IMPORTAR mete el dibujo adentro de la pieza abierta sin borrar lo que haya,\n"
-            "como geometria de verdad que se selecciona y se levanta con EXTRUIR. Ni\n"
-            "Abrir -que reemplaza- ni REFEXT -que entra bloqueado para calcar- servian.\n"
-            "Cae siempre en el suelo (XY), que lo eligio Mike. Las capas que trae y aqui\n"
-            "no estan se crean; las que ya existen no se tocan.\n\n"
-            "Dos defectos ya publicados que aparecieron al medir:\n\n"
-            "1. La interfaz decia .t101d y el motor guardaba .101s. Las piezas guardadas\n"
-            "   no aparecian en el propio dialogo de Abrir, Guardar volvia a pedir ruta\n"
-            "   cada vez, y el doble clic de Windows no abria una pieza propia.\n\n"
-            "2. El peligroso: importar encima de una pieza levantada la borraba sin\n"
-            "   avisar. nuevo_id() cuenta desde un contador global que se resiembra al\n"
-            "   leer cualquier archivo; los ids de draw101 no son e1, e2, asi que el\n"
-            "   contador volvia a cero y Documento.agregar, que guarda por llave, pisaba\n"
-            "   lo que ya estaba. Tocaba tambien a la referencia externa.\n\n"
-            "t033, 24 comprobaciones, con draw101 de verdad como referencia. Su primera\n"
-            "comprobacion no prueba una funcion: prueba que el motor y la interfaz digan\n"
-            "la misma extension, que es el defecto 1 y la clase de cosa que se vuelve a\n"
-            "desincronizar sola.\n\n"
-            "Suite completa en el chat: 834 comprobaciones en 33 pruebas.\n\n"
+            "Dibujar donde esta el raton, sobre su plano\n\n"
+            "Mike, sobre la 0.21.0: sigue sin dibujarse en perspectiva de manera real\n"
+            "sobre el plano xy cuando estas trazando.\n\n"
+            "Seguia porque el arreglo nunca llego a main. Estaba escrito desde el 23-sep\n"
+            "y vivia en un documento del proyecto que nadie aplico: grep -c planoComando\n"
+            "ui/entrada.js daba 0 contra main. El defecto real fue del proceso.\n\n"
+            "Eran dos defectos que se ven como uno, los dos medidos en main antes de\n"
+            "escribir una linea:\n\n"
+            "1. El punto se leia con la camara de la ventana activa, no con la de la\n"
+            "   ventana donde esta el raton. Apuntando al centro de la Perspectiva con la\n"
+            "   Superior activa, el programa tomaba un punto a 558 mm del senalado: el\n"
+            "   lugar que no tienes control. Despues del arreglo, 1.1 mm.\n\n"
+            "2. El hule no se acordaba de su plano, asi que cada ventana lo pintaba con\n"
+            "   el suyo. El mismo punto salia en [76.2, -62.3, 0] en la Superior y en\n"
+            "   [76.2, 0, -62.3] en la Frontal: el trazo sobre el suelo se veia parado,\n"
+            "   como en vista frontal. Ahora nace con el plano puesto y las cuatro\n"
+            "   ventanas lo pintan en el mismo punto del mundo.\n\n"
+            "Y la regla que protege la geometria: con el primer punto ya tomado, una\n"
+            "ventana de otro plano no se lleva el trazo. Una linea no puede tener un\n"
+            "extremo en el suelo y el otro en la pared.\n\n"
+            "t034, 10 comprobaciones, fallaba 6 contra main: existe para que el arreglo\n"
+            "no pueda volver a desaparecer en silencio.\n\n"
+            "Suite completa en el chat: 844 comprobaciones en 34 pruebas.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
