@@ -141,6 +141,13 @@ const Indice = (() => {
     return _porIdTrazos.get(id) || [];
   }
 
+  /** Todas las primitivas, tal cual vienen del motor (cada una con su
+   *  `plano`). Para picar desde una ventana de otro plano, ver seleccion.js. */
+  function todas() {
+    alDia();
+    return _geom || [];
+  }
+
   /** Todos los ids que tienen geometría, sin repetir. */
   function ids() {
     alDia();
@@ -335,6 +342,6 @@ const Indice = (() => {
     return true;
   }
 
-  return { primitivas, trazos, ids, caja, gripsGuardados, cerca, estadisticas,
+  return { primitivas, trazos, ids, todas, caja, gripsGuardados, cerca, estadisticas,
            grupoDe, delGrupo, rehacer, parchar };
 })();

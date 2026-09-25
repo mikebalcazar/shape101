@@ -1,6 +1,0 @@
-  }
-
-  function dentroDeCaja(id, caja, cruce) {
-    const c = cajaDe(id);
-    if (!c) return false;
-    const [x0, y0, x1, y1] = caja;

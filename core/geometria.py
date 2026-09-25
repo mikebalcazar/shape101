@@ -214,6 +214,9 @@ def primitivas_marcadas(doc: Documento, e) -> list[dict]:
     for pr in primitivas_de(doc, e):
         pr["id"] = e.id
         pr["capa"] = e.capa
+        # En qué plano vive: la interfaz lo necesita para picar desde una
+        # ventana de otro plano (un dibujo del suelo, de canto en la Lateral).
+        pr["plano"] = getattr(e, "plano", "XY") or "XY"
         salida.append(pr)
     if cabe:
         doc.cache.setdefault(e.id, {})["geometria"] = salida

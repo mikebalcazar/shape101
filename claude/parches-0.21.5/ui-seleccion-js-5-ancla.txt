@@ -1,8 +1,0 @@
-      return;
-    }
-    if (!cajaSel) return;
-    const arrastro = Math.hypot(p[0] - cajaSel.a[0], p[1] - cajaSel.a[1]) >
-                     6 / estado.vista.escala;
-    /* Sumar a la selección es con **Shift**, como pidió Mike el 4-sep, y
-     * Ctrl queda libre para otras cosas. No choca con el ortho momentáneo:
-     * Shift invierte el ortho sólo **mientras se toma un punto**, y sumar a la

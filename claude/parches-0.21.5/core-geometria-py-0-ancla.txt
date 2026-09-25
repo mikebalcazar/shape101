@@ -1,6 +1,0 @@
-    for pr in primitivas_de(doc, e):
-        pr["id"] = e.id
-        pr["capa"] = e.capa
-        salida.append(pr)
-    if cabe:
-        doc.cache.setdefault(e.id, {})["geometria"] = salida

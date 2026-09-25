@@ -1,8 +1,0 @@
-    }
-    if (!cajaSel) return false;
-    cajaSel.b = p;
-    const cruce = p[0] < cajaSel.a[0];
-    estado.hule = { tipo: "caja", a: cajaSel.a, b: p, punteado: cruce };
-    pintar();
-    return true;
-  }

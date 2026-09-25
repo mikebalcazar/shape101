@@ -16,7 +16,13 @@
 
 const Seleccion = (() => {
   let pendiente = null;          // {resolver, rechazar, filtro, queja, una}
-  let cajaSel = null;            // {a:[x,y], b:[x,y]} en mm
+  let cajaSel = null;            // {a:[x,y], b:[x,y]} en mm, y {pa, pb} en píxeles
+  /* El píxel del lienzo donde está el ratón: lo pone vista.js en cada
+   * movimiento. La caja de selección se arma y se decide **en píxeles**
+   * (Mike, 24-sep: «es el área de selección, no un dibujo»): en las tres
+   * ortogonales es lo mismo que en mm, y en la Perspectiva es lo único que
+   * tiene sentido. */
+  const pixel = () => [estado.cursor ? estado.cursor.px : 0, estado.cursor ? estado.cursor.py : 0];
   let gripArrastrado = null;
 
   /* Cuánto se puede fallar el tiro y aun así agarrar algo  ·  punto 8.
@@ -49,6 +55,65 @@ const Seleccion = (() => {
   const cajaDe = (id) => Indice.caja(id);
   const idsVisibles = () => Indice.ids();
 
+  /* --- Lo que está en otro plano  ·  0.21.5 -----------------------------
+   *
+   * El índice guarda cada primitiva en las (u, v) de **su** plano, y el cursor
+   * llega en las (u, v) del plano de la ventana. Cuando coinciden, todo lo de
+   * arriba sirve tal cual. Cuando no —un dibujo del suelo visto desde la
+   * Lateral, donde está de canto—, el cursor no cae en ninguna (u, v) suya y
+   * no se podía picar. Mike (24-sep): «seleccionar los objetos 2d desde la
+   * vista lateral o frontal no me deja».
+   *
+   * Lo de otro plano se lleva **al espacio de la ventana** pasando por el
+   * mundo: a las (u, v) del plano de la ventana en las tres ortogonales, y a
+   * píxeles en la Perspectiva (ahí lo que cuenta es lo que el ojo ve). Los
+   * arcos se vuelven tramos, porque un arco de canto es una raya y visto en
+   * perspectiva una elipse. Con eso, `Osnap.sobre` y `primTocaCaja` trabajan
+   * igual que con las de siempre. */
+  const _A_LOCAL_W = {
+    XY: (m) => [m[0], m[1]],
+    XZ: (m) => [m[0], m[2]],
+    YZ: (m) => [m[1], m[2]],
+  };
+  let _otroCache = null;
+
+  function deOtroPlano() {
+    const v = estado.vista;
+    if (!v || typeof Planos === "undefined" || typeof Indice.todas !== "function") return null;
+    const W = v.plano || "XY";
+    const todas = Indice.todas();
+    const llave = [todas, W, v.persp ? [v.x, v.y, v.escala, v.rx, v.rz, v.ox, v.oy, String(v.mira)].join(",") : ""];
+    if (_otroCache && _otroCache.llave[0] === llave[0] && _otroCache.llave[1] === llave[1] && _otroCache.llave[2] === llave[2]) return _otroCache;
+    const llevar = v.persp
+      ? (plano, x, y) => { const m = Planos.aMundo(plano, x, y, 0); return aPX(m[0], m[1], m[2]); }
+      : (plano, x, y) => _A_LOCAL_W[W](Planos.aMundo(plano, x, y, 0));
+    const prims = [];
+    const porId = new Map();
+    const meter = (pr) => { prims.push(pr); let a = porId.get(pr.id); if (!a) { a = []; porId.set(pr.id, a); } a.push(pr); };
+    for (const pr of todas) {
+      const plano = pr.plano || "XY";
+      if (plano === W) continue;
+      if (pr.tipo === "seg") meter({ ...pr, a: llevar(plano, pr.a[0], pr.a[1]), b: llevar(plano, pr.b[0], pr.b[1]) });
+      else if (pr.tipo === "punto") meter({ ...pr, p: llevar(plano, pr.p[0], pr.p[1]) });
+      else if (pr.tipo === "arco") {
+        let barrido = ((pr.a1 - pr.a0) % 360 + 360) % 360;
+        if (barrido === 0) barrido = 360;
+        const n = Math.max(8, Math.ceil(barrido / 15));
+        let ant = null;
+        for (let i = 0; i <= n; i++) {
+          const t = (pr.a0 + barrido * i / n) * Math.PI / 180;
+          const q = llevar(plano, pr.c[0] + pr.r * Math.cos(t), pr.c[1] + pr.r * Math.sin(t));
+          if (ant) meter({ tipo: "seg", id: pr.id, capa: pr.capa, plano: pr.plano, a: ant, b: q });
+          ant = q;
+        }
+      }
+    }
+    _otroCache = { llave, prims, porId,
+                   aPunto: (p) => llevar(W, p[0], p[1]),
+                   escala: v.persp ? v.escala : 1 };   // mm de la ventana → unidades de este espacio
+    return _otroCache;
+  }
+
   /** Todo lo que cae dentro de la tolerancia, del más cercano al más lejano.
    *
    *  Devuelve la lista entera y no sólo el mejor porque con eso se arma el
@@ -61,6 +126,17 @@ const Seleccion = (() => {
       if (d > tol) continue;
       const antes = cercanas.get(pr.id);
       if (antes === undefined || d < antes) cercanas.set(pr.id, d);
+    }
+    const otro = deOtroPlano();
+    if (otro && otro.prims.length) {
+      const p2 = otro.aPunto(p);
+      for (const pr of otro.prims) {
+        const q = Osnap.sobre(pr, p2);
+        const d = Math.hypot(q[0] - p2[0], q[1] - p2[1]) / otro.escala;
+        if (d > tol) continue;
+        const antes = cercanas.get(pr.id);
+        if (antes === undefined || d < antes) cercanas.set(pr.id, d);
+      }
     }
     // Los textos no tienen geometría de línea: se atrapan por su caja. Aquí
     // entra el número de una cota, que es lo más grande que tiene y lo que
@@ -148,6 +224,18 @@ const Seleccion = (() => {
   }
 
   function dentroDeCaja(id, caja, cruce) {
+    // Lo de otro plano se decide en el espacio de la ventana (ver arriba).
+    const otro = deOtroPlano();
+    const ajenas = otro && otro.porId.get(id);
+    if (ajenas && ajenas.length) {
+      const e1 = otro.aPunto([caja[0], caja[1]]), e2 = otro.aPunto([caja[2], caja[3]]);
+      const e3 = otro.aPunto([caja[0], caja[3]]), e4 = otro.aPunto([caja[2], caja[1]]);
+      const xs = [e1[0], e2[0], e3[0], e4[0]], ys = [e1[1], e2[1], e3[1], e4[1]];
+      const cj = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+      if (cruce) return ajenas.some((pr) => primTocaCaja(pr, cj));
+      return ajenas.every((pr) => { const b = Osnap.caja(pr);
+        return b[0] >= cj[0] && b[1] >= cj[1] && b[2] <= cj[2] && b[3] <= cj[3]; });
+    }
     const c = cajaDe(id);
     if (!c) return false;
     const [x0, y0, x1, y1] = caja;
@@ -421,8 +509,60 @@ const Seleccion = (() => {
     // ¿Agarró un grip de algo ya seleccionado?  ·  feature 42
     const g = gripBajoCursor(p);
     if (g) { gripArrastrado = g; return true; }
-    cajaSel = { a: p, b: p, arrastrando: false };
+    cajaSel = { a: p, b: p, pa: pixel(), pb: pixel(), arrastrando: false };
     return false;
+  }
+
+  /* --- La caja de selección, en píxeles  ·  0.21.5 -----------------------
+   * Cada primitiva de la entidad —de cualquier plano— se lleva a píxeles por
+   * el mundo, con la cámara de la ventana donde se dibujó la caja, y ahí se
+   * decide con `primTocaCaja` (cruce) o con la caja envolvente (ventana). */
+  function primsEnPixeles(id) {
+    const prims = primitivasDe(id);
+    const M = typeof Planos !== "undefined" ? Planos.aMundo : (pl, x, y) => [x, y, 0];
+    const PX = (plano, x, y) => { const m = M(plano || "XY", x, y, 0); return aPX(m[0], m[1], m[2]); };
+    const salida = [];
+    for (const pr of prims) {
+      const plano = pr.plano || "XY";
+      if (pr.tipo === "seg") salida.push({ tipo: "seg", a: PX(plano, pr.a[0], pr.a[1]), b: PX(plano, pr.b[0], pr.b[1]) });
+      else if (pr.tipo === "punto") salida.push({ tipo: "punto", p: PX(plano, pr.p[0], pr.p[1]) });
+      else if (pr.tipo === "arco") {
+        let barrido = ((pr.a1 - pr.a0) % 360 + 360) % 360;
+        if (barrido === 0) barrido = 360;
+        const n = Math.max(8, Math.ceil(barrido / 15));
+        let ant = null;
+        for (let i = 0; i <= n; i++) {
+          const th = (pr.a0 + barrido * i / n) * Math.PI / 180;
+          const q = PX(plano, pr.c[0] + pr.r * Math.cos(th), pr.c[1] + pr.r * Math.sin(th));
+          if (ant) salida.push({ tipo: "seg", a: ant, b: q });
+          ant = q;
+        }
+      }
+    }
+    return salida;
+  }
+
+  function dentroDeCajaPx(id, cajaPx, cruce) {
+    const prims = primsEnPixeles(id);
+    if (!prims.length) {
+      // Un texto no tiene rayas: cuenta por la caja de sus letras.
+      for (const t of Indice.trazos(id)) {
+        if (t.clase !== "texto" || typeof cajaTrazo !== "function") continue;
+        const b = cajaTrazo(t);
+        const plano = t.plano || "XY";
+        const M = typeof Planos !== "undefined" ? Planos.aMundo : (pl, x, y) => [x, y, 0];
+        const esq = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]].map(([x, y]) => { const m = M(plano, x, y, 0); return aPX(m[0], m[1], m[2]); });
+        const xs = esq.map((q) => q[0]), ys = esq.map((q) => q[1]);
+        const c = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+        const toca = !(c[2] < cajaPx[0] || c[0] > cajaPx[2] || c[3] < cajaPx[1] || c[1] > cajaPx[3]);
+        const dentro = c[0] >= cajaPx[0] && c[1] >= cajaPx[1] && c[2] <= cajaPx[2] && c[3] <= cajaPx[3];
+        if (cruce ? toca : dentro) return true;
+      }
+      return false;
+    }
+    if (cruce) return prims.some((pr) => primTocaCaja(pr, cajaPx));
+    return prims.every((pr) => { const b = Osnap.caja(pr);
+      return b[0] >= cajaPx[0] && b[1] >= cajaPx[1] && b[2] <= cajaPx[2] && b[3] <= cajaPx[3]; });
   }
 
   async function clicArriba(e, p) {
@@ -436,8 +576,8 @@ const Seleccion = (() => {
       return;
     }
     if (!cajaSel) return;
-    const arrastro = Math.hypot(p[0] - cajaSel.a[0], p[1] - cajaSel.a[1]) >
-                     6 / estado.vista.escala;
+    const pb = pixel();
+    const arrastro = Math.hypot(pb[0] - cajaSel.pa[0], pb[1] - cajaSel.pa[1]) > 6;
     /* Sumar a la selección es con **Shift**, como pidió Mike el 4-sep, y
      * Ctrl queda libre para otras cosas. No choca con el ortho momentáneo:
      * Shift invierte el ortho sólo **mientras se toma un punto**, y sumar a la
@@ -464,12 +604,12 @@ const Seleccion = (() => {
       return;
     }
 
-    const cruce = p[0] < cajaSel.a[0];      // de derecha a izquierda = cruce
-    const caja = [Math.min(cajaSel.a[0], p[0]), Math.min(cajaSel.a[1], p[1]),
-                  Math.max(cajaSel.a[0], p[0]), Math.max(cajaSel.a[1], p[1])];
+    const cruce = pb[0] < cajaSel.pa[0];      // de derecha a izquierda = cruce
+    const cajaPx = [Math.min(cajaSel.pa[0], pb[0]), Math.min(cajaSel.pa[1], pb[1]),
+                    Math.max(cajaSel.pa[0], pb[0]), Math.max(cajaSel.pa[1], pb[1])];
     if (!sumar) estado.sel.clear();
     for (const id of idsVisibles()) {
-      if (dentroDeCaja(id, caja, cruce)) estado.sel.add(id);
+      if (dentroDeCajaPx(id, cajaPx, cruce)) estado.sel.add(id);
     }
     // Una ventana que atrapa a un miembro se lleva su grupo entero.
     for (const id of [...estado.sel]) {
@@ -492,8 +632,12 @@ const Seleccion = (() => {
     }
     if (!cajaSel) return false;
     cajaSel.b = p;
-    const cruce = p[0] < cajaSel.a[0];
-    estado.hule = { tipo: "caja", a: cajaSel.a, b: p, punteado: cruce };
+    cajaSel.pb = pixel();
+    const cruce = cajaSel.pb[0] < cajaSel.pa[0];
+    // El recuadro es de pantalla, no del plano: en la Perspectiva se veía
+    // acostado en el suelo (0.21.2 puso el rectángulo en curso sobre su plano,
+    // y este recuadro no es un dibujo).
+    estado.hule = { tipo: "cajaPantalla", a: cajaSel.pa, b: cajaSel.pb, punteado: cruce };
     pintar();
     return true;
   }

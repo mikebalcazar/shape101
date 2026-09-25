@@ -1,8 +1,0 @@
-      return;
-    }
-    if (!cajaSel) return;
-    const pb = pixel();
-    const arrastro = Math.hypot(pb[0] - cajaSel.pa[0], pb[1] - cajaSel.pa[1]) > 6;
-    /* Sumar a la selección es con **Shift**, como pidió Mike el 4-sep, y
-     * Ctrl queda libre para otras cosas. No choca con el ortho momentáneo:
-     * Shift invierte el ortho sólo **mientras se toma un punto**, y sumar a la

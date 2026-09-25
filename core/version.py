@@ -21,13 +21,27 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.21.4"
+VERSION = "0.21.5"
 FECHA = "2026-09-24"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.21.5",
+        "fecha": "2026-09-24",
+        "cambios": [
+            "Se puede seleccionar desde cualquier ventana. Un dibujo del suelo visto desde la "
+            "Lateral o la Frontal está de canto, y hasta ahora no se podía picar ni encajonar "
+            "ahí: la selección buscaba en las coordenadas del plano de la ventana y el dibujo "
+            "vive en las del suyo. Ahora lo de otro plano se busca pasando por el mundo. Con "
+            "eso, seleccionar desde la Lateral y ROTAR 90° para el dibujo en la pared.",
+            "El recuadro de selección es de pantalla. En la Perspectiva salía acostado en el "
+            "suelo; es un área de selección, no un dibujo, y se decide en pantalla: lo que el "
+            "recuadro abarca en la pantalla es lo que entra.",
+        ],
+    },
     {
         "version": "0.21.4",
         "fecha": "2026-09-24",
