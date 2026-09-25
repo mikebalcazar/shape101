@@ -1,37 +1,27 @@
-"""El mandadero · recado 45: dibujar donde está el ratón, sobre su plano.
+"""El mandadero · recado 46: el trazo en curso, acostado en su plano.
 
-Mike, 24-sep, sobre la 0.21.0 recién mandada: *«sigue sin dibujarse en
-perspectiva de manera real sobre el plano xy cuando estás trazando»*.
+Mike, 24-sep, con el rectángulo a medio trazar en la Perspectiva y una foto de
+Rhino al lado: *«debería estarse trazando sobre el plano xy VISUALMENTE, ir
+representando el dibujo real sobre el XY de la perspectiva»*.
 
-**Seguía porque el arreglo nunca llegó a main.** Estaba escrito desde el 23-sep
-y vivía en un documento del proyecto (`shape101-033-dibujo-en-perspectiva.patch`)
-que nadie aplicó. Medido antes de tocar nada: `grep -c planoComando ui/entrada.js`
-daba 0 contra main. Mike no estaba viendo un arreglo incompleto; estaba viendo el
-código de siempre. Eso es lo primero que hay que decir, porque el defecto real
-fue del proceso, no del código.
+La línea ya iba bien desde la 0.21.1. Pero el rectángulo se pintaba con
+`c.rect` entre dos esquinas proyectadas, y `c.rect` sólo sabe hacer cuadros
+derechos de pantalla: en la Perspectiva salía flotando en vez de acostado. El
+círculo y el arco igual, con `c.arc` y un radio en píxeles: un círculo sobre el
+suelo, visto en perspectiva, es una elipse. Y el fantasma de previa (bloques,
+texto) tampoco pasaba por el plano.
 
-Eran dos defectos que se ven como uno. Los dos medidos aquí, en main, antes de
-escribir una línea:
+Ahora cada punto del contorno pasa por el plano del trazo y se proyecta, como
+ya hacía la línea: las cuatro esquinas del rectángulo, y el círculo y el arco
+recorridos cada 5°.
 
-  · **El punto se leía con la cámara de la ventana activa**, no con la de la
-    ventana donde está el ratón. Apuntando al centro de la Perspectiva con la
-    Superior activa, el programa tomaba un punto a **558 mm** del señalado. Eso
-    es lo que Mike describió el 23-sep como *«aparece en un lugar que no tienes
-    control»*. Medido después del arreglo: **1.1 mm**.
+Medido con tinta, no con estado: se leen los píxeles del lienzo de encima a la
+mitad de cada lado del paralelogramo que le toca al rectángulo sobre el suelo.
+Con el arreglo, tinta en los cuatro; contra main, **cero en los cuatro**. La
+elipse igual: tinta en cuatro ángulos y ninguna sobre el círculo de pantalla de
+antes. `t035` son 10 comprobaciones y falla 3 contra main.
 
-  · **El hule no se acordaba de su plano**, así que cada ventana lo pintaba con
-    el suyo. El mismo punto salía en `[76.2, -62.3, 0]` en la Superior y en
-    `[76.2, 0, -62.3]` en la Frontal: el trazo sobre el suelo se veía parado,
-    *«como en vista frontal»*. Ahora el hule nace con el plano puesto y las
-    cuatro ventanas lo pintan en el mismo punto del mundo.
-
-Y una regla que protege la geometría: una vez tomado el primer punto, una
-ventana de **otro** plano ya no se lleva el trazo. Una línea no puede tener un
-extremo en el suelo y el otro en la pared, así que el hule se queda quieto.
-
-`t034` son 10 comprobaciones y **fallaba 6 contra main**: existe para que el
-arreglo no pueda volver a desaparecer en silencio. Suite entera en el chat antes
-de mandar esto: 844 comprobaciones en 34 pruebas.
+Suite entera en el chat antes de mandar esto: 854 comprobaciones en 35 pruebas.
 """
 from __future__ import annotations
 
@@ -44,9 +34,9 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-PARCHES = "claude/parches-0.21.1"
-NUMERO = 45
-ASUNTO = "dibujar donde está el ratón, sobre su plano"
+PARCHES = "claude/parches-0.21.2"
+NUMERO = 46
+ASUNTO = "el trazo en curso, acostado en su plano"
 
 lineas: list[str] = []
 
@@ -120,66 +110,46 @@ def aplicar(raiz: pathlib.Path) -> None:
 def revisar(shape: pathlib.Path) -> None:
     """Lo comprobable sin navegador y sin el motor de sólidos, que aquí no
     están. La suite ya corrió entera en el chat con estos mismos parches sobre
-    una copia de main, y eso es lo que autoriza a mandarlos.
-
-    Este recado revisa una cosa más que los anteriores: que el arreglo **esté**.
-    El defecto que Mike reportó dos veces seguía vivo porque el código se
-    escribió y nunca llegó al repositorio, así que aquí se para el recado si
-    falta cualquiera de las piezas."""
+    una copia de main, y eso es lo que autoriza a mandarlos. Y, como desde el
+    recado 45, que cada pieza del arreglo **esté**."""
     import py_compile
     import shutil as sh
     import subprocess as sp
 
-    for arch in ("core/version.py", "verificar.py",
-                 "pruebas/t034_dibujo_en_perspectiva.py"):
+    for arch in ("core/version.py", "verificar.py", "pruebas/t035_hule_por_el_plano.py"):
         py_compile.compile(str(shape / arch), doraise=True)
     anotar("los tres archivos de Python compilan")
 
-    # Aquí se toca interfaz, no motor: si el runner trae node, se revisa que el
-    # JavaScript por lo menos se lea. Un paréntesis de más no debe llegar a Mike.
     if sh.which("node"):
-        for arch in ("ui/entrada.js", "ui/vista.js"):
-            h = sp.run(["node", "--check", str(shape / arch)], capture_output=True, text=True)
-            if h.returncode != 0:
-                raise RuntimeError(f"{arch} no es JavaScript válido: {h.stderr.strip()[-300:]}")
-        anotar("entrada.js y vista.js son JavaScript válido")
+        h = sp.run(["node", "--check", str(shape / "ui" / "vista.js")], capture_output=True, text=True)
+        if h.returncode != 0:
+            raise RuntimeError(f"ui/vista.js no es JavaScript válido: {h.stderr.strip()[-300:]}")
+        anotar("vista.js es JavaScript válido")
 
     v = json.loads((shape / "package.json").read_text(encoding="utf-8"))["version"]
     if f'VERSION = "{v}"' not in (shape / "core" / "version.py").read_text(encoding="utf-8"):
         raise RuntimeError(f"package.json dice {v} y core/version.py dice otra cosa")
-    if v != "0.21.1":
-        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.21.1")
+    if v != "0.21.2":
+        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.21.2")
     anotar(f"la versión dice {v} en los dos sitios")
 
-    ent = (shape / "ui" / "entrada.js").read_text(encoding="utf-8")
     vis = (shape / "ui" / "vista.js").read_text(encoding="utf-8")
-
-    # 1 · el plano del comando: se guarda, se limpia y se puede preguntar.
-    for clave in ("let planoComando = null", "planoComando = null;",
-                  "planoComando: () => planoComando,"):
-        if clave not in ent:
-            raise RuntimeError(f"ui/entrada.js no trae «{clave}»")
-    anotar("el plano del comando se guarda y se puede preguntar")
-
-    # 2 · el hule nace con su plano: esto es lo que hacía que el trazo sobre el
-    # suelo se viera parado en las otras ventanas.
-    if "if (!h.plano) h.plano = plano;" not in ent:
-        raise RuntimeError("ui/entrada.js: el hule vuelve a nacer sin plano")
-    if "if (parte && !parte.plano) parte.plano = plano;" not in ent:
-        raise RuntimeError("ui/entrada.js: las partes del hule vuelven a nacer sin plano")
-    anotar("el hule nace con el plano en el que se está trazando")
-
-    # 3 · manda la ventana bajo el cursor, y el plano del comando la frena.
-    if "Ventanas.bajo(px, py)" not in vis:
-        raise RuntimeError("ui/vista.js: el ratón ya no manda sobre la ventana activa")
-    if "Entrada.planoComando()" not in vis:
-        raise RuntimeError("ui/vista.js: ya nada frena el salto de plano a media línea")
-    anotar("manda la ventana bajo el cursor, y a media línea el plano la frena")
-
-    if "DESVIO_DE_ANTES_MM = 558" not in (
-            shape / "pruebas" / "t034_dibujo_en_perspectiva.py").read_text(encoding="utf-8"):
-        raise RuntimeError("t034 perdió la medida de antes, que es lo que hace legible el fallo")
-    anotar("t034 está puesta, con los 558 mm de antes escritos")
+    # 1 · el rectángulo ya no se pinta con un cuadro de pantalla
+    if "c.rect(Math.min(ax, bx), Math.min(ay, by)" in vis:
+        raise RuntimeError("ui/vista.js: el hule del rectángulo vuelve a ser un cuadro de pantalla")
+    if "const esquinas = [[h.a[0], h.a[1]], [h.b[0], h.a[1]], [h.b[0], h.b[1]], [h.a[0], h.b[1]]];" not in vis:
+        raise RuntimeError("ui/vista.js: faltan las cuatro esquinas del rectángulo")
+    anotar("el rectángulo en curso pasa sus cuatro esquinas por el plano")
+    # 2 · el círculo y el arco, punto a punto por el plano
+    if "function arcoPorElPlano(" not in vis or vis.count("arcoPorElPlano(h.c,") != 2:
+        raise RuntimeError("ui/vista.js: el círculo o el arco no van por el plano")
+    if "Math.abs(h.r) * estado.vista.escala" in vis:
+        raise RuntimeError("ui/vista.js: queda un radio de pantalla en el hule")
+    anotar("el círculo y el arco en curso van punto a punto por el plano")
+    # 3 · el fantasma también
+    if "pintarFantasma(h.fantasma, c, h.plano);" not in vis or "function pintarFantasma(trazos, c, plano)" not in vis:
+        raise RuntimeError("ui/vista.js: el fantasma no recibe el plano")
+    anotar("el fantasma de previa pasa por el plano del trazo")
 
 
 def main() -> int:
@@ -215,30 +185,23 @@ def main() -> int:
         encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "Dibujar donde esta el raton, sobre su plano\n\n"
-            "Mike, sobre la 0.21.0: sigue sin dibujarse en perspectiva de manera real\n"
-            "sobre el plano xy cuando estas trazando.\n\n"
-            "Seguia porque el arreglo nunca llego a main. Estaba escrito desde el 23-sep\n"
-            "y vivia en un documento del proyecto que nadie aplico: grep -c planoComando\n"
-            "ui/entrada.js daba 0 contra main. El defecto real fue del proceso.\n\n"
-            "Eran dos defectos que se ven como uno, los dos medidos en main antes de\n"
-            "escribir una linea:\n\n"
-            "1. El punto se leia con la camara de la ventana activa, no con la de la\n"
-            "   ventana donde esta el raton. Apuntando al centro de la Perspectiva con la\n"
-            "   Superior activa, el programa tomaba un punto a 558 mm del senalado: el\n"
-            "   lugar que no tienes control. Despues del arreglo, 1.1 mm.\n\n"
-            "2. El hule no se acordaba de su plano, asi que cada ventana lo pintaba con\n"
-            "   el suyo. El mismo punto salia en [76.2, -62.3, 0] en la Superior y en\n"
-            "   [76.2, 0, -62.3] en la Frontal: el trazo sobre el suelo se veia parado,\n"
-            "   como en vista frontal. Ahora nace con el plano puesto y las cuatro\n"
-            "   ventanas lo pintan en el mismo punto del mundo.\n\n"
-            "Y la regla que protege la geometria: con el primer punto ya tomado, una\n"
-            "ventana de otro plano no se lleva el trazo. Una linea no puede tener un\n"
-            "extremo en el suelo y el otro en la pared.\n\n"
-            "t034, 10 comprobaciones, fallaba 6 contra main: existe para que el arreglo\n"
-            "no pueda volver a desaparecer en silencio.\n\n"
-            "Suite completa en el chat: 844 comprobaciones en 34 pruebas.\n\n"
-            "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
+            "El trazo en curso, acostado en su plano\n\n"
+            "Mike, con el rectangulo a medio trazar en la Perspectiva y una foto de\n"
+            "Rhino al lado: deberia estarse trazando sobre el plano xy visualmente, ir\n"
+            "representando el dibujo real sobre el XY de la perspectiva.\n\n"
+            "La linea ya iba bien desde la 0.21.1. Pero el rectangulo se pintaba con\n"
+            "c.rect entre dos esquinas proyectadas, y c.rect solo sabe hacer cuadros\n"
+            "derechos de pantalla: en la Perspectiva salia flotando. El circulo y el\n"
+            "arco igual, con c.arc y un radio en pixeles: un circulo sobre el suelo,\n"
+            "visto en perspectiva, es una elipse. El fantasma de previa tampoco pasaba\n"
+            "por el plano.\n\n"
+            "Ahora cada punto del contorno pasa por el plano del trazo y se proyecta:\n"
+            "las cuatro esquinas del rectangulo, y el circulo y el arco cada 5 grados.\n\n"
+            "Medido con tinta: a la mitad de cada lado del paralelogramo que le toca al\n"
+            "rectangulo sobre el suelo hay tinta en los cuatro; contra main, cero en\n"
+            "los cuatro. t035, 10 comprobaciones, falla 3 contra main.\n\n"
+            "Suite completa en el chat: 854 comprobaciones en 35 pruebas.\n\n"
+            "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
     correr(["git", "push", "origin", "HEAD:main"], cwd=shape)
