@@ -1,7 +1,0 @@
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;      // con escala 1 y cámara en cero
-      v.x = cx - v.w / 2 / escala;
-      v.y = -cy + (v.h + TITULO) / 2 / escala;
-    }
-  }
-
-  /* --- La rejilla, ventana por ventana  ·  0.20.0 --------------------------

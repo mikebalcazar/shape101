@@ -181,10 +181,11 @@ const Cuerpos = (() => {
    *  Es para encuadrar: hasta la 0.19.0 encuadrar sólo miraba los trazos del
    *  dibujo 2D, así que una pieza sin su contorno —borrado después de
    *  levantarla— no entraba en la cuenta y Extents la dejaba fuera. */
-  function esquinas() {
+  function esquinas(solo = null) {
     let x0 = Infinity, y0 = Infinity, z0 = Infinity;
     let x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
-    for (const m of mallas.values()) {
+    for (const [id, m] of mallas) {
+      if (solo !== null && id !== solo) continue;
       for (const cara of m.caras || []) {
         const vs = cara.v || [];
         for (let i = 0; i + 2 < vs.length; i += 3) {

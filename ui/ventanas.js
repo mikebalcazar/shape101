@@ -23,7 +23,9 @@ const Ventanas = (() => {
 
   const ventanas = [
     { nombre: "Superior",    plano: "XY", rx: 0,            rz: 0 },
-    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO, persp: true, foco: 1400 },
+    // `mira`: el punto del mundo al que está anclada la perspectiva y
+    // alrededor del que se orbita. Lo fija Extents; panear no lo mueve.
+    { nombre: "Perspectiva", plano: "XY", rx: -60 * GRADO,  rz: 45 * GRADO, persp: true, foco: 1400, mira: [0, 0, 0] },
     { nombre: "Frontal",     plano: "XZ", rx: -90 * GRADO,  rz: 0 },
     { nombre: "Lateral",     plano: "YZ", rx: -90 * GRADO,  rz: -90 * GRADO },
   ].map((v, i) => ({ ...v, i, x: 0, y: 0, escala: 1, ox: 0, oy: 0, w: 100, h: 100 }));
@@ -154,6 +156,7 @@ const Ventanas = (() => {
       if (v.w <= 0 || v.h <= 0) continue;
       v.x = -v.w / 2 / v.escala;
       v.y = (v.h + TITULO) / 2 / v.escala;
+      if (v.persp) v.mira = [0, 0, 0];
     }
   }
 
@@ -183,7 +186,22 @@ const Ventanas = (() => {
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;      // con escala 1 y cámara en cero
       v.x = cx - v.w / 2 / escala;
       v.y = -cy + (v.h + TITULO) / 2 / escala;
+      // La Perspectiva se ancla al centro de lo encuadrado: ahí queda el
+      // punto de fuga y el pivote de orbitar, hasta el siguiente Extents.
+      if (v.persp) v.mira = centroDe(puntos);
     }
+  }
+
+  /** El centro de la caja de unos puntos [x, y, z]. */
+  function centroDe(puntos) {
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (const p of puntos) {
+      const z = p[2] || 0;
+      if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+      if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+      if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    return isFinite(x0) ? [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2] : [0, 0, 0];
   }
 
   /* --- La rejilla, ventana por ventana  ·  0.20.0 --------------------------

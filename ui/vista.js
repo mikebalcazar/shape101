@@ -48,28 +48,39 @@ if (typeof ResizeObserver !== "undefined") {
 // siempre**, línea por línea. Eso no es una optimización: es lo que garantiza
 // que el 2D que ya funciona no cambie ni en el último decimal. Si cambiara, el
 // osnap dejaría de pegar donde debe y nadie sabría por qué.
-const aPX = (x, y, z) => {
-  const v = estado.vista;
-  if (!v.rx && !v.rz) return [(x - v.x) * v.escala + (v.ox || 0), (v.y - y) * v.escala + (v.oy || 0)];
+// La proyección girada **sin** perspectiva: [px, py, profundidad]. La
+// profundidad crece hacia el ojo.
+const _sinPerspectiva = (v, x, y, z) => {
   const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
   const ux = x * cz - y * sz;
   const uy = x * sz + y * cz;
   const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
   const vy = uy * cx - (z || 0) * sx;
-  let px = (ux - v.x) * v.escala + (v.ox || 0), py = (v.y - vy) * v.escala + (v.oy || 0);
-  if (v.persp) {
-    // Perspectiva: lo cercano al ojo se aleja del centro de la ventana y lo
-    // lejano se acerca. Sólo la ventana Perspectiva la lleva; las otras tres
-    // son ortogonales, que es donde se mide.
-    const prof = uy * sx + (z || 0) * cx;
-    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
-    // El foco va en píxeles: así la perspectiva es igual de conservadora a
-    // cualquier zoom. En milímetros se estiraba al alejarse.
-    const k = 1 / Math.max(0.1, 1 - prof * v.escala / (v.foco || 1400));
-    px = cxs + (px - cxs) * k;
-    py = cys + (py - cys) * k;
-  }
-  return [px, py];
+  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0), uy * sx + (z || 0) * cx];
+};
+
+const aPX = (x, y, z) => {
+  const v = estado.vista;
+  if (!v.rx && !v.rz) return [(x - v.x) * v.escala + (v.ox || 0), (v.y - y) * v.escala + (v.oy || 0)];
+  const [px, py, prof] = _sinPerspectiva(v, x, y, z);
+  if (!v.persp) return [px, py];
+  // Perspectiva: lo cercano al ojo se aleja del punto de fuga y lo lejano se
+  // acerca. Sólo la ventana Perspectiva la lleva; las otras tres son
+  // ortogonales, que es donde se mide.
+  //
+  // El punto de fuga es la **mira** (`v.mira`, un punto del mundo que fija
+  // Extents), no el centro de la ventana. Hasta la 0.21.3 era el centro de
+  // la ventana, y por eso panear deformaba: al correr la ventana cambiaba
+  // qué punto quedaba «al frente», y una pieza cambiaba de tamaño en pantalla
+  // sin tocar el zoom (Mike, 24-sep: «el paneo hace un zoom involuntario»).
+  // Medido: una arista de 110 px pasaba a 85 con un paneo de 150 px. Anclada
+  // a la mira, panear es correr la imagen y nada más.
+  const m = v.mira || [0, 0, 0];
+  const [mx, my, profM] = _sinPerspectiva(v, m[0], m[1], m[2]);
+  // El foco va en píxeles: así la perspectiva es igual de conservadora a
+  // cualquier zoom. En milímetros se estiraba al alejarse.
+  const k = 1 / Math.max(0.1, 1 - (prof - profM) * v.escala / (v.foco || 1400));
+  return [mx + (px - mx) * k, my + (py - my) * k];
 };
 // Al revés se cae **sobre el plano de trabajo** (z = 0): es donde vive el
 // dibujo, así que el punto que sueltas es el que estabas viendo.
@@ -81,13 +92,18 @@ const aMM = (px, py) => {
   const cx = Math.cos(v.rx);
   if (v.persp && Math.abs(cx) > 1e-9) {
     // Deshacer la perspectiva sobre el suelo (z = 0): ahí la profundidad es
-    // lineal en la Y de la cámara, y la ecuación se resuelve exacta.
-    const cxs = (v.ox || 0) + v.w / 2, cys = (v.oy || 0) + v.h / 2;
-    const t = (Math.sin(v.rx) / cx) * v.escala / (v.foco || 1400);
-    const A = v.y * v.escala + (v.oy || 0) - cys, d = py - cys;
-    vy = (A - d) / (v.escala - d * t);
-    const k = 1 / Math.max(0.1, 1 - t * vy);
-    ux = v.x + ((px - cxs) / k + cxs - (v.ox || 0)) / v.escala;
+    // lineal en la Y de la cámara, y la ecuación se resuelve exacta. Con la
+    // mira como punto de fuga (ver aPX): k = 1 / (g − t·vy), donde g lleva
+    // la profundidad de la mira.
+    const m = v.mira || [0, 0, 0];
+    const [mx, my, profM] = _sinPerspectiva(v, m[0], m[1], m[2]);
+    const foco = v.foco || 1400;
+    const t = (Math.sin(v.rx) / cx) * v.escala / foco;
+    const g = 1 + profM * v.escala / foco;
+    const A = v.y * v.escala + (v.oy || 0) - my, d = py - my;
+    vy = (A - d * g) / (v.escala - d * t);
+    const k = 1 / Math.max(0.1, g - t * vy);
+    ux = v.x + ((px - mx) / k + mx - (v.ox || 0)) / v.escala;
   }
   // En la Frontal y la Lateral lo que se devuelve son las coordenadas del
   // plano de la ventana —(x, z) o (y, z)—, que es donde se dibuja ahí.
@@ -133,8 +149,15 @@ function encuadrar(recordar = true) {
   // Cada una desde su ángulo: la caja en planta no dice dónde caen las cosas
   // vistas de frente.
   if (typeof Ventanas !== "undefined" && estado.vista && estado.vista.w) {
-    const puntos = puntosDelDibujo();
+    // Con algo seleccionado —o una pieza señalada— Extents encuadra **eso**,
+    // y deja ahí la mira de la Perspectiva: el punto de fuga y el pivote de
+    // orbitar. Mike (24-sep): «un botón de extents donde recentres la pantalla
+    // en el objeto seleccionado; así se puede anclar en un nuevo punto el eje
+    // de rotación».
+    const puntos = puntosDeLaSeleccion();
     if (puntos.length) { Ventanas.encuadrarTodas(puntos); return pintar(); }
+    const todos = puntosDelDibujo();
+    if (todos.length) { Ventanas.encuadrarTodas(todos); return pintar(); }
     Ventanas.centrarEnOrigen();
     return pintar();
   }
@@ -821,18 +844,42 @@ function pintar() {
  */
 /** Las cuatro esquinas de lo que hay dibujado, en el plano de trabajo. Es lo
  *  que se le da a las ventanas para que se encuadren solas. */
-function puntosDelDibujo() {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const t of estado.trazos || []) for (const p of (t.puntos || [])) {
-    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
-    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+/** Las esquinas de la caja de unos trazos, **en el mundo**: cada trazo va por
+ *  su plano. Hasta la 0.21.3 se tomaban las (u, v) como si todo estuviera en
+ *  el suelo, y un dibujo parado en la pared se encuadraba acostado. */
+function _cajaDeTrazos(trazos) {
+  let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+  const M = typeof Planos !== "undefined" ? Planos.aMundo : (pl, u, v) => [u, v, 0];
+  for (const t of trazos) for (const p of (t.puntos || [])) {
+    const m = M(t.plano || "XY", p[0], p[1], 0);
+    if (m[0] < x0) x0 = m[0]; if (m[0] > x1) x1 = m[0];
+    if (m[1] < y0) y0 = m[1]; if (m[1] > y1) y1 = m[1];
+    if (m[2] < z0) z0 = m[2]; if (m[2] > z1) z1 = m[2];
   }
+  if (!isFinite(x0)) return [];
+  const fuera = [];
+  for (const x of [x0, x1]) for (const y of [y0, y1]) for (const z of [z0, z1]) fuera.push([x, y, z]);
+  return fuera;
+}
+
+function puntosDelDibujo() {
+  const planos = _cajaDeTrazos(estado.trazos || []);
   // Y las piezas: una pieza cuyo contorno se borró después de levantarla no
   // tiene trazos, y hasta la 0.19.0 encuadrar la dejaba fuera.
   const solidos = (typeof Cuerpos !== "undefined" && Cuerpos.esquinas) ? Cuerpos.esquinas() : [];
-  if (!isFinite(x0)) return solidos;
-  const planos = [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
-  return solidos.length ? planos.concat(solidos) : planos;
+  return planos.concat(solidos);
+}
+
+/** Lo seleccionado (y la pieza señalada), en el mundo. Vacío si no hay nada. */
+function puntosDeLaSeleccion() {
+  const trazos = [];
+  if (estado.sel && estado.sel.size && typeof Indice !== "undefined") {
+    for (const id of estado.sel) for (const t of Indice.trazos(id) || []) trazos.push(t);
+  }
+  const puntos = _cajaDeTrazos(trazos);
+  const s = typeof Cuerpos !== "undefined" && Cuerpos.senalada;
+  if (s && Cuerpos.esquinas) for (const p of Cuerpos.esquinas(s.id)) puntos.push(p);
+  return puntos;
 }
 
 function dibujarPlano(c, fondo = true) {
