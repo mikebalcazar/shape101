@@ -1,0 +1,7 @@
+}
+
+/** Aplica una transformación a una selección. Si `copia`, deja el original. */
+async function transformarSeleccion(ids, t, accion, copia = false) {
+  const ents = await traer(ids);
+  const cambios = {};
+  const agregar = [];

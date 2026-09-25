@@ -1,0 +1,11 @@
+  // El fantasma también va por el plano del trazo: sin esto, en la
+  // Perspectiva se pintaba como si todo estuviera en el suelo, y en la
+  // Frontal como si el suelo fuera la pared.
+  // Un trazo puede traer su propio plano (ROTAR entre planos enseña el
+  // dibujo ya en el plano al que va a caer).
+  const P = (x, y, propio) => {
+    const m = typeof Planos !== "undefined"
+      ? Planos.aMundo(propio || plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0];
+    return aPX(m[0], m[1], m[2]);
+  };
+  c.save();

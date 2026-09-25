@@ -1,0 +1,9 @@
+  nombre: "BORRAR", alias: ["B", "E", "SUPR"],
+  ayuda: "Borra lo seleccionado (tecla Supr)",
+  correr: async () => {
+    const ids = await Seleccion.pedir({ mensaje: "Selecciona lo que se borra" });
+    if (!ids.length) return;
+    await aplicarOperacion({ accion: `Borrar ${ids.length}`, borrar: ids });
+    Seleccion.limpiar();
+    Comandos.eco(`${ids.length} entidad(es) borradas.`);
+  },

@@ -1,0 +1,20 @@
+      e.preventDefault();
+      e.stopPropagation();
+      const ids = activa.ids;
+      // Lo tecleado en la línea de comandos mientras se arrastraba **es el
+      // espesor**: «EXTRUIR, 50, Enter» y ya. Antes ese Enter abría la cajita
+      // con el valor por omisión y tiraba el 50 (Mike, 24-sep: «tengo que
+      // hacer un enter más todavía»); medido, el segundo Enter levantaba 18.
+      const campo = document.getElementById("cmd");
+      const texto = campo ? String(campo.value).trim() : "";
+      const tecleado = parseFloat(texto.replace(",", "."));
+      if (texto && isFinite(tecleado) && tecleado !== 0) {
+        campo.value = "";
+        Comandos.eco("› " + texto);
+        terminar();
+        await levantar(ids, tecleado);
+        return;
+      }
+      const sugerido = Math.abs(activa.mm) >= 0.5 ? activa.mm : 18;
+      terminar();
+      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) return;

@@ -1,0 +1,6 @@
+      e.preventDefault();
+      e.stopPropagation();
+      const ids = activa.ids;
+      const sugerido = Math.abs(activa.mm) >= 0.5 ? activa.mm : 18;
+      terminar();
+      if (typeof Entrada === "undefined" || !Entrada.pedirNumero) return;

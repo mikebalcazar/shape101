@@ -1,0 +1,7 @@
+  "build": {
+    "appId": "mx.taller101.shape101",
+    "productName": "shape101",
+    "artifactName": "shape101-0.21.2-setup.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"

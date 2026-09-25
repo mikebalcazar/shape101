@@ -1,0 +1,7 @@
+    if (pts.length < 2) continue;
+    c.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const [px, py] = P(pts[i][0], pts[i][1], t.plano);
+      i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+    }
+    c.stroke();

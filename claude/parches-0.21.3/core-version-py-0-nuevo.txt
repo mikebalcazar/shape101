@@ -1,0 +1,29 @@
+
+from __future__ import annotations
+
+VERSION = "0.21.3"
+FECHA = "2026-09-24"
+
+# Qué trae cada entrega, en el idioma del taller y no en el del código.
+# La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
+# enseña en la consola.
+BITACORA: list[dict] = [
+    {
+        "version": "0.21.3",
+        "fecha": "2026-09-24",
+        "cambios": [
+            "Supr borra la pieza señalada. Señalar una cara no la metía en la selección, "
+            "y Supr sólo miraba la selección: la pieza se quedaba. BORRAR igual.",
+            "EXTRUIR, el espesor, Enter: y ya. Antes lo tecleado se perdía —ese Enter abría "
+            "la cajita con el valor por omisión— y hacía falta un segundo Enter, que además "
+            "levantaba el valor por omisión y no el tuyo.",
+            "ROTAR desde otra ventana pasa el dibujo de plano. Un dibujo importado cae en el "
+            "suelo; para pararlo en la pared, selecciónalo, vete a la Lateral y ROTAR 90°: "
+            "gira alrededor del eje de esa ventana y queda en la Frontal. Entre planos se "
+            "gira de 90 en 90, y el fantasma lo enseña ya parado. Dentro de la ventana de "
+            "su plano, ROTAR sigue siendo el de siempre (y ahora acepta los grados tecleados).",
+        ],
+    },
+    {
+        "version": "0.21.2",
+        "fecha": "2026-09-24",

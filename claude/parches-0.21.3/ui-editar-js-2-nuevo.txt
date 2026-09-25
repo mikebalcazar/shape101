@@ -1,0 +1,18 @@
+  nombre: "BORRAR", alias: ["B", "E", "SUPR"],
+  ayuda: "Borra lo seleccionado (tecla Supr)",
+  correr: async () => {
+    // Una pieza señalada por una cara también se borra: señalar una cara no
+    // la mete en la selección, y Mike (24-sep) no podía borrar sólidos con
+    // Supr por eso. Si hay selección, manda la selección, como siempre.
+    const senalada = typeof Cuerpos !== "undefined" && Cuerpos.senalada;
+    const ids = (!estado.sel.size && senalada) ? [senalada.id]
+      : await Seleccion.pedir({ mensaje: "Selecciona lo que se borra" });
+    if (!ids.length) return;
+    await aplicarOperacion({ accion: `Borrar ${ids.length}`, borrar: ids });
+    if (senalada && ids.includes(senalada.id)) {
+      Cuerpos.senalar(null);
+      await Cuerpos.refrescar();
+    }
+    Seleccion.limpiar();
+    Comandos.eco(`${ids.length} entidad(es) borradas.`);
+  },
