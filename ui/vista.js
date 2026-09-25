@@ -1313,9 +1313,11 @@ function pintarFantasma(trazos, c, plano) {
   // El fantasma también va por el plano del trazo: sin esto, en la
   // Perspectiva se pintaba como si todo estuviera en el suelo, y en la
   // Frontal como si el suelo fuera la pared.
-  const P = (x, y) => {
+  // Un trazo puede traer su propio plano (ROTAR entre planos enseña el
+  // dibujo ya en el plano al que va a caer).
+  const P = (x, y, propio) => {
     const m = typeof Planos !== "undefined"
-      ? Planos.aMundo(plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0];
+      ? Planos.aMundo(propio || plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0];
     return aPX(m[0], m[1], m[2]);
   };
   c.save();
@@ -1328,7 +1330,7 @@ function pintarFantasma(trazos, c, plano) {
     if (t.clase === "texto") {
       const alturaPX = t.altura * estado.vista.escala;
       if (alturaPX < 4) continue;
-      const [px, py] = P(t.p[0], t.p[1]);
+      const [px, py] = P(t.p[0], t.p[1], t.plano);
       c.save();
       c.translate(px, py);
       if (t.rotacion) c.rotate(-t.rotacion * Math.PI / 180);
@@ -1344,7 +1346,7 @@ function pintarFantasma(trazos, c, plano) {
     if (pts.length < 2) continue;
     c.beginPath();
     for (let i = 0; i < pts.length; i++) {
-      const [px, py] = P(pts[i][0], pts[i][1]);
+      const [px, py] = P(pts[i][0], pts[i][1], t.plano);
       i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
     }
     c.stroke();

@@ -1,9 +1,0 @@
-  // El fantasma también va por el plano del trazo: sin esto, en la
-  // Perspectiva se pintaba como si todo estuviera en el suelo, y en la
-  // Frontal como si el suelo fuera la pared.
-  const P = (x, y) => {
-    const m = typeof Planos !== "undefined"
-      ? Planos.aMundo(plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0];
-    return aPX(m[0], m[1], m[2]);
-  };
-  c.save();

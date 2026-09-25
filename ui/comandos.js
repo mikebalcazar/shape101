@@ -129,7 +129,8 @@ const Comandos = (() => {
       }
       // Supr con la caja vacía borra lo seleccionado. Con texto escrito, no:
       // ahí Supr es lo que hace en cualquier caja de texto.
-      if (e.key === "Delete" && !campo.value && estado.sel.size && !Seleccion.pidiendo) {
+      const piezaSenalada = typeof Cuerpos !== "undefined" && !!Cuerpos.senalada;
+      if (e.key === "Delete" && !campo.value && (estado.sel.size || piezaSenalada) && !Seleccion.pidiendo) {
         e.preventDefault();
         correr("BORRAR");
         return;

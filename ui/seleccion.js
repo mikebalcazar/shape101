@@ -865,7 +865,8 @@ const Seleccion = (() => {
       if (pendiente) { cancelarPeticion(); return true; }
       if (estado.sel.size) { limpiar(); return true; }
     }
-    if ((e.key === "Delete" || e.key === "Supr") && estado.sel.size && !pendiente) {
+    const piezaSenalada = typeof Cuerpos !== "undefined" && !!Cuerpos.senalada;
+    if ((e.key === "Delete" || e.key === "Supr") && (estado.sel.size || piezaSenalada) && !pendiente) {
       // Dentro de una caja de texto (el panel de propiedades, el cuadro
       // flotante) Supr borra letras, no entidades.
       const et = document.activeElement && document.activeElement.tagName;

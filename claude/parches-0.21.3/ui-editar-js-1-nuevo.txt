@@ -1,7 +1,0 @@
-    if (!c) { ajenas++; continue; }
-    // Una copia de una cota no sigue pegada a la pieza original: sería una
-    // cota que mide otra cosa de la que está encima.
-    if (extra) Object.assign(c, extra);   // p. ej. el plano nuevo, al girar entre planos
-    if (copia) agregar.push({ ...ent, ...c, id: undefined, ...(ent.tipo === "cota" ? { liga: [] } : {}) });
-    else cambios[ent.id] = c;
-  }
