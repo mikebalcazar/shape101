@@ -1,9 +1,0 @@
-    return `rgb(${Math.min(255, Math.round(base[0] * tono))},${Math.min(255, Math.round(base[1] * tono))},${Math.min(255, Math.round(base[2] * tono))})`;
-  }
-
-  function pintar(c, oscuro) {
-    if (!mallas.size || !window.aPX) return;
-    for (const t of triangulos()) {
-      c.fillStyle = color(t, oscuro);
-      c.beginPath();
-      c.moveTo(t.q[0][0], t.q[0][1]);

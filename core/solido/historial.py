@@ -59,8 +59,58 @@ def _entidades(op: dict) -> list[dict]:
 
 
 OPERACIONES = {"boceto", "extruir", "revolver", "barrer", "loft", "extruir_cara",
+               "primitiva",
                "restar", "redondear", "empujar_cara",
                "mover_vertice", "mover_arista"}
+
+
+# --- sólidos directos  ·  0.21.8 --------------------------------------------
+#
+# Mike, 25-sep: «necesito los comandos para generar sólidos directo (prisma,
+# cilindro, pirámide, etc.)». Una primitiva es una operación de nacimiento sin
+# boceto: se arma en el papel de su plano —(u, v) sobre el plano, w hacia la
+# normal— apoyada en w = 0, y se lleva al mundo como cualquier boceto. Sus
+# medidas son campos que se tocan en el historial, igual que el espesor de una
+# extrusión.
+FORMAS = ("caja", "cilindro", "cono", "esfera", "piramide")
+
+
+def _primitiva(op: dict):
+    """El sólido de una primitiva, en el papel de su plano (sin llevar)."""
+    from build123d import Align, Box, Cone, Cylinder, Face, Pos, Sphere, Vertex, Wire, loft
+
+    forma = op.get("forma")
+    u, v = [float(k) for k in (op.get("base") or [0, 0])[:2]]
+    alto = float(op.get("alto", 0) or 0)
+    radio = float(op.get("radio", 0) or 0)
+    ancho, fondo = float(op.get("ancho", 0) or 0), float(op.get("fondo", 0) or 0)
+    abajo = (Align.MIN, Align.MIN, Align.MIN)
+    centrado = (Align.CENTER, Align.CENTER, Align.MIN)
+    if forma == "caja":
+        if min(ancho, fondo, alto) <= 0:
+            raise ValueError("un prisma necesita ancho, fondo y alto mayores que cero")
+        s = Box(ancho, fondo, alto, align=abajo)
+    elif forma == "cilindro":
+        if radio <= 0 or alto <= 0:
+            raise ValueError("un cilindro necesita radio y alto mayores que cero")
+        s = Cylinder(radio, alto, align=centrado)
+    elif forma == "cono":
+        radio2 = float(op.get("radio2", 0) or 0)
+        if radio <= 0 or alto <= 0 or radio2 < 0:
+            raise ValueError("un cono necesita radio y alto mayores que cero")
+        s = Cone(radio, radio2, alto, align=centrado)
+    elif forma == "esfera":
+        if radio <= 0:
+            raise ValueError("una esfera necesita radio mayor que cero")
+        s = Sphere(radio).moved(Pos(0, 0, radio))      # apoyada en el plano
+    elif forma == "piramide":
+        if min(ancho, fondo, alto) <= 0:
+            raise ValueError("una pirámide necesita ancho, fondo y alto mayores que cero")
+        base = Face(Wire.make_rect(ancho, fondo)).moved(Pos(ancho / 2, fondo / 2, 0))
+        s = loft([base, Vertex(ancho / 2, fondo / 2, alto)])
+    else:
+        raise ValueError(f"no conozco la forma «{forma}»; valen {', '.join(FORMAS)}")
+    return s.moved(Pos(u, v, 0))
 
 
 # --- la identidad de cada operación  ·  0.19.0 ------------------------------
@@ -370,6 +420,20 @@ def _paso(est: Estado, i: int, op: dict) -> None:
         solido = loft(caras, ruled=bool(op.get("reglado", False)))
         a, b = caras[0].center(), caras[-1].center()
         nom.bautizar_cuerpo(solido, eje=(b.X - a.X, b.Y - a.Y, b.Z - a.Z))
+        est.boceto_pendiente = None
+    elif clase == "primitiva":
+        # Un sólido de la nada, en el plano de la ventana donde se pidió.
+        from build123d import Vector
+        s = _primitiva(op)
+        spec = planos.del_dibujo(op.get("plano"))
+        if planos.es_el_suelo(spec):
+            n = Vector(0, 0, 1)
+        else:
+            pl = planos.plano_de(spec, est.nom, est.solido)
+            s = pl.from_local_coords(s)
+            n = Vector(pl.z_dir)
+        solido = s
+        nom.bautizar_cuerpo(solido, eje=(n.X, n.Y, n.Z))
         est.boceto_pendiente = None
     elif clase == "extruir_cara":
         # Mike, 19-sep: «extrude face es un sólido nuevo a partir de una cara

@@ -1,6 +1,0 @@
-    grados: float = 360.0
-    separacion: float = 0.0
-    reglado: bool = False
-
-
-@router.post("/revolver")

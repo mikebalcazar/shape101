@@ -121,7 +121,13 @@ def _malla(cuerpo):
     f = _factor_mm()
     if f != 1.0 and "volumen_mm3" in m:
         m["volumen_mm3"] = round(m["volumen_mm3"] * f ** 3, 1)
-    m["unidades"] = getattr(_doc(), "unidades", "mm")
+    doc = _doc()
+    m["unidades"] = getattr(doc, "unidades", "mm")
+    # El material de la pieza, para el estilo renderizado (0.21.8): su color, o
+    # el de su capa. Blanco y negro son «sin color»: la interfaz pone madera.
+    capa = getattr(cuerpo, "capa", "0")
+    m["capa"] = capa
+    m["color"] = getattr(cuerpo, "color", None) or getattr(doc.capas.get(capa), "color", None) or "#FFFFFF"
     return m
 
 
@@ -214,6 +220,40 @@ class Seleccion(BaseModel):
     grados: float = 360.0
     separacion: float = 0.0
     reglado: bool = False
+
+
+class Primitiva(BaseModel):
+    forma: str
+    plano: str = "XY"
+    base: list[float] = [0.0, 0.0]
+    ancho: float = 0.0
+    fondo: float = 0.0
+    alto: float = 0.0
+    radio: float = 0.0
+    radio2: float = 0.0
+    capa: str = "0"
+
+
+@router.post("/primitiva")
+def primitiva(entrada: Primitiva):
+    """Un sólido directo —prisma, cilindro, cono, esfera, pirámide— en el
+    plano de la ventana donde se pidió, apoyado en él. Mike, 25-sep."""
+    from core.solido import historial as mod_h
+    if entrada.forma not in mod_h.FORMAS:
+        raise HTTPException(400, f"no conozco la forma «{entrada.forma}»; valen {', '.join(mod_h.FORMAS)}")
+    op = {"op": "primitiva", "forma": entrada.forma, "plano": entrada.plano or "XY",
+          "base": [float(entrada.base[0]), float(entrada.base[1])]}
+    for k in ("ancho", "fondo", "alto", "radio", "radio2"):
+        val = float(getattr(entrada, k))
+        if val:
+            op[k] = val
+    try:
+        mod_h._primitiva(op)          # medidas mal → se rechaza antes de tocar el documento
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    doc = _doc()
+    capa = entrada.capa if entrada.capa in doc.capas else "0"
+    return _nace(doc, [op], [{"capa": capa}], f"{entrada.forma} directo")
 
 
 @router.post("/revolver")

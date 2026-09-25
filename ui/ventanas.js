@@ -243,11 +243,24 @@ const Ventanas = (() => {
     }
     const w = 20, total = PLANOS.length * w + (PLANOS.length - 1) * HUECO;
     const pl = p.rejilla_planos || {};
-    return PLANOS.map((k, i) => ({
+    const botones = PLANOS.map((k, i) => ({
       x: v.ox + v.w - MARGEN - total + i * (w + HUECO), y, w, h: ALTO_B,
       et: k, on: viva && pl[k] !== false, que: "plano", plano: k, ventana: v.i,
     }));
+    // Los estilos de vista (0.21.8), a la izquierda de los planos: B básico,
+    // A alámbrico fantasma, R renderizado. Sólo uno prendido.
+    if (v.w >= 260) {
+      const E = ESTILOS.map((e) => e[0].toUpperCase());
+      const actual = (p.estilo_3d && ESTILOS.includes(p.estilo_3d)) ? p.estilo_3d : "basico";
+      const x0 = v.ox + v.w - MARGEN - total - 14 - E.length * (w + HUECO);
+      ESTILOS.forEach((e, i) => botones.push({
+        x: x0 + i * (w + HUECO), y, w, h: ALTO_B,
+        et: E[i], on: e === actual, que: "estilo", estilo: e, ventana: v.i,
+      }));
+    }
+    return botones;
   }
+  const ESTILOS = ["basico", "alambrico", "renderizado"];
 
   function pintarBoton(c, b, oscuro) {
     const tinta = oscuro ? "255,255,255" : "0,0,0";
@@ -299,6 +312,7 @@ const Ventanas = (() => {
     if (typeof estado === "undefined") return {};
     const p = estado.prefs || (estado.prefs = {});
     const patch = {};
+    if (b.que === "estilo") { p.estilo_3d = b.estilo; patch.estilo_3d = b.estilo; return patch; }
     if (p.rejilla === false) { p.rejilla = true; patch.rejilla = true; }
     if (b.que === "plano") {
       const pl = { ...(p.rejilla_planos || {}) };

@@ -84,6 +84,24 @@ const Cuerpos = (() => {
     return [n[0] / l, n[1] / l, n[2] / l];
   }
 
+  /** Las aristas de una cara que son borde de la cara —las que sólo tiene un
+   *  triángulo— y no costura entre dos triángulos. Con eso el renderizado
+   *  dibuja el contorno de cada cara justo después de rellenarla, y las caras
+   *  de adelante tapan las aristas de atrás sin calcular nada más. */
+  const clave = (a, b) => a < b ? a * 65536 + b : b * 65536 + a;
+  function bordesDe(cara) {
+    if (cara._bordes) return cara._bordes;
+    const veces = new Map();
+    const ix = cara.i;
+    for (let k = 0; k < ix.length; k += 3) {
+      for (const [a, b] of [[ix[k], ix[k + 1]], [ix[k + 1], ix[k + 2]], [ix[k + 2], ix[k]]]) {
+        const c = clave(a, b); veces.set(c, (veces.get(c) || 0) + 1);
+      }
+    }
+    cara._bordes = new Set([...veces].filter(([, n]) => n === 1).map(([c]) => c));
+    return cara._bordes;
+  }
+
   /** Todos los triángulos de todas las piezas, ya proyectados y ordenados de
    *  lejos a cerca. La profundidad sale de la cámara: con la vista en planta
    *  todos valen lo mismo, y entonces manda la altura, que es lo que se
@@ -96,6 +114,7 @@ const Cuerpos = (() => {
     for (const [id, m] of mallas) {
       for (const cara of m.caras || []) {
         const vs = cara.v, ix = cara.i;
+        const borde = bordesDe(cara);
         for (let k = 0; k < ix.length; k += 3) {
           const a = ix[k] * 3, b = ix[k + 1] * 3, d = ix[k + 2] * 3;
           const P = [[vs[a], vs[a + 1], vs[a + 2]],
@@ -103,7 +122,8 @@ const Cuerpos = (() => {
                      [vs[d], vs[d + 1], vs[d + 2]]];
           let prof = 0;
           for (const p of P) prof += (p[0] * sz + p[1] * cz) * sx + p[2] * cx;
-          tris.push({ id, cara: cara.nombre, P, q: P.map((p) => window.aPX(p[0], p[1], p[2])), prof: prof / 3 });
+          tris.push({ id, cara: cara.nombre, P, q: P.map((p) => window.aPX(p[0], p[1], p[2])), prof: prof / 3,
+                      borde: [borde.has(clave(ix[k], ix[k + 1])), borde.has(clave(ix[k + 1], ix[k + 2])), borde.has(clave(ix[k + 2], ix[k]))] });
         }
       }
     }
@@ -120,9 +140,107 @@ const Cuerpos = (() => {
     return `rgb(${Math.min(255, Math.round(base[0] * tono))},${Math.min(255, Math.round(base[1] * tono))},${Math.min(255, Math.round(base[2] * tono))})`;
   }
 
+  // --- estilos de vista  ·  0.21.8 -----------------------------------------
+  // Mike, 25-sep: «quiero poder tener un estilo de vista, aparte de la básica,
+  // de wireframe ghosteado y otro de renderizado. Que se vean los sólidos con
+  // materiales y mejor rasterizados».
+  //   basico      · el de siempre: tres tonos de madera y todas las aristas.
+  //   alambrico   · fantasma: caras translúcidas, se ven las aristas de atrás.
+  //   renderizado · luz principal + luz de relleno + brillo, con el color de
+  //                 la capa como material (blanco/negro = madera).
+  const ESTILOS = ["basico", "alambrico", "renderizado"];
+  function estilo() {
+    const e = (typeof estado !== "undefined" && estado.prefs && estado.prefs.estilo_3d) || "basico";
+    return ESTILOS.includes(e) ? e : "basico";
+  }
+
+  function materialDe(m) {
+    const h = String(m.color || "").replace("#", "");
+    if (/^[0-9a-fA-F]{6}$/.test(h)) {
+      const rgb = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+      const gris = Math.max(...rgb) - Math.min(...rgb) < 12;
+      if (!gris) return rgb;                         // color de capa: ése es el material
+      if (Math.max(...rgb) < 235 && Math.max(...rgb) > 30) return rgb;   // gris de verdad
+    }
+    return CLARO;                                   // sin color: madera
+  }
+
+  const _norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const _dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+  /** Hacia dónde está la cámara, en el mundo: el eje de profundidad de `triangulos`. */
+  function haciaCamara() {
+    const v = estado.vista;
+    const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
+    const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
+    return _norm([sz * sx, cz * sx, cx]);
+  }
+
+  function colorRenderizado(t, base, oscuro, d) {
+    let n = normal(t.P);
+    if (_dot(n, d) < 0) n = [-n[0], -n[1], -n[2]];  // la cara mira a la cámara
+    const L1 = _norm([0.45, -0.55, 0.7]), L2 = _norm([-0.6, 0.3, 0.35]);
+    const dif = Math.max(0, _dot(n, L1)) * 0.7 + Math.max(0, _dot(n, L2)) * 0.22;
+    const H = _norm([L1[0] + d[0], L1[1] + d[1], L1[2] + d[2]]);
+    const esp = Math.pow(Math.max(0, _dot(n, H)), 28) * 0.28;
+    const amb = oscuro ? 0.2 : 0.3;
+    const k = amb + dif;
+    const c = base.map((b) => Math.min(255, Math.round(b * k + 255 * esp)));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
   function pintar(c, oscuro) {
     if (!mallas.size || !window.aPX) return;
-    for (const t of triangulos()) {
+    const E = estilo();
+    const tinta = oscuro ? "235,235,238" : "20,20,24";
+    const tris = triangulos();
+    if (E === "alambrico") {
+      // Caras apenas veladas —lo justo para que se lea qué es sólido— y todas
+      // las aristas encima, también las que quedan atrás: es un fantasma.
+      c.save();
+      c.globalAlpha = oscuro ? 0.16 : 0.12;
+      for (const t of tris) {
+        const s = senalada && senalada.id === t.id && senalada.cara === t.cara;
+        const b = s ? SENALADA : CLARO;
+        c.fillStyle = `rgb(${b[0]},${b[1]},${b[2]})`;
+        c.beginPath();
+        c.moveTo(t.q[0][0], t.q[0][1]); c.lineTo(t.q[1][0], t.q[1][1]); c.lineTo(t.q[2][0], t.q[2][1]);
+        c.closePath(); c.fill();
+      }
+      c.restore();
+      pintarAristas(c, `rgba(${tinta},0.9)`, 1);
+      return;
+    }
+    if (E === "renderizado") {
+      const d = haciaCamara();
+      c.save();
+      c.lineJoin = "round";
+      const arista = `rgba(${tinta},0.45)`;
+      for (const t of tris) {
+        const m = mallas.get(t.id);
+        const s = senalada && senalada.id === t.id && senalada.cara === t.cara;
+        const col = colorRenderizado(t, s ? SENALADA : materialDe(m), oscuro, d);
+        c.fillStyle = col; c.strokeStyle = col; c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(t.q[0][0], t.q[0][1]); c.lineTo(t.q[1][0], t.q[1][1]); c.lineTo(t.q[2][0], t.q[2][1]);
+        c.closePath(); c.fill(); c.stroke();   // el trazo tapa las costuras entre triángulos
+        // El contorno de la cara, en el mismo orden de pintado: lo de adelante
+        // tapa las aristas de atrás. No se ven aristas a través de la pieza.
+        if (t.borde[0] || t.borde[1] || t.borde[2]) {
+          c.strokeStyle = arista; c.lineWidth = 0.9;
+          c.beginPath();
+          for (let k = 0; k < 3; k++) {
+            if (!t.borde[k]) continue;
+            const a = t.q[k], b = t.q[(k + 1) % 3];
+            c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]);
+          }
+          c.stroke();
+        }
+      }
+      c.restore();
+      return;
+    }
+    for (const t of tris) {
       c.fillStyle = color(t, oscuro);
       c.beginPath();
       c.moveTo(t.q[0][0], t.q[0][1]);
@@ -131,8 +249,12 @@ const Cuerpos = (() => {
       c.closePath();
       c.fill();
     }
-    c.strokeStyle = oscuro ? "rgba(235,235,238,0.55)" : "rgba(20,20,24,0.75)";
-    c.lineWidth = 1;
+    pintarAristas(c, oscuro ? "rgba(235,235,238,0.55)" : "rgba(20,20,24,0.75)", 1);
+  }
+
+  function pintarAristas(c, color, grosor) {
+    c.strokeStyle = color;
+    c.lineWidth = grosor;
     for (const m of mallas.values()) {
       for (const arista of m.aristas || []) {
         c.beginPath();
@@ -204,6 +326,7 @@ const Cuerpos = (() => {
   function medidas(id) { return mallas.get(id || primero()) || null; }
 
   return { refrescar, refrescarUna, olvidar, pintar, caraEn, senalar, hay, primero, medidas, esquinas,
+           estilo, ESTILOS,
            get senalada() { return senalada; } };
 })();
 

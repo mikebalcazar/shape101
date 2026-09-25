@@ -1,8 +1,0 @@
-      c.closePath();
-      c.fill();
-    }
-    c.strokeStyle = oscuro ? "rgba(235,235,238,0.55)" : "rgba(20,20,24,0.75)";
-    c.lineWidth = 1;
-    for (const m of mallas.values()) {
-      for (const arista of m.aristas || []) {
-        c.beginPath();

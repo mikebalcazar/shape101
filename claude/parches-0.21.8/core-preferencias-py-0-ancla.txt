@@ -1,6 +1,0 @@
-        "Superior": True, "Perspectiva": True, "Frontal": True, "Lateral": True,
-    },
-    "rejilla_planos": {"XY": True, "XZ": True, "YZ": True},
-    # Modo borrador (LibreCAD/QCAD «draft»): líneas de 1 px, sin patrones,
-    # textos como cajas. Para navegar un plano pesado en una máquina floja.
-    "borrador": False,

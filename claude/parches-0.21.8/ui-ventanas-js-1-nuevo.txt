@@ -1,7 +1,0 @@
-    if (typeof estado === "undefined") return {};
-    const p = estado.prefs || (estado.prefs = {});
-    const patch = {};
-    if (b.que === "estilo") { p.estilo_3d = b.estilo; patch.estilo_3d = b.estilo; return patch; }
-    if (p.rejilla === false) { p.rejilla = true; patch.rejilla = true; }
-    if (b.que === "plano") {
-      const pl = { ...(p.rejilla_planos || {}) };

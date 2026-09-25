@@ -1,7 +1,0 @@
-  function medidas(id) { return mallas.get(id || primero()) || null; }
-
-  return { refrescar, refrescarUna, olvidar, pintar, caraEn, senalar, hay, primero, medidas, esquinas,
-           estilo, ESTILOS,
-           get senalada() { return senalada; } };
-})();
-

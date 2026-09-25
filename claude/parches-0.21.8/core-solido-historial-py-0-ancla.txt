@@ -1,8 +1,0 @@
-
-
-OPERACIONES = {"boceto", "extruir", "revolver", "barrer", "loft", "extruir_cara",
-               "restar", "redondear", "empujar_cara",
-               "mover_vertice", "mover_arista"}
-
-
-# --- la identidad de cada operación  ·  0.19.0 ------------------------------

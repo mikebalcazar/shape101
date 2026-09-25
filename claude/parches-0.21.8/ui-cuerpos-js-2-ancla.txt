@@ -1,7 +1,0 @@
-                     [vs[d], vs[d + 1], vs[d + 2]]];
-          let prof = 0;
-          for (const p of P) prof += (p[0] * sz + p[1] * cz) * sx + p[2] * cx;
-          tris.push({ id, cara: cara.nombre, P, q: P.map((p) => window.aPX(p[0], p[1], p[2])), prof: prof / 3 });
-        }
-      }
-    }

@@ -1,6 +1,0 @@
-            titulo = "Barrido por un camino"
-        elif clase == "loft":
-            titulo = f"Loft entre {len(op.get('perfiles') or [])} perfiles"
-        elif clase == "extruir_cara":
-            titulo = f"Cara «{op.get('cara')}» crecida {op.get('mm')}"
-            campos = [_campo("mm", "Cuánto", op.get("mm", 0))]

@@ -1,7 +1,0 @@
-  /** Con `numero: true`, un número a secas es la respuesta, no un punto. */
-  function numeroTecleado(texto) {
-    if (!pendiente || !pendiente.numero) return false;
-    const t = String(texto).trim().replace(",", ".");
-    if (!/^-?\d+(\.\d+)?$/.test(t)) return false;
-    const n = parseFloat(t);
-    if (!isFinite(n)) return false;
