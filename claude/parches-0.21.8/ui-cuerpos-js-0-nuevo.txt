@@ -1,0 +1,24 @@
+    return [n[0] / l, n[1] / l, n[2] / l];
+  }
+
+  /** Las aristas de una cara que son borde de la cara —las que sólo tiene un
+   *  triángulo— y no costura entre dos triángulos. Con eso el renderizado
+   *  dibuja el contorno de cada cara justo después de rellenarla, y las caras
+   *  de adelante tapan las aristas de atrás sin calcular nada más. */
+  const clave = (a, b) => a < b ? a * 65536 + b : b * 65536 + a;
+  function bordesDe(cara) {
+    if (cara._bordes) return cara._bordes;
+    const veces = new Map();
+    const ix = cara.i;
+    for (let k = 0; k < ix.length; k += 3) {
+      for (const [a, b] of [[ix[k], ix[k + 1]], [ix[k + 1], ix[k + 2]], [ix[k + 2], ix[k]]]) {
+        const c = clave(a, b); veces.set(c, (veces.get(c) || 0) + 1);
+      }
+    }
+    cara._bordes = new Set([...veces].filter(([, n]) => n === 1).map(([c]) => c));
+    return cara._bordes;
+  }
+
+  /** Todos los triángulos de todas las piezas, ya proyectados y ordenados de
+   *  lejos a cerca. La profundidad sale de la cámara: con la vista en planta
+   *  todos valen lo mismo, y entonces manda la altura, que es lo que se
