@@ -1,0 +1,6 @@
+  if (typeof TresD !== "undefined" && TresD.mover(e)) return;
+  const caja = lienzo.getBoundingClientRect();
+  const px = e.clientX - caja.left, py = e.clientY - caja.top;
+  const [mx, my] = aMM(px, py);
+  estado.cursor = { px, py, x: mx, y: my };
+  // El ratón sabe si Shift está apretado aunque el teclado se haya perdido un

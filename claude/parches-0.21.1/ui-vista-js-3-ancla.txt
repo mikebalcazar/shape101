@@ -1,0 +1,7 @@
+    return;
+  }
+  if (cajaZoom && cajaZoom.a) {
+    estado.hule = { tipo: "caja", a: cajaZoom.a, b: [mx, my] };
+    pintar();
+    return;
+  }

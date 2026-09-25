@@ -1,0 +1,6 @@
+    // `osnapCotas`: se admiten las líneas de cota de otras cotas como
+    // referencia (al colocar una cota). Ver ui/osnap.js.
+    cancelar("");
+    return new Promise((resolver, rechazar) => {
+      pendiente = { resolver, rechazar, base, mensaje, hule, direccion, dinamica, numero, osnapCotas,
+                    opciones: opciones.map((o) => o.toUpperCase()) };

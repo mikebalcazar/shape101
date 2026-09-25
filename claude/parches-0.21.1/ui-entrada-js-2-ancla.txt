@@ -1,0 +1,6 @@
+
+  function entregar(p) {
+    const q = pendiente;
+    limpiar();
+    if (q) q.resolver(p);
+  }

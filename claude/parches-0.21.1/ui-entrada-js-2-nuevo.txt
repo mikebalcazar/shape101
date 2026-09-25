@@ -1,0 +1,9 @@
+
+  function entregar(p) {
+    const q = pendiente;
+    if (Array.isArray(p) && !planoComando && estado.vista && estado.vista.plano) {
+      planoComando = estado.vista.plano;
+    }
+    limpiar();
+    if (q) q.resolver(p);
+  }

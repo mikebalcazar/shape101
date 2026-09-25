@@ -1,0 +1,10 @@
+  c.strokeStyle = T.acc2;
+  c.lineWidth = 1;
+  c.setLineDash(h.punteado === false ? [] : [5, 4]);
+  // Las partes heredan el plano del hule: el plano es del trazo, no de la
+  // ventana que lo esté pintando.
+  const partes = (h.partes || [h]).map((parte) =>
+    parte && h.plano && !parte.plano ? { ...parte, plano: h.plano } : parte);
+  // Con una medida tecleada o fijada (ver Entrada.previaLargo): el vector de
+  // dirección sigue punteado hasta el ratón, y encima, **lo que va a quedar**
+  // —el tramo exacto de esa medida— va sólido y más grueso, con su cifra en

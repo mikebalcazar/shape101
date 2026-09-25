@@ -1,0 +1,7 @@
+    const [mx, my] = aMM(e.clientX - caja.left, e.clientY - caja.top);
+    if (!cajaZoom.a) {
+      cajaZoom.a = [mx, my];
+      estado.hule = { tipo: "caja", a: cajaZoom.a, b: [mx, my] };
+    } else {
+      encuadrarCaja(cajaZoom.a[0], cajaZoom.a[1], mx, my);
+      cajaZoom = null;
