@@ -1,9 +1,0 @@
-    if (!g) return Comandos.eco("Ese giro no deja el dibujo en ningún plano.", "malo");
-    await transformarSeleccion(ids, g.t, `Rotar ${ids.length} a ${g.plano}`, false, { plano: g.plano });
-    Comandos.eco(`Rotadas ${ids.length} entidad(es) ${grados(ang)}° alrededor del eje de la ${ventana}: ahora están en ${g.plano}.`);
-    if (Math.abs(g.altura) > 1e-6) {
-      Comandos.eco(`Quedan en el plano ${g.plano} por el origen: aquí sólo hay tres planos, y una pared a ${mm(Math.abs(g.altura))} ${U()} del origen no existe. El giro es el mismo; sólo se corrió hasta el plano.`);
-    }
-    Seleccion.limpiar();
-  },
-});

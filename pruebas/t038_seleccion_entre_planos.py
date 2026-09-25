@@ -1,4 +1,4 @@
-"""Seleccionar desde cualquier ventana, y el recuadro de selección en pantalla  ·  0.21.5
+"""Seleccionar desde cualquier ventana, y el recuadro de selección en pantalla  ·  0.21.5 / 0.21.6
 
 Mike, 24-sep: *«Cuando quiero seleccionar los objetos 2d desde la vista
 lateral o frontal no me deja»* y, por eso mismo, *«sigo sin poder rotar los
@@ -89,12 +89,21 @@ def correr(r: comun.Reporte) -> None:
         pagina.evaluate("() => { Ventanas.activar(3); pintar(); }")
         arrastre(b, a)
         r.igual(sel(), ["e1", "e2"], "seleccionado el suelo desde la Lateral…")
+        # El centro de giro **fuera del origen**, como lo pica uno con el ratón:
+        # (y = 300, z = 50) en la Lateral. Girado 90° alrededor de ese eje, el
+        # dibujo caería en una pared a y = 350, que no existe: se queda en XZ
+        # por el origen, con el giro hecho, y se avisa. Mike (0.21.5): «Ese
+        # giro no deja el dibujo en ningún plano».
         pagina.keyboard.type("ROTAR", delay=15); pagina.keyboard.press("Enter"); pagina.wait_for_timeout(400)
-        pagina.keyboard.type("0,0", delay=15); pagina.keyboard.press("Enter"); pagina.wait_for_timeout(300)
+        pagina.keyboard.type("300,50", delay=15); pagina.keyboard.press("Enter"); pagina.wait_for_timeout(300)
         pagina.keyboard.type("90", delay=15); pagina.keyboard.press("Enter"); pagina.wait_for_timeout(900)
         ents = pagina.evaluate("async () => (await fetch('/api/entidades/varias', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [window._ids[0], window._ids[1]]})}).then((x) => x.json())).entidades")
-        r.igual([e["plano"] for e in ents], ["XZ", "XZ"], "…ROTAR 90° lo para en la pared: las dos entidades quedan en XZ")
-        r.cierto(any(e["tipo"] == "circulo" and e["centro"] == [400, 750] for e in ents),
-                 "y el círculo conserva su centro (u, v) al girar alrededor de X por el origen")
+        r.igual([e["plano"] for e in ents], ["XZ", "XZ"], "…ROTAR 90° con el centro fuera del origen lo para en la pared: las dos entidades quedan en XZ")
+        # (u, v, 0) − (0, 300, 50) girado 90° sobre X: (u, 50, v − 300) + centro = (u, 350, v − 250)
+        r.cierto(any(e["tipo"] == "circulo" and abs(e["centro"][0] - 400) < 1e-6 and abs(e["centro"][1] - 500) < 1e-6 for e in ents),
+                 "el círculo giró alrededor de ese eje: su centro pasó de (400, 750) a (400, 500)", str([e.get("centro") for e in ents]))
+        ecos = pagina.evaluate("() => [...document.querySelectorAll('#cmd-historial .eco')].slice(-2).map((e) => e.textContent)")
+        r.cierto(any("por el origen" in e and "350" in e for e in ecos),
+                 "y avisa que la pared a 350 mm no existe y quedó en el plano por el origen", str(ecos))
 
         r.igual(pagina.errores, [], "y sin errores en la consola del navegador")

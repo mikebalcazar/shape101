@@ -398,10 +398,17 @@ function giroEntrePlanos(origen, ventana, c, ang) {
     return [0, 1, 2].map((i) => C[i] + v[i] * k + cr[i] * s + n[i] * nv * (1 - k));
   };
   const muestra = [[0, 0], [1, 0], [0, 1]].map(([u, v]) => R(Planos.aMundo(origen, u, v, 0)));
-  let plano = null, loc = null;
+  // El plano al que cayó: aquel en el que las tres muestras quedan a la misma
+  // altura `w`. Si el centro de giro no está en el origen, esa altura no es
+  // cero: el dibujo cae en una pared **paralela** (y = 350, por ejemplo), y
+  // aquí sólo existen los tres planos por el origen —también las extrusiones
+  // salen de ahí—. Así que se deja en el plano por el origen y se avisa. Mike
+  // (24-sep) lo vivió como «ese giro no deja el dibujo en ningún plano».
+  let plano = null, loc = null, altura = 0;
   for (const cand of ["XY", "XZ", "YZ"]) {
     const l = muestra.map(_A_LOCAL[cand]);
-    if (l.every((q) => Math.abs(q[2]) < 1e-6)) { plano = cand; loc = l; break; }
+    const ws = l.map((q) => q[2]);
+    if (Math.max(...ws) - Math.min(...ws) < 1e-6) { plano = cand; loc = l; altura = ws[0]; break; }
   }
   if (!plano) return null;    // el giro no cayó en ningún plano: no era de 90 en 90
   const [A, B, D] = loc;
@@ -409,7 +416,7 @@ function giroEntrePlanos(origen, ventana, c, ang) {
   const espejo = eu[0] * ev[1] - eu[1] * ev[0] < 0;
   const K = deg(Math.atan2(eu[1], eu[0]));
   return {
-    plano,
+    plano, altura,
     t: {
       punto: (p) => [A[0] + p[0] * eu[0] + p[1] * ev[0], A[1] + p[0] * eu[1] + p[1] * ev[1]],
       angulo: (a) => espejo ? (K - a + 720) % 360 : (a + K + 360) % 360,
@@ -461,6 +468,9 @@ Comandos.registrar({
     if (!g) return Comandos.eco("Ese giro no deja el dibujo en ningún plano.", "malo");
     await transformarSeleccion(ids, g.t, `Rotar ${ids.length} a ${g.plano}`, false, { plano: g.plano });
     Comandos.eco(`Rotadas ${ids.length} entidad(es) ${grados(ang)}° alrededor del eje de la ${ventana}: ahora están en ${g.plano}.`);
+    if (Math.abs(g.altura) > 1e-6) {
+      Comandos.eco(`Quedan en el plano ${g.plano} por el origen: aquí sólo hay tres planos, y una pared a ${mm(Math.abs(g.altura))} ${U()} del origen no existe. El giro es el mismo; sólo se corrió hasta el plano.`);
+    }
     Seleccion.limpiar();
   },
 });
