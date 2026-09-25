@@ -1,7 +1,7 @@
 """Dibujar en la ventana donde está el ratón, sobre su plano  ·  0.21.1
 
 Mike lo reportó el 23-sep: *«cuando quiero dibujar en la vista de perspectiva no
-se dibuja sobre el plano xy, se dibuja como si estuviera en una vista frontal …
+se dibuja sobre el plano xy, se dibuja como si estuviera en una vista frontal […]
 el dibujo final sí se dibuja sobre el plano xy pero ya aparece en un lugar que no
 tienes control»*. Y el 24-sep, sobre la 0.21.0: *«sigue sin dibujarse en
 perspectiva de manera real sobre el plano xy cuando estás trazando»*.
