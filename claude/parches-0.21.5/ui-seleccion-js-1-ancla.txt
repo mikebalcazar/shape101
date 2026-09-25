@@ -1,0 +1,6 @@
+  const cajaDe = (id) => Indice.caja(id);
+  const idsVisibles = () => Indice.ids();
+
+  /** Todo lo que cae dentro de la tolerancia, del más cercano al más lejano.
+   *
+   *  Devuelve la lista entera y no sólo el mejor porque con eso se arma el

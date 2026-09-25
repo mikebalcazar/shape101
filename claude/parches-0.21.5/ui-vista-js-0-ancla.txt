@@ -1,0 +1,6 @@
+    const [ax, ay] = P(h.a[0], h.a[1]);
+    const [bx, by] = P(h.b[0], h.b[1]);
+    c.moveTo(ax, ay); c.lineTo(bx, by);
+  } else if (h.tipo === "caja") {
+    // Las cuatro esquinas, cada una por su plano. Con dos esquinas y c.rect
+    // salía un cuadro derecho de pantalla, así que en la Perspectiva el

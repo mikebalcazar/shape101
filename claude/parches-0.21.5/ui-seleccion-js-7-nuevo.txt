@@ -1,0 +1,12 @@
+    }
+    if (!cajaSel) return false;
+    cajaSel.b = p;
+    cajaSel.pb = pixel();
+    const cruce = cajaSel.pb[0] < cajaSel.pa[0];
+    // El recuadro es de pantalla, no del plano: en la Perspectiva se veía
+    // acostado en el suelo (0.21.2 puso el rectángulo en curso sobre su plano,
+    // y este recuadro no es un dibujo).
+    estado.hule = { tipo: "cajaPantalla", a: cajaSel.pa, b: cajaSel.pb, punteado: cruce };
+    pintar();
+    return true;
+  }

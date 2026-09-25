@@ -1,0 +1,13 @@
+
+const Seleccion = (() => {
+  let pendiente = null;          // {resolver, rechazar, filtro, queja, una}
+  let cajaSel = null;            // {a:[x,y], b:[x,y]} en mm, y {pa, pb} en píxeles
+  /* El píxel del lienzo donde está el ratón: lo pone vista.js en cada
+   * movimiento. La caja de selección se arma y se decide **en píxeles**
+   * (Mike, 24-sep: «es el área de selección, no un dibujo»): en las tres
+   * ortogonales es lo mismo que en mm, y en la Perspectiva es lo único que
+   * tiene sentido. */
+  const pixel = () => [estado.cursor ? estado.cursor.px : 0, estado.cursor ? estado.cursor.py : 0];
+  let gripArrastrado = null;
+
+  /* Cuánto se puede fallar el tiro y aun así agarrar algo  ·  punto 8.

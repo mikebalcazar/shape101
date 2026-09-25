@@ -1,0 +1,7 @@
+
+const Seleccion = (() => {
+  let pendiente = null;          // {resolver, rechazar, filtro, queja, una}
+  let cajaSel = null;            // {a:[x,y], b:[x,y]} en mm
+  let gripArrastrado = null;
+
+  /* Cuánto se puede fallar el tiro y aun así agarrar algo  ·  punto 8.

@@ -1,0 +1,8 @@
+    // ¿Agarró un grip de algo ya seleccionado?  ·  feature 42
+    const g = gripBajoCursor(p);
+    if (g) { gripArrastrado = g; return true; }
+    cajaSel = { a: p, b: p, arrastrando: false };
+    return false;
+  }
+
+  async function clicArriba(e, p) {

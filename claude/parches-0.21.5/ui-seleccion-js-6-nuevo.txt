@@ -1,0 +1,12 @@
+      return;
+    }
+
+    const cruce = pb[0] < cajaSel.pa[0];      // de derecha a izquierda = cruce
+    const cajaPx = [Math.min(cajaSel.pa[0], pb[0]), Math.min(cajaSel.pa[1], pb[1]),
+                    Math.max(cajaSel.pa[0], pb[0]), Math.max(cajaSel.pa[1], pb[1])];
+    if (!sumar) estado.sel.clear();
+    for (const id of idsVisibles()) {
+      if (dentroDeCajaPx(id, cajaPx, cruce)) estado.sel.add(id);
+    }
+    // Una ventana que atrapa a un miembro se lleva su grupo entero.
+    for (const id of [...estado.sel]) {

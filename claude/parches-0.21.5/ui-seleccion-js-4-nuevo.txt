@@ -1,0 +1,60 @@
+    // ¿Agarró un grip de algo ya seleccionado?  ·  feature 42
+    const g = gripBajoCursor(p);
+    if (g) { gripArrastrado = g; return true; }
+    cajaSel = { a: p, b: p, pa: pixel(), pb: pixel(), arrastrando: false };
+    return false;
+  }
+
+  /* --- La caja de selección, en píxeles  ·  0.21.5 -----------------------
+   * Cada primitiva de la entidad —de cualquier plano— se lleva a píxeles por
+   * el mundo, con la cámara de la ventana donde se dibujó la caja, y ahí se
+   * decide con `primTocaCaja` (cruce) o con la caja envolvente (ventana). */
+  function primsEnPixeles(id) {
+    const prims = primitivasDe(id);
+    const M = typeof Planos !== "undefined" ? Planos.aMundo : (pl, x, y) => [x, y, 0];
+    const PX = (plano, x, y) => { const m = M(plano || "XY", x, y, 0); return aPX(m[0], m[1], m[2]); };
+    const salida = [];
+    for (const pr of prims) {
+      const plano = pr.plano || "XY";
+      if (pr.tipo === "seg") salida.push({ tipo: "seg", a: PX(plano, pr.a[0], pr.a[1]), b: PX(plano, pr.b[0], pr.b[1]) });
+      else if (pr.tipo === "punto") salida.push({ tipo: "punto", p: PX(plano, pr.p[0], pr.p[1]) });
+      else if (pr.tipo === "arco") {
+        let barrido = ((pr.a1 - pr.a0) % 360 + 360) % 360;
+        if (barrido === 0) barrido = 360;
+        const n = Math.max(8, Math.ceil(barrido / 15));
+        let ant = null;
+        for (let i = 0; i <= n; i++) {
+          const th = (pr.a0 + barrido * i / n) * Math.PI / 180;
+          const q = PX(plano, pr.c[0] + pr.r * Math.cos(th), pr.c[1] + pr.r * Math.sin(th));
+          if (ant) salida.push({ tipo: "seg", a: ant, b: q });
+          ant = q;
+        }
+      }
+    }
+    return salida;
+  }
+
+  function dentroDeCajaPx(id, cajaPx, cruce) {
+    const prims = primsEnPixeles(id);
+    if (!prims.length) {
+      // Un texto no tiene rayas: cuenta por la caja de sus letras.
+      for (const t of Indice.trazos(id)) {
+        if (t.clase !== "texto" || typeof cajaTrazo !== "function") continue;
+        const b = cajaTrazo(t);
+        const plano = t.plano || "XY";
+        const M = typeof Planos !== "undefined" ? Planos.aMundo : (pl, x, y) => [x, y, 0];
+        const esq = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]].map(([x, y]) => { const m = M(plano, x, y, 0); return aPX(m[0], m[1], m[2]); });
+        const xs = esq.map((q) => q[0]), ys = esq.map((q) => q[1]);
+        const c = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+        const toca = !(c[2] < cajaPx[0] || c[0] > cajaPx[2] || c[3] < cajaPx[1] || c[1] > cajaPx[3]);
+        const dentro = c[0] >= cajaPx[0] && c[1] >= cajaPx[1] && c[2] <= cajaPx[2] && c[3] <= cajaPx[3];
+        if (cruce ? toca : dentro) return true;
+      }
+      return false;
+    }
+    if (cruce) return prims.some((pr) => primTocaCaja(pr, cajaPx));
+    return prims.every((pr) => { const b = Osnap.caja(pr);
+      return b[0] >= cajaPx[0] && b[1] >= cajaPx[1] && b[2] <= cajaPx[2] && b[3] <= cajaPx[3]; });
+  }
+
+  async function clicArriba(e, p) {

@@ -1,0 +1,18 @@
+  }
+
+  function dentroDeCaja(id, caja, cruce) {
+    // Lo de otro plano se decide en el espacio de la ventana (ver arriba).
+    const otro = deOtroPlano();
+    const ajenas = otro && otro.porId.get(id);
+    if (ajenas && ajenas.length) {
+      const e1 = otro.aPunto([caja[0], caja[1]]), e2 = otro.aPunto([caja[2], caja[3]]);
+      const e3 = otro.aPunto([caja[0], caja[3]]), e4 = otro.aPunto([caja[2], caja[1]]);
+      const xs = [e1[0], e2[0], e3[0], e4[0]], ys = [e1[1], e2[1], e3[1], e4[1]];
+      const cj = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+      if (cruce) return ajenas.some((pr) => primTocaCaja(pr, cj));
+      return ajenas.every((pr) => { const b = Osnap.caja(pr);
+        return b[0] >= cj[0] && b[1] >= cj[1] && b[2] <= cj[2] && b[3] <= cj[3]; });
+    }
+    const c = cajaDe(id);
+    if (!c) return false;
+    const [x0, y0, x1, y1] = caja;

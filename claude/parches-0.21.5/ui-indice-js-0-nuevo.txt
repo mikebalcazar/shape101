@@ -1,0 +1,13 @@
+    return _porIdTrazos.get(id) || [];
+  }
+
+  /** Todas las primitivas, tal cual vienen del motor (cada una con su
+   *  `plano`). Para picar desde una ventana de otro plano, ver seleccion.js. */
+  function todas() {
+    alDia();
+    return _geom || [];
+  }
+
+  /** Todos los ids que tienen geometría, sin repetir. */
+  function ids() {
+    alDia();
