@@ -274,7 +274,15 @@ const Osnap = (() => {
      * ventanas: sin eso, una cota puesta en el plano no toca la esquina del
      * mueble y no mide el mueble — mide donde atinó el ratón. Ésas son pocas
      * (van recortadas a la ventana) y se recorren tal cual. */
-    const candidatas = Indice.cerca(p, tol);
+    // Sólo lo del plano de la ventana se lee tal cual; lo de otro plano se
+    // trae ya llevado a este plano (ver Indice.enPlano). Sin el filtro, el
+    // suelo visto desde la Frontal daba referencias donde no había nada.
+    const W = (estado.vista && estado.vista.plano) || "XY";
+    const mismoPlano = (pr) => (pr.plano || "XY") === W;
+    const candidatas = Indice.cerca(p, tol).filter(mismoPlano);
+    if (!estado.vista.persp && typeof Indice.enPlano === "function") {
+      for (const pr of Indice.enPlano(W).prims) if (cerca(pr, p, tol)) candidatas.push(pr);
+    }
     if (estado.modo === "papel" && estado.geometriaVentana.length) {
       for (const pr of estado.geometriaVentana) candidatas.push(pr);
     }
@@ -296,7 +304,11 @@ const Osnap = (() => {
     // a la que se baja la perpendicular puede no estar bajo el cursor.
     if (modos.proyeccion && base) {
       const amplias = [];
-      for (const pr of Indice.cerca(p, tol * 12)) {
+      const lejanas = Indice.cerca(p, tol * 12).filter(mismoPlano);
+      if (!estado.vista.persp && typeof Indice.enPlano === "function") {
+        for (const pr of Indice.enPlano(W).prims) if (cerca(pr, p, tol * 12)) lejanas.push(pr);
+      }
+      for (const pr of lejanas) {
         if (pr.tipo !== "seg" || pr.aprox || pr.cota) continue;
         if (excluir && excluir.has(pr.id)) continue;
         if (cerca(pr, p, tol * 12)) amplias.push(pr);

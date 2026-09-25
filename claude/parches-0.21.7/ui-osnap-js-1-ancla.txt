@@ -1,7 +1,0 @@
-    // a la que se baja la perpendicular puede no estar bajo el cursor.
-    if (modos.proyeccion && base) {
-      const amplias = [];
-      for (const pr of Indice.cerca(p, tol * 12)) {
-        if (pr.tipo !== "seg" || pr.aprox || pr.cota) continue;
-        if (excluir && excluir.has(pr.id)) continue;
-        if (cerca(pr, p, tol * 12)) amplias.push(pr);

@@ -1,6 +1,0 @@
-    return true;
-  }
-
-  return { primitivas, trazos, ids, todas, enPlano, caja, gripsGuardados, cerca, estadisticas,
-           grupoDe, delGrupo, rehacer, parchar };
-})();

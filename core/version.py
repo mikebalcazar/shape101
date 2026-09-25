@@ -21,13 +21,24 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.21.6"
+VERSION = "0.21.7"
 FECHA = "2026-09-24"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.21.7",
+        "fecha": "2026-09-25",
+        "cambios": [
+            "El osnap sirve en la Frontal y la Lateral. Un dibujo del suelo visto desde ahí "
+            "está de canto, y el osnap no daba referencia en sus esquinas —y sí la daba en "
+            "puntos donde no había nada—: leía sus coordenadas como si fueran las de la "
+            "ventana. Ahora lo de otro plano se busca por donde se ve, y se dibuja pegado a "
+            "ello sobre el plano de la ventana, como en 2D.",
+        ],
+    },
     {
         "version": "0.21.6",
         "fecha": "2026-09-24",
