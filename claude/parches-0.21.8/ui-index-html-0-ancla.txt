@@ -1,0 +1,6 @@
+<script src="sugeridor.js"></script>
+<script src="tresd-comandos.js"></script>
+<script src="model.js"></script>
+<script src="cuerpos.js"></script>
+<script src="camara.js"></script>
+<script src="visor.js"></script>

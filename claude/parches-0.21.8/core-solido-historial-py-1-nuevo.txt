@@ -1,0 +1,20 @@
+        a, b = caras[0].center(), caras[-1].center()
+        nom.bautizar_cuerpo(solido, eje=(b.X - a.X, b.Y - a.Y, b.Z - a.Z))
+        est.boceto_pendiente = None
+    elif clase == "primitiva":
+        # Un sólido de la nada, en el plano de la ventana donde se pidió.
+        from build123d import Vector
+        s = _primitiva(op)
+        spec = planos.del_dibujo(op.get("plano"))
+        if planos.es_el_suelo(spec):
+            n = Vector(0, 0, 1)
+        else:
+            pl = planos.plano_de(spec, est.nom, est.solido)
+            s = pl.from_local_coords(s)
+            n = Vector(pl.z_dir)
+        solido = s
+        nom.bautizar_cuerpo(solido, eje=(n.X, n.Y, n.Z))
+        est.boceto_pendiente = None
+    elif clase == "extruir_cara":
+        # Mike, 19-sep: «extrude face es un sólido nuevo a partir de una cara
+        # nueva. no sería estirar la cara, sería aumentar un sólido a partir

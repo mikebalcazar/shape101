@@ -1,0 +1,8 @@
+{
+  "name": "shape101",
+  "productName": "shape101",
+  "version": "0.21.8",
+  "_versionApp": "0.21.8 — la que enseña la app viene de core/version.py; ésta sólo existe porque electron-builder exige semver",
+  "_notaEmpaque": "asar apagado a propósito: main.js busca server.py junto a electron/, y el motor de Python no puede vivir dentro de un asar. Y electron-builder saca cualquier node_modules de los globs de `files`, así que los dos motores de DWG (dwgjs/node_modules) se copian por extraResources o la app se queda sin leer DWG.",
+  "description": "shape101 — modelador 3D de sólidos de Taller 101",
+  "main": "electron/main.js",

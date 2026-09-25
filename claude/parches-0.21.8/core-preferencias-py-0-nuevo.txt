@@ -1,0 +1,9 @@
+        "Superior": True, "Perspectiva": True, "Frontal": True, "Lateral": True,
+    },
+    "rejilla_planos": {"XY": True, "XZ": True, "YZ": True},
+    # 0.21.8 (Mike, 25-sep): cómo se ven las piezas: basico · alambrico
+    # (fantasma) · renderizado (con el color de la capa de material).
+    "estilo_3d": "basico",
+    # Modo borrador (LibreCAD/QCAD «draft»): líneas de 1 px, sin patrones,
+    # textos como cajas. Para navegar un plano pesado en una máquina floja.
+    "borrador": False,

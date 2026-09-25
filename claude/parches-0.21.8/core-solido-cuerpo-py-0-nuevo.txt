@@ -1,0 +1,24 @@
+            titulo = "Barrido por un camino"
+        elif clase == "loft":
+            titulo = f"Loft entre {len(op.get('perfiles') or [])} perfiles"
+        elif clase == "primitiva":
+            forma = op.get("forma", "?")
+            nombre = {"caja": "Prisma", "cilindro": "Cilindro", "cono": "Cono",
+                      "esfera": "Esfera", "piramide": "Pirámide"}.get(forma, forma)
+            if forma in ("caja", "piramide"):
+                titulo = f"{nombre} {op.get('ancho')} × {op.get('fondo')} × {op.get('alto')}"
+                campos = [_campo("ancho", "Ancho", op.get("ancho", 0), minimo=0.01),
+                          _campo("fondo", "Fondo", op.get("fondo", 0), minimo=0.01),
+                          _campo("alto", "Alto", op.get("alto", 0), minimo=0.01)]
+            elif forma == "esfera":
+                titulo = f"{nombre} r{op.get('radio')}"
+                campos = [_campo("radio", "Radio", op.get("radio", 0), minimo=0.01)]
+            else:
+                titulo = f"{nombre} r{op.get('radio')} × {op.get('alto')}"
+                campos = [_campo("radio", "Radio", op.get("radio", 0), minimo=0.01),
+                          _campo("alto", "Alto", op.get("alto", 0), minimo=0.01)]
+                if forma == "cono":
+                    campos.append(_campo("radio2", "Radio de arriba", op.get("radio2", 0), minimo=0))
+        elif clase == "extruir_cara":
+            titulo = f"Cara «{op.get('cara')}» crecida {op.get('mm')}"
+            campos = [_campo("mm", "Cuánto", op.get("mm", 0))]

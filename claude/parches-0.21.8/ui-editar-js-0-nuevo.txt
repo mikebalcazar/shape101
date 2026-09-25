@@ -1,0 +1,34 @@
+    const c = await Entrada.pedirPunto({ mensaje: "Centro de giro" });
+    const anguloDe = (q) => Array.isArray(q) ? deg(Math.atan2(q[1] - c[1], q[0] - c[0])) : q.numero;
+    if (!entrePlanos) {
+      // Mike, 25-sep: «hay que poner los puntos de referencia para la rotación
+      // y que a partir de esos puntos se rote la pieza a los grados que se
+      // desee». Como ESCALAR y como AutoCAD: centro → punto de referencia (una
+      // esquina, un extremo de la pieza) → punto nuevo (adónde debe ir esa
+      // referencia). El giro es el ángulo entre los dos. En cualquiera de los
+      // dos pasos se pueden teclear grados: en el primero son el giro a secas;
+      // en el segundo, el ángulo al que debe quedar la referencia.
+      const r1 = await Entrada.pedirPunto({
+        mensaje: "Punto de referencia sobre la pieza (o teclea los grados del giro)", base: c, numero: true,
+        hule: conFantasma(ids, c, (q) => T.rotar(c, anguloDe(q))),
+      });
+      let ang;
+      if (!Array.isArray(r1)) ang = r1.numero;
+      else {
+        if (Math.hypot(r1[0] - c[0], r1[1] - c[1]) < 1e-9) return Comandos.eco("El punto de referencia es el mismo que el centro.", "malo");
+        const a0 = anguloDe(r1);
+        const r2 = await Entrada.pedirPunto({
+          mensaje: "Punto nuevo: adónde va la referencia (o teclea a qué ángulo debe quedar)", base: c, numero: true,
+          hule: (q) => ({
+            partes: [{ tipo: "linea", a: c, b: r1 }, { tipo: "linea", a: c, b: Array.isArray(q) ? q : c }],
+            fantasma: fantasmaDe(ids, T.rotar(c, anguloDe(q) - a0)),
+          }),
+        });
+        ang = anguloDe(r2) - a0;
+      }
+      ang = ((ang % 360) + 360) % 360;
+      if (ang > 180) ang -= 360;
+      if (Math.abs(ang) < 1e-9) return Comandos.eco("Giro de 0°: nada que hacer.");
+      await transformarSeleccion(ids, T.rotar(c, ang), `Rotar ${ids.length}`);
+      Comandos.eco(`Rotadas ${ids.length} entidad(es) ${grados(ang)}°.`);
+      Seleccion.limpiar();

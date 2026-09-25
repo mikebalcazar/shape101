@@ -1,0 +1,6 @@
+        a, b = caras[0].center(), caras[-1].center()
+        nom.bautizar_cuerpo(solido, eje=(b.X - a.X, b.Y - a.Y, b.Z - a.Z))
+        est.boceto_pendiente = None
+    elif clase == "extruir_cara":
+        # Mike, 19-sep: «extrude face es un sólido nuevo a partir de una cara
+        # nueva. no sería estirar la cara, sería aumentar un sólido a partir

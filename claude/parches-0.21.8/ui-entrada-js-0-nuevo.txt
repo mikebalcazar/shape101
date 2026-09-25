@@ -1,0 +1,10 @@
+  /** Con `numero: true`, un número a secas es la respuesta, no un punto. */
+  function numeroTecleado(texto) {
+    if (!pendiente || !pendiente.numero) return false;
+    // La coma separa coordenadas («400,100» es un punto, no 400.1); el
+    // decimal va con punto, como en la línea de comando. Hasta la 0.21.7 la
+    // coma se leía como decimal y ROTAR/ESCALAR tomaban un punto por un número.
+    const t = String(texto).trim();
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return false;
+    const n = parseFloat(t);
+    if (!isFinite(n)) return false;
