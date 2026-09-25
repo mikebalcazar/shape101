@@ -1,0 +1,11 @@
+    // a la que se baja la perpendicular puede no estar bajo el cursor.
+    if (modos.proyeccion && base) {
+      const amplias = [];
+      const lejanas = Indice.cerca(p, tol * 12).filter(mismoPlano);
+      if (!estado.vista.persp && typeof Indice.enPlano === "function") {
+        for (const pr of Indice.enPlano(W).prims) if (cerca(pr, p, tol * 12)) lejanas.push(pr);
+      }
+      for (const pr of lejanas) {
+        if (pr.tipo !== "seg" || pr.aprox || pr.cota) continue;
+        if (excluir && excluir.has(pr.id)) continue;
+        if (cerca(pr, p, tol * 12)) amplias.push(pr);

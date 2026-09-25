@@ -1,0 +1,49 @@
+[
+  {
+    "archivo": "pruebas/t039_osnap_entre_planos.py",
+    "modo": "nuevo",
+    "texto": "nuevo-pruebas-t039_osnap_entre_planos.py.txt"
+  },
+  {
+    "archivo": "core/version.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-version-py-0-ancla.txt",
+    "texto": "core-version-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "package.json",
+    "modo": "cambiar",
+    "ancla_txt": "package-json-0-ancla.txt",
+    "texto": "package-json-0-nuevo.txt"
+  },
+  {
+    "archivo": "package.json",
+    "modo": "cambiar",
+    "ancla_txt": "package-json-1-ancla.txt",
+    "texto": "package-json-1-nuevo.txt"
+  },
+  {
+    "archivo": "ui/indice.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-indice-js-0-ancla.txt",
+    "texto": "ui-indice-js-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/indice.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-indice-js-1-ancla.txt",
+    "texto": "ui-indice-js-1-nuevo.txt"
+  },
+  {
+    "archivo": "ui/osnap.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-osnap-js-0-ancla.txt",
+    "texto": "ui-osnap-js-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/osnap.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-osnap-js-1-ancla.txt",
+    "texto": "ui-osnap-js-1-nuevo.txt"
+  }
+]

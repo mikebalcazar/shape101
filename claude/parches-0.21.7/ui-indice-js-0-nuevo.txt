@@ -1,0 +1,56 @@
+    return _geom || [];
+  }
+
+  /* --- Lo de otro plano, llevado al plano de una ventana  ·  0.21.7 --------
+   *
+   * Las primitivas viven en las (u, v) de **su** plano. Desde una ventana de
+   * otro plano —el suelo visto desde la Frontal, de canto— sus (u, v) no
+   * dicen dónde caen: el osnap daba referencia donde no había nada y no la
+   * daba donde sí (Mike, 25-sep: «el Osnap no funciona para dibujar en las
+   * vistas frontal y lateral»). Aquí se llevan por el mundo a las (u, v) del
+   * plano de la ventana. Sólo para las tres ortogonales: en la Perspectiva
+   * el cursor cae sobre el suelo y ahí lo de otro plano no tiene (u, v).
+   *
+   * Los arcos se vuelven tramos y van marcados `aprox`: sirven para picar,
+   * no para engancharse (el punto medio de una cuerda no es el del arco). */
+  const _A_LOCAL_W = {
+    XY: (m) => [m[0], m[1]],
+    XZ: (m) => [m[0], m[2]],
+    YZ: (m) => [m[1], m[2]],
+  };
+  let _enPlano = { geom: null, W: null, prims: [], porId: new Map() };
+
+  function enPlano(W) {
+    alDia();
+    if (_enPlano.geom === _geom && _enPlano.W === W) return _enPlano;
+    const prims = [], porId = new Map();
+    const aW = _A_LOCAL_W[W] || _A_LOCAL_W.XY;
+    const llevar = (plano, x, y) => aW(Planos.aMundo(plano, x, y, 0));
+    const meter = (pr) => { prims.push(pr); let a = porId.get(pr.id); if (!a) { a = []; porId.set(pr.id, a); } a.push(pr); };
+    if (typeof Planos !== "undefined") {
+      for (const pr of _geom || []) {
+        const plano = pr.plano || "XY";
+        if (plano === W) continue;
+        if (pr.tipo === "seg") meter({ ...pr, a: llevar(plano, pr.a[0], pr.a[1]), b: llevar(plano, pr.b[0], pr.b[1]) });
+        else if (pr.tipo === "punto") meter({ ...pr, p: llevar(plano, pr.p[0], pr.p[1]) });
+        else if (pr.tipo === "arco") {
+          let barrido = ((pr.a1 - pr.a0) % 360 + 360) % 360;
+          if (barrido === 0) barrido = 360;
+          const n = Math.max(8, Math.ceil(barrido / 15));
+          let ant = null;
+          for (let i = 0; i <= n; i++) {
+            const t = (pr.a0 + barrido * i / n) * Math.PI / 180;
+            const q = llevar(plano, pr.c[0] + pr.r * Math.cos(t), pr.c[1] + pr.r * Math.sin(t));
+            if (ant) meter({ tipo: "seg", id: pr.id, capa: pr.capa, plano: pr.plano, aprox: true, a: ant, b: q });
+            ant = q;
+          }
+        }
+      }
+    }
+    _enPlano = { geom: _geom, W, prims, porId };
+    return _enPlano;
+  }
+
+  /** Todos los ids que tienen geometría, sin repetir. */
+  function ids() {
+    alDia();

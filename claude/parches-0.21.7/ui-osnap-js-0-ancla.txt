@@ -1,0 +1,7 @@
+     * ventanas: sin eso, una cota puesta en el plano no toca la esquina del
+     * mueble y no mide el mueble — mide donde atinó el ratón. Ésas son pocas
+     * (van recortadas a la ventana) y se recorren tal cual. */
+    const candidatas = Indice.cerca(p, tol);
+    if (estado.modo === "papel" && estado.geometriaVentana.length) {
+      for (const pr of estado.geometriaVentana) candidatas.push(pr);
+    }

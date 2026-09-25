@@ -1,29 +1,37 @@
 {
-  "numero": 50,
-  "asunto": "ROTAR entre planos con el centro donde lo piques",
-  "parches": "claude/parches-0.21.6",
-  "version": "0.21.6",
+  "numero": 51,
+  "asunto": "el osnap desde la Frontal y la Lateral",
+  "parches": "claude/parches-0.21.7",
+  "version": "0.21.7",
   "compilar": [
     "core/version.py",
     "verificar.py",
-    "pruebas/t038_seleccion_entre_planos.py"
+    "pruebas/t039_osnap_entre_planos.py"
   ],
   "js": [
-    "ui/editar.js"
+    "ui/indice.js",
+    "ui/osnap.js"
   ],
   "revisar": [
     {
-      "archivo": "ui/editar.js",
+      "archivo": "ui/indice.js",
       "trae": [
-        "let plano = null, loc = null, altura = 0;",
-        "if (Math.max(...ws) - Math.min(...ws) < 1e-6) { plano = cand; loc = l; altura = ws[0]; break; }",
-        "if (Math.abs(g.altura) > 1e-6) {"
+        "function enPlano(W) {",
+        "return { primitivas, trazos, ids, todas, enPlano, caja,"
+      ],
+      "dice": "el índice lleva lo de otro plano al plano de la ventana"
+    },
+    {
+      "archivo": "ui/osnap.js",
+      "trae": [
+        "const candidatas = Indice.cerca(p, tol).filter(mismoPlano);",
+        "for (const pr of Indice.enPlano(W).prims) if (cerca(pr, p, tol)) candidatas.push(pr);"
       ],
       "no_trae": [
-        "if (l.every((q) => Math.abs(q[2]) < 1e-6)) { plano = cand; loc = l; break; }"
+        "const candidatas = Indice.cerca(p, tol);\n"
       ],
-      "dice": "el plano se elige por la altura constante, y se avisa cuando se corrió hasta el plano por el origen"
+      "dice": "el osnap sólo lee lo del plano de la ventana, y lo de otro plano ya llevado"
     }
   ],
-  "commit": "ROTAR entre planos con el centro de giro donde lo piques\n\nMike, 24-sep, con 65 entidades seleccionadas desde la Lateral: no me deja\ngirarlo. En pantalla: ese giro no deja el dibujo en ningun plano.\n\nMedido: con el centro de giro fuera del origen (300, 50 en la Lateral), el\ndibujo girado 90 grados cae en una pared paralela a XZ a y = 350. Aqui solo\nexisten los tres planos por el origen -las extrusiones tambien salen de ahi-\ny giroEntrePlanos exigia altura cero, asi que se negaba. Con el centro en\n0,0 funcionaba, que es como se habia probado.\n\nAhora el plano destino se elige por la altura constante de las tres\nmuestras, se hace el giro alrededor del eje que pasa por el punto picado, se\ndeja el dibujo en el plano por el origen, y se avisa en la linea de comandos\ncuanto se corrio. Medido con rectangulo, linea y cota.\n\nt038 ahora gira con el centro en 300,50 y comprueba el corrimiento y el aviso.\nSuite completa en el chat: 896 comprobaciones en 38 pruebas."
+  "commit": "El osnap desde la Frontal y la Lateral\n\nMike, 25-sep: el Osnap no funciona para dibujar en las vistas frontal y\nlateral. Cuando estoy en esa ventana, deberia poder dibujar sobre ese plano,\ncomo 2D.\n\nMedido en main, con una pared en XZ y un suelo en XY, desde la Frontal: la\nesquina de la pared daba referencia (mismo plano); la esquina del suelo visto\nde canto no daba nada; y donde el suelo no esta -en el punto que sale de leer\nsus (u, v) como si fueran (x, z)- daba extremo. El mismo origen que la\nseleccion de la 0.21.5.\n\nAhora el osnap solo lee tal cual lo del plano de la ventana, y lo de otro\nplano lo trae ya llevado a ese plano por el mundo (Indice.enPlano; los arcos\ncomo tramos aprox, que se pican pero no se enganchan). Con eso se dibuja en\nla Frontal pegado a lo que se ve ahi, y lo dibujado nace en XZ.\n\nt039, 9 comprobaciones; contra main fallan 5. Suite completa en el chat: 905\ncomprobaciones en 39 pruebas."
 }

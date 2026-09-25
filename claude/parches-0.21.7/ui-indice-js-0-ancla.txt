@@ -1,0 +1,6 @@
+    return _geom || [];
+  }
+
+  /** Todos los ids que tienen geometría, sin repetir. */
+  function ids() {
+    alDia();

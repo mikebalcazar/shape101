@@ -1,0 +1,6 @@
+    return true;
+  }
+
+  return { primitivas, trazos, ids, todas, caja, gripsGuardados, cerca, estadisticas,
+           grupoDe, delGrupo, rehacer, parchar };
+})();
