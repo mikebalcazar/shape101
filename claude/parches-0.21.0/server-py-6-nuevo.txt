@@ -1,0 +1,17 @@
+            _error(exc)
+    try:
+        with S.candado:
+            if config.es_propio(ruta):
+                S.doc = proyecto.abrir(ruta)
+                S.informe = None
+            else:
+                S.doc, informe = leer(ruta)
+                S.informe = informe.a_dict()
+            # Un dibujo de draw101 se abre, pero **no** se vuelve el archivo de
+            # guardado: el 2D se sigue editando en draw101 y lo que se levante
+            # aquí va a un `.101s` aparte. Guardarle encima convertiría el
+            # dibujo del taller en un archivo que draw101 abre a medias.
+            S.ruta = None if config.es_de_draw(ruta) else ruta
+    except Exception as exc:
+        # Si la pestaña se abrió para esto, se cierra: dejar una pestaña vacía
+        # detrás de un error es basura que el usuario tiene que limpiar.

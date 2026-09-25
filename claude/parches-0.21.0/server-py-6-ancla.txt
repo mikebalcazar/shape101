@@ -1,0 +1,13 @@
+            _error(exc)
+    try:
+        with S.candado:
+            if ruta.suffix.lower() == config.EXT_PROYECTO:
+                S.doc = proyecto.abrir(ruta)
+                S.informe = None
+            else:
+                S.doc, informe = leer(ruta)
+                S.informe = informe.a_dict()
+            S.ruta = ruta
+    except Exception as exc:
+        # Si la pestaña se abrió para esto, se cierra: dejar una pestaña vacía
+        # detrás de un error es basura que el usuario tiene que limpiar.

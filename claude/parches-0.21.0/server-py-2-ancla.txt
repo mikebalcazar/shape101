@@ -1,0 +1,8 @@
+    if not ruta.exists():
+        _error(FileNotFoundError(f"No existe {ruta}"), 404)
+    try:
+        otro = (proyecto.abrir(ruta) if ruta.suffix.lower() == config.EXT_PROYECTO
+                else leer(ruta)[0])
+        with S.candado:
+            if CAPA_XREF not in S.doc.capas:
+                S.doc.capa_agregar(Capa(CAPA_XREF, "#8A93A1", 13, "CONTINUOUS",
