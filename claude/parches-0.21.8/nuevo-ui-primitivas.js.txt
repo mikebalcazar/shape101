@@ -156,7 +156,7 @@
       const lista = Cuerpos.ESTILOS;
       const actual = Cuerpos.estilo();
       let pedido = String(args && args[0] || "").toLowerCase()
-        .normalize("NFD").replace(/[̀-ͯ]/g, "");
+        .normalize("NFD").replace(/\p{M}/gu, "");
       if (pedido === "b" || pedido === "basica") pedido = "basico";
       if (pedido === "a" || pedido === "wireframe" || pedido === "fantasma") pedido = "alambrico";
       if (pedido === "r" || pedido === "render" || pedido === "renderizada") pedido = "renderizado";

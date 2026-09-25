@@ -1,0 +1,142 @@
+[
+  {
+    "archivo": "ui/primitivas.js",
+    "modo": "nuevo",
+    "texto": "nuevo-ui-primitivas.js.txt"
+  },
+  {
+    "archivo": "pruebas/t040_solidos_directos.py",
+    "modo": "nuevo",
+    "texto": "nuevo-pruebas-t040_solidos_directos.py.txt"
+  },
+  {
+    "archivo": "pruebas/t041_rotar_con_referencia.py",
+    "modo": "nuevo",
+    "texto": "nuevo-pruebas-t041_rotar_con_referencia.py.txt"
+  },
+  {
+    "archivo": "pruebas/t042_estilos_de_vista.py",
+    "modo": "nuevo",
+    "texto": "nuevo-pruebas-t042_estilos_de_vista.py.txt"
+  },
+  {
+    "archivo": "core/preferencias.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-preferencias-py-0-ancla.txt",
+    "texto": "core-preferencias-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "core/solido/cuerpo.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-solido-cuerpo-py-0-ancla.txt",
+    "texto": "core-solido-cuerpo-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "core/solido/historial.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-solido-historial-py-0-ancla.txt",
+    "texto": "core-solido-historial-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "core/solido/historial.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-solido-historial-py-1-ancla.txt",
+    "texto": "core-solido-historial-py-1-nuevo.txt"
+  },
+  {
+    "archivo": "core/solido/rutas.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-solido-rutas-py-0-ancla.txt",
+    "texto": "core-solido-rutas-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "core/solido/rutas.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-solido-rutas-py-1-ancla.txt",
+    "texto": "core-solido-rutas-py-1-nuevo.txt"
+  },
+  {
+    "archivo": "core/version.py",
+    "modo": "cambiar",
+    "ancla_txt": "core-version-py-0-ancla.txt",
+    "texto": "core-version-py-0-nuevo.txt"
+  },
+  {
+    "archivo": "package.json",
+    "modo": "cambiar",
+    "ancla_txt": "package-json-0-ancla.txt",
+    "texto": "package-json-0-nuevo.txt"
+  },
+  {
+    "archivo": "package.json",
+    "modo": "cambiar",
+    "ancla_txt": "package-json-1-ancla.txt",
+    "texto": "package-json-1-nuevo.txt"
+  },
+  {
+    "archivo": "ui/cuerpos.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-cuerpos-js-0-ancla.txt",
+    "texto": "ui-cuerpos-js-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/cuerpos.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-cuerpos-js-1-ancla.txt",
+    "texto": "ui-cuerpos-js-1-nuevo.txt"
+  },
+  {
+    "archivo": "ui/cuerpos.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-cuerpos-js-2-ancla.txt",
+    "texto": "ui-cuerpos-js-2-nuevo.txt"
+  },
+  {
+    "archivo": "ui/cuerpos.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-cuerpos-js-3-ancla.txt",
+    "texto": "ui-cuerpos-js-3-nuevo.txt"
+  },
+  {
+    "archivo": "ui/cuerpos.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-cuerpos-js-4-ancla.txt",
+    "texto": "ui-cuerpos-js-4-nuevo.txt"
+  },
+  {
+    "archivo": "ui/cuerpos.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-cuerpos-js-5-ancla.txt",
+    "texto": "ui-cuerpos-js-5-nuevo.txt"
+  },
+  {
+    "archivo": "ui/editar.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-editar-js-0-ancla.txt",
+    "texto": "ui-editar-js-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/entrada.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-entrada-js-0-ancla.txt",
+    "texto": "ui-entrada-js-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/index.html",
+    "modo": "cambiar",
+    "ancla_txt": "ui-index-html-0-ancla.txt",
+    "texto": "ui-index-html-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/ventanas.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-ventanas-js-0-ancla.txt",
+    "texto": "ui-ventanas-js-0-nuevo.txt"
+  },
+  {
+    "archivo": "ui/ventanas.js",
+    "modo": "cambiar",
+    "ancla_txt": "ui-ventanas-js-1-ancla.txt",
+    "texto": "ui-ventanas-js-1-nuevo.txt"
+  }
+]

@@ -1,37 +1,75 @@
 {
-  "numero": 51,
-  "asunto": "el osnap desde la Frontal y la Lateral",
-  "parches": "claude/parches-0.21.7",
-  "version": "0.21.7",
+  "numero": 52,
+  "asunto": "solidos directos, ROTAR con referencia y estilos de vista",
+  "parches": "claude/parches-0.21.8",
+  "version": "0.21.8",
   "compilar": [
     "core/version.py",
-    "verificar.py",
-    "pruebas/t039_osnap_entre_planos.py"
+    "core/preferencias.py",
+    "core/solido/cuerpo.py",
+    "core/solido/historial.py",
+    "core/solido/rutas.py",
+    "pruebas/t040_solidos_directos.py",
+    "pruebas/t041_rotar_con_referencia.py",
+    "pruebas/t042_estilos_de_vista.py"
   ],
   "js": [
-    "ui/indice.js",
-    "ui/osnap.js"
+    "ui/cuerpos.js",
+    "ui/editar.js",
+    "ui/entrada.js",
+    "ui/ventanas.js",
+    "ui/primitivas.js"
   ],
   "revisar": [
     {
-      "archivo": "ui/indice.js",
+      "archivo": "core/solido/historial.py",
       "trae": [
-        "function enPlano(W) {",
-        "return { primitivas, trazos, ids, todas, enPlano, caja,"
+        "def _primitiva(op: dict):",
+        "elif clase == \"primitiva\":"
       ],
-      "dice": "el índice lleva lo de otro plano al plano de la ventana"
+      "dice": "el historial sabe hacer una primitiva"
     },
     {
-      "archivo": "ui/osnap.js",
+      "archivo": "core/solido/rutas.py",
       "trae": [
-        "const candidatas = Indice.cerca(p, tol).filter(mismoPlano);",
-        "for (const pr of Indice.enPlano(W).prims) if (cerca(pr, p, tol)) candidatas.push(pr);"
+        "@router.post(\"/primitiva\")",
+        "m[\"color\"] = getattr(cuerpo, \"color\", None)"
+      ],
+      "dice": "la ruta /primitiva y el material en la malla"
+    },
+    {
+      "archivo": "ui/index.html",
+      "trae": [
+        "<script src=\"primitivas.js\"></script>"
+      ],
+      "dice": "primitivas.js enganchado"
+    },
+    {
+      "archivo": "ui/cuerpos.js",
+      "trae": [
+        "const ESTILOS = [\"basico\", \"alambrico\", \"renderizado\"];",
+        "function bordesDe(cara) {",
+        "estilo, ESTILOS,"
+      ],
+      "dice": "los tres estilos de vista"
+    },
+    {
+      "archivo": "ui/editar.js",
+      "trae": [
+        "mensaje: \"Punto de referencia sobre la pieza (o teclea los grados del giro)\""
+      ],
+      "dice": "ROTAR con referencia"
+    },
+    {
+      "archivo": "ui/entrada.js",
+      "trae": [
+        "const t = String(texto).trim();"
       ],
       "no_trae": [
-        "const candidatas = Indice.cerca(p, tol);\n"
+        "const t = String(texto).trim().replace(\",\", \".\");"
       ],
-      "dice": "el osnap sólo lee lo del plano de la ventana, y lo de otro plano ya llevado"
+      "dice": "la coma separa coordenadas, no es decimal"
     }
   ],
-  "commit": "El osnap desde la Frontal y la Lateral\n\nMike, 25-sep: el Osnap no funciona para dibujar en las vistas frontal y\nlateral. Cuando estoy en esa ventana, deberia poder dibujar sobre ese plano,\ncomo 2D.\n\nMedido en main, con una pared en XZ y un suelo en XY, desde la Frontal: la\nesquina de la pared daba referencia (mismo plano); la esquina del suelo visto\nde canto no daba nada; y donde el suelo no esta -en el punto que sale de leer\nsus (u, v) como si fueran (x, z)- daba extremo. El mismo origen que la\nseleccion de la 0.21.5.\n\nAhora el osnap solo lee tal cual lo del plano de la ventana, y lo de otro\nplano lo trae ya llevado a ese plano por el mundo (Indice.enPlano; los arcos\ncomo tramos aprox, que se pican pero no se enganchan). Con eso se dibuja en\nla Frontal pegado a lo que se ve ahi, y lo dibujado nace en XZ.\n\nt039, 9 comprobaciones; contra main fallan 5. Suite completa en el chat: 905\ncomprobaciones en 39 pruebas."
+  "commit": "Solidos directos, ROTAR con referencia y estilos de vista\n\nMike, 25-sep, tres pedidos:\n\n1) Necesito los comandos para generar solidos directo (prisma, cilindro,\npiramide, etc.). PRISMA (o CAJA), CILINDRO, CONO, ESFERA y PIRAMIDE: dos\npuntos de la base en la ventana donde se esta -con hule, osnap y coordenadas\ntecleadas, como RECTANGULO o CIRCULO- y el alto tecleado. Nacen apoyados en\nel plano de esa ventana (operacion primitiva del historial, POST\n/api/cuerpo/primitiva) y sus medidas se cambian en el historial.\n\n2) Hay que poner los puntos de referencia para la rotacion y que a partir de\nesos puntos se rote la pieza a los grados que se desee. ROTAR como ESCALAR y\ncomo AutoCAD: centro, punto de referencia sobre la pieza y punto nuevo.\nGrados en el segundo paso: giro a secas; en el tercero: la referencia queda\na ese angulo. De paso: con numero:true, 400,100 se leia como 400.1 (la coma\nera decimal). Ahora la coma separa coordenadas.\n\n3) Quiero un estilo de vista, aparte de la basica, de wireframe ghosteado y\notro de renderizado, con materiales y mejor rasterizados. ESTILO\n[basico|alambrico|renderizado] y los botones B A R del titulo de la\nPerspectiva; preferencia estilo_3d. El renderizado tiene dos luces y brillo,\ntapa las costuras entre triangulos y solo pinta el contorno de cada cara en\norden de profundidad, asi no se ven aristas a traves de la pieza; el color\nde la capa es el material (blanco/negro = madera).\n\nt040 (25), t041 (9), t042 (14). Suite completa en el chat."
 }
