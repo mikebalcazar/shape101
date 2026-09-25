@@ -21,13 +21,38 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.20.1"
-FECHA = "2026-09-20"
+VERSION = "0.21.0"
+FECHA = "2026-09-24"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.21.0",
+        "fecha": "2026-09-24",
+        "cambios": [
+            "Ya se puede traer un dibujo de draw101. El comando IMPORTAR —o el botón "
+            "«Importar…» de arriba— mete el dibujo 2D adentro de la pieza que tengas "
+            "abierta, sin borrar lo que ya llevas. Lo que entra es dibujo de verdad: se "
+            "señala y se levanta con EXTRUIR como cualquier contorno tuyo.",
+            "Cae siempre acostado en el suelo. Un dibujo de draw101 es plano y no sabe de "
+            "ventanas; ponerlo según dónde estuvieras parado acierta casi siempre y la vez "
+            "que falla deja la pieza de canto sin que se entienda por qué.",
+            "Las capas que traiga el dibujo y aquí no existan se crean solas. Las que ya "
+            "tienes NO se tocan: traer un dibujo no puede repintarte tus propias capas.",
+            "Abrir también acepta los dibujos de draw101, además del DXF y el DWG. Y "
+            "abrir uno no te lo convierte en el archivo donde guardas: el dibujo 2D sigue "
+            "siendo de draw101, y lo que levantes aquí se guarda aparte.",
+            "ARREGLADO: el programa guardaba en .101s pero su propio diálogo de Abrir "
+            "sólo ofrecía .t101d, así que las piezas que guardabas no aparecían cuando "
+            "las querías volver a abrir. Y Guardar te volvía a pedir la ruta cada vez. "
+            "El doble clic de Windows tampoco abría una pieza propia.",
+            "ARREGLADO, y éste era el peligroso: traer otro dibujo encima de una pieza ya "
+            "levantada la borraba, sin avisar. Los nombres internos de lo que entraba "
+            "volvían a empezar desde uno y pisaban los que ya estaban ocupados.",
+        ],
+    },
     {
         "version": "0.20.1",
         "fecha": "2026-09-20",

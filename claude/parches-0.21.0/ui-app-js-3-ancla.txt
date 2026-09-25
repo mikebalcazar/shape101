@@ -1,6 +1,0 @@
-
-$("#b-nuevo").onclick = () => Marco.nuevoDoc();
-$("#b-abrir").onclick = () => Archivo.pedirYAbrir();
-$("#b-guardar").onclick = () => Archivo.guardar(false);
-$("#b-guardar-como").onclick = () => Archivo.guardar(true);
-

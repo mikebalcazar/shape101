@@ -1,6 +1,0 @@
-# saber que el instalador nuevo es el mismo programa y actualizar en su lugar.
-APP_ID = "mx.taller101.shape101"
-EXT_PROYECTO = ".101s"
-
-
-def carpeta_usuario() -> "pathlib.Path":

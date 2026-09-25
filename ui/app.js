@@ -392,11 +392,44 @@ async function pedirRuta(modo, filtros, sugerido) {
  * también la pantalla de inicio, y antes eran tres `onclick` que sólo sabía
  * apretar un botón. */
 const Archivo = (() => {
+  /* Las extensiones, en un solo sitio. El defecto que Mike encontró el 24-sep
+   * fue exactamente esto escrito tres veces y desincronizado: el motor guardaba
+   * `.101s` y la interfaz seguía diciendo `.t101d`, así que sus propios
+   * archivos **no aparecían** en el diálogo de Abrir y Guardar le volvía a
+   * pedir la ruta cada vez. Una lista y de aquí salen todos los filtros. */
+  const EXT_PROPIA = "101s";                    // lo que guarda shape101
+  const EXT_DRAW = ["101d", "t101d"];           // lo que guarda draw101
   const FILTROS_ABRIR = [
-    { name: "Dibujos", extensions: ["t101d", "dxf", "dwg"] },
+    { name: "Dibujos y piezas", extensions: [EXT_PROPIA, ...EXT_DRAW, "dxf", "dwg"] },
+    { name: "Pieza shape101", extensions: [EXT_PROPIA] },
+    { name: "Dibujo draw101", extensions: EXT_DRAW },
     { name: "DXF", extensions: ["dxf"] },
     { name: "DWG", extensions: ["dwg"] },
   ];
+
+  /** Trae un dibujo 2D **adentro** de la pieza que ya está abierta.
+   *
+   *  No es Abrir —eso reemplaza— ni REFEXT —eso entra bloqueado, para calcar—.
+   *  Lo que entra por aquí se selecciona y se levanta con EXTRUIR. */
+  async function importar() {
+    const ruta = await pedirRuta("abrir", [
+      { name: "Dibujo para importar", extensions: [...EXT_DRAW, EXT_PROPIA, "dxf", "dwg"] },
+      { name: "Dibujo draw101", extensions: EXT_DRAW },
+      { name: "DXF", extensions: ["dxf"] },
+    ]);
+    if (!ruta) return false;
+    try {
+      const r = await post("/api/importar", { ruta });
+      aplicar(r);
+      await recargarTrazos();
+      const extra = [];
+      if ((r.capas_nuevas || []).length) extra.push(`${r.capas_nuevas.length} capa(s) nueva(s)`);
+      if (r.solidos_omitidos) extra.push(`${r.solidos_omitidos} pieza(s) 3D que no se traen`);
+      Comandos.eco(`${r.importadas} entidad(es) desde ${r.archivo}, en el suelo`
+        + (extra.length ? ` · ${extra.join(" · ")}` : "") + ".", "bien");
+      return true;
+    } catch (e) { avisar(e.message, true, 9000); return false; }
+  }
 
   /** Abre un plano. En pestaña nueva, salvo que la de enfrente esté en blanco:
    *  abrir tres planos seguidos no debe dejar dos pestañas vacías detrás. */
@@ -437,11 +470,11 @@ const Archivo = (() => {
   /** Guarda. `comoOtro` fuerza a preguntar la ruta aunque ya tenga una. */
   async function guardar(comoOtro = false) {
     let ruta = comoOtro ? null : estado.resumen.ruta;
-    if (!ruta || !ruta.toLowerCase().endsWith(".t101d")) {
-      const base = (estado.resumen.nombre || "dibujo").replace(/\.[^.]+$/, "");
+    if (!ruta || !ruta.toLowerCase().endsWith("." + EXT_PROPIA)) {
+      const base = (estado.resumen.nombre || "pieza").replace(/\.[^.]+$/, "");
       ruta = await pedirRuta("guardar",
-        [{ name: "Dibujo Taller 101", extensions: ["t101d"] }],
-        base + (comoOtro ? " copia" : "") + ".t101d");
+        [{ name: "Pieza shape101", extensions: [EXT_PROPIA] }],
+        base + (comoOtro ? " copia" : "") + "." + EXT_PROPIA);
     }
     if (!ruta) return false;
     try {
@@ -451,7 +484,7 @@ const Archivo = (() => {
     } catch (e) { avisar(e.message, true); return false; }
   }
 
-  return { abrir, pedirYAbrir, guardar, FILTROS_ABRIR };
+  return { abrir, pedirYAbrir, guardar, importar, FILTROS_ABRIR };
 })();
 
 /* Se conserva el nombre viejo: lo usan el doble clic de Windows y las pruebas. */
@@ -459,6 +492,8 @@ const abrirRuta = Archivo.abrir;
 
 $("#b-nuevo").onclick = () => Marco.nuevoDoc();
 $("#b-abrir").onclick = () => Archivo.pedirYAbrir();
+const bImportar = $("#b-importar");
+if (bImportar) bImportar.onclick = () => Archivo.importar();
 $("#b-guardar").onclick = () => Archivo.guardar(false);
 $("#b-guardar-como").onclick = () => Archivo.guardar(true);
 

@@ -1,7 +1,0 @@
-  ayuda: "Trae otro DXF como fondo bloqueado, y lo puede recargar",
-  correr: async () => {
-    const ruta = await pedirRuta("abrir", [
-      { name: "Dibujos", extensions: ["dxf", "101d", "t101d", "101s"] }]);
-    if (!ruta) return;
-    try {
-      const r = await post("/api/refext", { ruta });

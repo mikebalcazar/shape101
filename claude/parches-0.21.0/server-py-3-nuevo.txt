@@ -1,7 +1,0 @@
-                for e in otro.lista():
-                    copia = ent_mod.de_dict({**e.a_dict(), "id": None,
-                                             "capa": CAPA_XREF, "origen": "refext"})
-                    copia.id = _id_libre()
-                    S.doc.agregar(copia)
-                    n += 1
-            S.doc.capa_modificar(CAPA_XREF, {"bloqueada": True})

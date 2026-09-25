@@ -1,6 +1,0 @@
-CAPA_XREF = "REF-EXTERNA"
-
-
-@app.post("/api/refext")
-def refext(entrada: RutaEntrada):
-    """Trae otro dibujo a una capa bloqueada  ·  feature 77.

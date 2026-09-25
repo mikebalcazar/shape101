@@ -1,7 +1,0 @@
-  ayuda: "Compara este dibujo con otro archivo y dice qué cambió",
-  correr: async () => {
-    const ruta = await pedirRuta("abrir", [
-      { name: "Dibujos", extensions: ["t101d", "dxf"] }]);
-    if (!ruta) return;
-    try {
-      const r = await post("/api/comparar", { ruta });

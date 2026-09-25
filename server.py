@@ -12,6 +12,7 @@ el proyecto de gabinetes, aquí no aguantaría.
 
 from __future__ import annotations
 
+import contextlib
 import gc
 import json
 import pathlib
@@ -693,6 +694,31 @@ def paquete_supervisor(entrada: PaqueteEntrada):
 CAPA_XREF = "REF-EXTERNA"
 
 
+def _id_libre() -> str:
+    """Un id que no esté en uso **en el documento abierto**.
+
+    `ent_mod.nuevo_id()` cuenta desde un contador global, y ese contador se
+    resiembra cada vez que se lee un archivo: `proyecto.abrir` llama a
+    `sembrar_contador` con las entidades del archivo leído. Un dibujo de
+    draw101 trae ids suyos —no `e1, e2, …`—, así que el contador se queda en
+    cero y los ids nuevos **vuelven a empezar**. Y `Documento.agregar` guarda
+    por llave: un id repetido pisa lo que había, sin avisar.
+
+    Medido el 24-sep con una pieza ya levantada: importar encima la borraba —
+    la polilínea y el sólido desaparecían y quedaba sólo lo importado—. La
+    forma de defecto de siempre por aquí: no truena, se equivoca en silencio.
+
+    Se pide hasta que salga uno libre. Dos líneas, y valen para cualquier
+    archivo ajeno que entre, venga de donde venga.
+    """
+    with contextlib.suppress(Exception):
+        ent_mod.sembrar_contador(list(S.doc.entidades.values()))
+    while True:
+        id_ = ent_mod.nuevo_id()
+        if id_ not in S.doc.entidades:
+            return id_
+
+
 @app.post("/api/refext")
 def refext(entrada: RutaEntrada):
     """Trae otro dibujo a una capa bloqueada  ·  feature 77.
@@ -705,8 +731,7 @@ def refext(entrada: RutaEntrada):
     if not ruta.exists():
         _error(FileNotFoundError(f"No existe {ruta}"), 404)
     try:
-        otro = (proyecto.abrir(ruta) if ruta.suffix.lower() == config.EXT_PROYECTO
-                else leer(ruta)[0])
+        otro = (proyecto.abrir(ruta) if config.es_propio(ruta) else leer(ruta)[0])
         with S.candado:
             if CAPA_XREF not in S.doc.capas:
                 S.doc.capa_agregar(Capa(CAPA_XREF, "#8A93A1", 13, "CONTINUOUS",
@@ -726,13 +751,81 @@ def refext(entrada: RutaEntrada):
                 for e in otro.lista():
                     copia = ent_mod.de_dict({**e.a_dict(), "id": None,
                                              "capa": CAPA_XREF, "origen": "refext"})
-                    copia.id = ent_mod.nuevo_id()
+                    copia.id = _id_libre()
                     S.doc.agregar(copia)
                     n += 1
             S.doc.capa_modificar(CAPA_XREF, {"bloqueada": True})
     except Exception as exc:
         _error(exc)
     return {"entidades": n, "capa": CAPA_XREF, "ruta": str(ruta), **S.resumen()}
+
+
+class Importar(BaseModel):
+    ruta: str
+
+
+@app.post("/api/importar")
+def importar(entrada: Importar):
+    """Trae un dibujo 2D **adentro** del que ya está abierto  ·  0.21.0
+
+    Mike, 24-sep: *«necesito poder importar dibujo 2D desde draw»*. Las dos
+    puertas que ya había no servían para eso:
+
+      · **Abrir** reemplaza lo que tienes. Sirve para empezar, no para sumar.
+      · **Referencia externa** trae el otro dibujo a una capa **bloqueada**,
+        para calcar encima. Bloqueado no se selecciona, y lo que no se
+        selecciona no se puede levantar con EXTRUIR.
+
+    Lo que entra por aquí es geometría de verdad: se selecciona, se edita y se
+    levanta. Que es exactamente para lo que la pidió.
+
+    **Cae siempre en el suelo (XY)**, lo eligió Mike. Un dibujo de draw101 es
+    plano y no sabe de planos de trabajo; ponerlo según dónde estuviera parado
+    uno acierta nueve veces y a la décima deja la pieza de canto sin que nadie
+    entienda por qué. Si hace falta parado, se gira aquí y se ve.
+
+    Las capas que trae y aquí no están se crean; las que ya existen **no se
+    tocan**. Traer un dibujo no puede repintarle al taller sus propias capas.
+    """
+    ruta = pathlib.Path(entrada.ruta)
+    if not ruta.exists():
+        _error(FileNotFoundError(f"No existe {ruta}"), 404)
+    try:
+        otro = (proyecto.abrir(ruta) if config.es_propio(ruta) else leer(ruta)[0])
+    except Exception as exc:
+        if isinstance(exc, DWGNoDisponible):
+            _error(exc, 501)
+        _error(exc)
+
+    puestas, capas_nuevas, solidos = 0, [], 0
+    try:
+        with S.candado:
+            with S.doc.transaccion(f"Importar «{ruta.name}»"):
+                for nombre, bl in otro.bloques.items():
+                    if nombre not in S.doc.bloques:
+                        S.doc.bloque_agregar(bl)
+                for nombre, capa in otro.capas.items():
+                    if nombre not in S.doc.capas:
+                        S.doc.capa_agregar(Capa.de_dict(capa.a_dict()))
+                        capas_nuevas.append(nombre)
+                for e in otro.lista():
+                    # Las piezas sólidas no se traen: esto importa el dibujo,
+                    # no el modelo. Se cuentan para poder decirlo.
+                    if e.tipo == "cuerpo":
+                        solidos += 1
+                        continue
+                    copia = ent_mod.de_dict({**e.a_dict(), "id": None,
+                                             "plano": "XY", "origen": "importado"})
+                    copia.id = _id_libre()
+                    S.doc.agregar(copia)
+                    puestas += 1
+    except Exception as exc:
+        _error(exc)
+    # Las llaves propias van **después** del resumen: al revés, `capas` del
+    # resumen se comía `capas` de aquí y la interfaz anunciaba las capas del
+    # documento como si las acabara de traer.
+    return {**S.resumen(), "importadas": puestas, "capas_nuevas": capas_nuevas,
+            "solidos_omitidos": solidos, "archivo": ruta.name}
 
 
 @app.post("/api/comparar")
@@ -746,8 +839,7 @@ def comparar(entrada: RutaEntrada):
     if not ruta.exists():
         _error(FileNotFoundError(f"No existe {ruta}"), 404)
     try:
-        otro = (proyecto.abrir(ruta) if ruta.suffix.lower() == config.EXT_PROYECTO
-                else leer(ruta)[0])
+        otro = (proyecto.abrir(ruta) if config.es_propio(ruta) else leer(ruta)[0])
     except Exception as exc:
         _error(exc)
 
@@ -1415,13 +1507,17 @@ def abrir(entrada: Abrir):
             _error(exc)
     try:
         with S.candado:
-            if ruta.suffix.lower() == config.EXT_PROYECTO:
+            if config.es_propio(ruta):
                 S.doc = proyecto.abrir(ruta)
                 S.informe = None
             else:
                 S.doc, informe = leer(ruta)
                 S.informe = informe.a_dict()
-            S.ruta = ruta
+            # Un dibujo de draw101 se abre, pero **no** se vuelve el archivo de
+            # guardado: el 2D se sigue editando en draw101 y lo que se levante
+            # aquí va a un `.101s` aparte. Guardarle encima convertiría el
+            # dibujo del taller en un archivo que draw101 abre a medias.
+            S.ruta = None if config.es_de_draw(ruta) else ruta
     except Exception as exc:
         # Si la pestaña se abrió para esto, se cierra: dejar una pestaña vacía
         # detrás de un error es basura que el usuario tiene que limpiar.

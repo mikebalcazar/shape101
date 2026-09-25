@@ -127,7 +127,7 @@ Comandos.registrar({
   ayuda: "Trae otro DXF como fondo bloqueado, y lo puede recargar",
   correr: async () => {
     const ruta = await pedirRuta("abrir", [
-      { name: "Dibujos", extensions: ["dxf", "t101d"] }]);
+      { name: "Dibujos", extensions: ["dxf", "101d", "t101d", "101s"] }]);
     if (!ruta) return;
     try {
       const r = await post("/api/refext", { ruta });
@@ -139,6 +139,22 @@ Comandos.registrar({
 });
 
 /* ===================================================================== */
+/* 79 · Importar un dibujo 2D de draw101                                 */
+/* ===================================================================== */
+/* Mike, 24-sep: «necesito poder importar dibujo 2D desde draw». El 2D se
+ * dibuja en draw101, que para eso es mucho mejor, y se levanta aquí.
+ *
+ * Por qué un comando aparte y no REFEXT: el xref entra **bloqueado**, para
+ * calcar encima. Lo que se va a levantar con EXTRUIR tiene que poder
+ * seleccionarse, así que entra como geometría de verdad. Y por qué no Abrir:
+ * Abrir reemplaza lo que tienes; esto suma a la pieza que ya está. */
+Comandos.registrar({
+  nombre: "IMPORTAR", alias: ["IMPORT", "TRAER"],
+  ayuda: "IMPORTAR · trae un dibujo 2D de draw101 adentro de esta pieza, para levantarlo",
+  correr: async () => { await Archivo.importar(); },
+});
+
+/* ===================================================================== */
 /* 78 · Comparar dos versiones                                           */
 /* ===================================================================== */
 Comandos.registrar({
@@ -146,7 +162,7 @@ Comandos.registrar({
   ayuda: "Compara este dibujo con otro archivo y dice qué cambió",
   correr: async () => {
     const ruta = await pedirRuta("abrir", [
-      { name: "Dibujos", extensions: ["t101d", "dxf"] }]);
+      { name: "Dibujos", extensions: ["101s", "101d", "t101d", "dxf"] }]);
     if (!ruta) return;
     try {
       const r = await post("/api/comparar", { ruta });

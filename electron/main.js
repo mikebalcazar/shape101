@@ -20,7 +20,10 @@ const fs = require("fs");
 const http = require("http");
 
 const RAIZ = path.join(__dirname, "..");
-const EXTENSIONES = [".t101d", ".dxf", ".dwg"];
+// Lo propio, lo de draw101 y los planos ajenos. Iba sin `.101s`, que es
+// justo lo que este programa guarda: un doble clic en la pieza propia no
+// la abría.
+const EXTENSIONES = [".101s", ".101d", ".t101d", ".dxf", ".dwg"];
 
 let ventana = null;
 let python = null;

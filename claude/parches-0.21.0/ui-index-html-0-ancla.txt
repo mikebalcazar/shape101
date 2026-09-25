@@ -1,7 +1,0 @@
-        <button class="tarj" id="iAbrir">
-          <span class="ic">↥</span>
-          <span class="txt"><b>Abrir un plano…</b>
-            <small>DWG, DXF o .t101d</small></span>
-        </button>
-        <button class="tarj" id="iT101x">
-          <span class="ic">▤</span>

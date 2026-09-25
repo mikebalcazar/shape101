@@ -31,6 +31,30 @@ APP_NOMBRE_VIEJO = ""
 # saber que el instalador nuevo es el mismo programa y actualizar en su lugar.
 APP_ID = "mx.taller101.shape101"
 EXT_PROYECTO = ".101s"
+# Los archivos de trabajo de la suite que este programa sabe leer directo.
+#
+# shape101 y draw101 salieron del mismo código y su documento sigue siendo el
+# mismo campo por campo —se comprobó el 24-sep escribiendo un dibujo con
+# draw101 y abriéndolo con el motor de aquí—, así que un dibujo de draw101 no
+# necesita traducción: necesita que alguien lo deje entrar.
+#
+# draw101 escribe hoy `.t101d`; Mike le dice «101d». Van las dos, y así el día
+# que se renombre no hay que volver a tocar esto. El DXF y el DWG **no** van
+# aquí: ésos pasan por el lector de planos ajenos, que es otro oficio.
+EXT_DRAW101 = (".101d", ".t101d")
+EXT_PROPIAS = (EXT_PROYECTO,) + EXT_DRAW101
+
+
+def es_propio(ruta) -> bool:
+    """¿Es un archivo de trabajo de la suite: nuestro o de draw101?"""
+    return str(ruta).lower().endswith(EXT_PROPIAS)
+
+
+def es_de_draw(ruta) -> bool:
+    """¿Viene de draw101? Se usa para **no** guardarle encima: el dibujo 2D es
+    de draw101 y ahí se sigue editando; aquí se levanta en 3D y se guarda en un
+    `.101s` aparte."""
+    return str(ruta).lower().endswith(EXT_DRAW101)
 
 
 def carpeta_usuario() -> "pathlib.Path":
