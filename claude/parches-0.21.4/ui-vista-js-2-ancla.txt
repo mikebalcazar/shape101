@@ -1,0 +1,8 @@
+  // Cada una desde su ángulo: la caja en planta no dice dónde caen las cosas
+  // vistas de frente.
+  if (typeof Ventanas !== "undefined" && estado.vista && estado.vista.w) {
+    const puntos = puntosDelDibujo();
+    if (puntos.length) { Ventanas.encuadrarTodas(puntos); return pintar(); }
+    Ventanas.centrarEnOrigen();
+    return pintar();
+  }

@@ -1,0 +1,18 @@
+  const cx = Math.cos(v.rx);
+  if (v.persp && Math.abs(cx) > 1e-9) {
+    // Deshacer la perspectiva sobre el suelo (z = 0): ahí la profundidad es
+    // lineal en la Y de la cámara, y la ecuación se resuelve exacta. Con la
+    // mira como punto de fuga (ver aPX): k = 1 / (g − t·vy), donde g lleva
+    // la profundidad de la mira.
+    const m = v.mira || [0, 0, 0];
+    const [mx, my, profM] = _sinPerspectiva(v, m[0], m[1], m[2]);
+    const foco = v.foco || 1400;
+    const t = (Math.sin(v.rx) / cx) * v.escala / foco;
+    const g = 1 + profM * v.escala / foco;
+    const A = v.y * v.escala + (v.oy || 0) - my, d = py - my;
+    vy = (A - d * g) / (v.escala - d * t);
+    const k = 1 / Math.max(0.1, g - t * vy);
+    ux = v.x + ((px - mx) / k + mx - (v.ox || 0)) / v.escala;
+  }
+  // En la Frontal y la Lateral lo que se devuelve son las coordenadas del
+  // plano de la ventana —(x, z) o (y, z)—, que es donde se dibuja ahí.

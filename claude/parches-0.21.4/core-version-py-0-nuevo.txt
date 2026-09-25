@@ -1,0 +1,33 @@
+
+from __future__ import annotations
+
+VERSION = "0.21.4"
+FECHA = "2026-09-24"
+
+# Qué trae cada entrega, en el idioma del taller y no en el del código.
+# La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
+# enseña en la consola.
+BITACORA: list[dict] = [
+    {
+        "version": "0.21.4",
+        "fecha": "2026-09-24",
+        "cambios": [
+            "La Perspectiva gira alrededor de un punto fijo: su mira. Antes el pivote era lo "
+            "que hubiera bajo el cursor sobre el suelo —lejos de la pieza si el ratón no "
+            "estaba encima— y el punto de fuga era el centro de la ventana, así que girar "
+            "hacía que la pieza se fuera de sitio y cambiara de tamaño, como un zoom que "
+            "nadie pidió (Mike, 24-sep). Medido: el centro de la pieza se iba 200 px en un "
+            "giro; ahora no se mueve ni un píxel.",
+            "Extents con algo seleccionado —o una pieza señalada— encuadra eso en las cuatro "
+            "ventanas y deja ahí la mira: es la forma de anclar en un punto nuevo el eje de "
+            "giro. Sin selección, encuadra todo, como siempre.",
+            "Panear (Shift + botón central) corre la imagen entera sin deformarla y sin mover "
+            "la mira: el pivote se queda donde estaba aunque la pieza salga un poco de la "
+            "pantalla.",
+            "Extents ya cuenta los dibujos parados en la pared por donde están: antes "
+            "encuadraba todo como si estuviera acostado en el suelo.",
+        ],
+    },
+    {
+        "version": "0.21.3",
+        "fecha": "2026-09-24",

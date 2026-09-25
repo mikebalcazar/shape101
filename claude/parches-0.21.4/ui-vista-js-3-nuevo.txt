@@ -1,0 +1,42 @@
+ */
+/** Las cuatro esquinas de lo que hay dibujado, en el plano de trabajo. Es lo
+ *  que se le da a las ventanas para que se encuadren solas. */
+/** Las esquinas de la caja de unos trazos, **en el mundo**: cada trazo va por
+ *  su plano. Hasta la 0.21.3 se tomaban las (u, v) como si todo estuviera en
+ *  el suelo, y un dibujo parado en la pared se encuadraba acostado. */
+function _cajaDeTrazos(trazos) {
+  let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+  const M = typeof Planos !== "undefined" ? Planos.aMundo : (pl, u, v) => [u, v, 0];
+  for (const t of trazos) for (const p of (t.puntos || [])) {
+    const m = M(t.plano || "XY", p[0], p[1], 0);
+    if (m[0] < x0) x0 = m[0]; if (m[0] > x1) x1 = m[0];
+    if (m[1] < y0) y0 = m[1]; if (m[1] > y1) y1 = m[1];
+    if (m[2] < z0) z0 = m[2]; if (m[2] > z1) z1 = m[2];
+  }
+  if (!isFinite(x0)) return [];
+  const fuera = [];
+  for (const x of [x0, x1]) for (const y of [y0, y1]) for (const z of [z0, z1]) fuera.push([x, y, z]);
+  return fuera;
+}
+
+function puntosDelDibujo() {
+  const planos = _cajaDeTrazos(estado.trazos || []);
+  // Y las piezas: una pieza cuyo contorno se borró después de levantarla no
+  // tiene trazos, y hasta la 0.19.0 encuadrar la dejaba fuera.
+  const solidos = (typeof Cuerpos !== "undefined" && Cuerpos.esquinas) ? Cuerpos.esquinas() : [];
+  return planos.concat(solidos);
+}
+
+/** Lo seleccionado (y la pieza señalada), en el mundo. Vacío si no hay nada. */
+function puntosDeLaSeleccion() {
+  const trazos = [];
+  if (estado.sel && estado.sel.size && typeof Indice !== "undefined") {
+    for (const id of estado.sel) for (const t of Indice.trazos(id) || []) trazos.push(t);
+  }
+  const puntos = _cajaDeTrazos(trazos);
+  const s = typeof Cuerpos !== "undefined" && Cuerpos.senalada;
+  if (s && Cuerpos.esquinas) for (const p of Cuerpos.esquinas(s.id)) puntos.push(p);
+  return puntos;
+}
+
+function dibujarPlano(c, fondo = true) {

@@ -1,0 +1,18 @@
+ */
+/** Las cuatro esquinas de lo que hay dibujado, en el plano de trabajo. Es lo
+ *  que se le da a las ventanas para que se encuadren solas. */
+function puntosDelDibujo() {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const t of estado.trazos || []) for (const p of (t.puntos || [])) {
+    if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+    if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+  }
+  // Y las piezas: una pieza cuyo contorno se borró después de levantarla no
+  // tiene trazos, y hasta la 0.19.0 encuadrar la dejaba fuera.
+  const solidos = (typeof Cuerpos !== "undefined" && Cuerpos.esquinas) ? Cuerpos.esquinas() : [];
+  if (!isFinite(x0)) return solidos;
+  const planos = [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+  return solidos.length ? planos.concat(solidos) : planos;
+}
+
+function dibujarPlano(c, fondo = true) {

@@ -1,0 +1,6 @@
+      if (v.w <= 0 || v.h <= 0) continue;
+      v.x = -v.w / 2 / v.escala;
+      v.y = (v.h + TITULO) / 2 / v.escala;
+    }
+  }
+

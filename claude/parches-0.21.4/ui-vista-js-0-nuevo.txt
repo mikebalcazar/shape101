@@ -1,0 +1,39 @@
+// siempre**, línea por línea. Eso no es una optimización: es lo que garantiza
+// que el 2D que ya funciona no cambie ni en el último decimal. Si cambiara, el
+// osnap dejaría de pegar donde debe y nadie sabría por qué.
+// La proyección girada **sin** perspectiva: [px, py, profundidad]. La
+// profundidad crece hacia el ojo.
+const _sinPerspectiva = (v, x, y, z) => {
+  const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
+  const ux = x * cz - y * sz;
+  const uy = x * sz + y * cz;
+  const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
+  const vy = uy * cx - (z || 0) * sx;
+  return [(ux - v.x) * v.escala + (v.ox || 0), (v.y - vy) * v.escala + (v.oy || 0), uy * sx + (z || 0) * cx];
+};
+
+const aPX = (x, y, z) => {
+  const v = estado.vista;
+  if (!v.rx && !v.rz) return [(x - v.x) * v.escala + (v.ox || 0), (v.y - y) * v.escala + (v.oy || 0)];
+  const [px, py, prof] = _sinPerspectiva(v, x, y, z);
+  if (!v.persp) return [px, py];
+  // Perspectiva: lo cercano al ojo se aleja del punto de fuga y lo lejano se
+  // acerca. Sólo la ventana Perspectiva la lleva; las otras tres son
+  // ortogonales, que es donde se mide.
+  //
+  // El punto de fuga es la **mira** (`v.mira`, un punto del mundo que fija
+  // Extents), no el centro de la ventana. Hasta la 0.21.3 era el centro de
+  // la ventana, y por eso panear deformaba: al correr la ventana cambiaba
+  // qué punto quedaba «al frente», y una pieza cambiaba de tamaño en pantalla
+  // sin tocar el zoom (Mike, 24-sep: «el paneo hace un zoom involuntario»).
+  // Medido: una arista de 110 px pasaba a 85 con un paneo de 150 px. Anclada
+  // a la mira, panear es correr la imagen y nada más.
+  const m = v.mira || [0, 0, 0];
+  const [mx, my, profM] = _sinPerspectiva(v, m[0], m[1], m[2]);
+  // El foco va en píxeles: así la perspectiva es igual de conservadora a
+  // cualquier zoom. En milímetros se estiraba al alejarse.
+  const k = 1 / Math.max(0.1, 1 - (prof - profM) * v.escala / (v.foco || 1400));
+  return [mx + (px - mx) * k, my + (py - my) * k];
+};
+// Al revés se cae **sobre el plano de trabajo** (z = 0): es donde vive el
+// dibujo, así que el punto que sueltas es el que estabas viendo.

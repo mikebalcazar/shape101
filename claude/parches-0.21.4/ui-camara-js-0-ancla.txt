@@ -1,0 +1,12 @@
+    // o el centro de la ventana activa. Ese punto se queda clavado en su sitio
+    // de la pantalla mientras todo lo demás gira alrededor.
+    const cx = (v.ox || 0) + (v.w || w) / 2, cy = (v.oy || 0) + (v.h || h) / 2;
+    const centro = pivote || (window.aMM ? window.aMM(cx, cy) : null);
+    const antes = centro && window.aPX ? window.aPX(centro[0], centro[1], 0) : null;
+    v.rx = rx;
+    v.rz = rz;
+    if (antes) {
+      const q = window.aPX(centro[0], centro[1], 0);
+      // Ojo con el signo de la Y: en el dibujo crece hacia arriba y en la
+      // pantalla hacia abajo, así que la corrección va al revés que la de X.
+      v.x += (q[0] - antes[0]) / v.escala;
