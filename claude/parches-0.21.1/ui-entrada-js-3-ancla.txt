@@ -1,7 +1,0 @@
-    let tHule = 0;
-    if (pendiente) {
-      const t1 = performance.now();
-      if (pendiente.hule) estado.hule = pendiente.hule(p);
-      tHule = performance.now() - t1;
-      pintarDinamica(p);
-    }

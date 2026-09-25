@@ -1,5 +1,0 @@
-    // Sólo cuando lo que se espera es texto libre el espacio es un espacio.
-    get esperandoTextoLibre() { return !!(pendienteTexto && pendienteTexto.libre); },
-    get base() { return pendiente && pendiente.base; },
-  };
-})();

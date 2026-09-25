@@ -19,6 +19,7 @@ const Entrada = (() => {
   let pendiente = null;      // {resolver, rechazar, base, mensaje, hule}
   let bloqueo = null;        // {campo:'longitud'|'angulo', valor:Number}
   let pendienteTexto = null; // {resolver, rechazar, opciones}
+  let planoComando = null;   // el plano que fijó el primer punto de la herramienta
   let _medidaDinamica = null; // {ancho, alto} de la cajita, medidos al aparecer
   let _coordsTxt = "";
 
@@ -252,6 +253,12 @@ const Entrada = (() => {
     // `osnapCotas`: se admiten las líneas de cota de otras cotas como
     // referencia (al colocar una cota). Ver ui/osnap.js.
     cancelar("");
+    // El plano en el que trabaja la herramienta se fija con su **primer**
+    // punto —el que se pide sin base— y dura hasta que acabe. Una línea no
+    // puede tener un extremo en el suelo y el otro en la pared: mientras el
+    // comando sigue, la ventana bajo el cursor sólo manda si dibuja en ese
+    // mismo plano. Ver el mousemove de vista.js.
+    if (!base) planoComando = null;
     return new Promise((resolver, rechazar) => {
       pendiente = { resolver, rechazar, base, mensaje, hule, direccion, dinamica, numero, osnapCotas,
                     opciones: opciones.map((o) => o.toUpperCase()) };
@@ -265,6 +272,9 @@ const Entrada = (() => {
 
   function entregar(p) {
     const q = pendiente;
+    if (Array.isArray(p) && !planoComando && estado.vista && estado.vista.plano) {
+      planoComando = estado.vista.plano;
+    }
     limpiar();
     if (q) q.resolver(p);
   }
@@ -362,7 +372,21 @@ const Entrada = (() => {
     let tHule = 0;
     if (pendiente) {
       const t1 = performance.now();
-      if (pendiente.hule) estado.hule = pendiente.hule(p);
+      // El hule nace con **su** plano. Sin esto lo pintaba cada ventana con el
+      // plano de ella misma, así que una línea trazada sobre el suelo se veía
+      // parada en la Frontal y en la Lateral. Lo reportó Mike: «se dibuja como
+      // si estuviera en una vista frontal». Medido el 24-sep: el mismo punto
+      // salía en [76.2, -62.3, 0] en la Superior y en [76.2, 0, -62.3] en la
+      // Frontal.
+      if (pendiente.hule) {
+        const h = pendiente.hule(p);
+        const plano = planoComando || (estado.vista && estado.vista.plano);
+        if (h && plano) {
+          if (!h.plano) h.plano = plano;
+          if (h.partes) for (const parte of h.partes) if (parte && !parte.plano) parte.plano = plano;
+        }
+        estado.hule = h;
+      }
       tHule = performance.now() - t1;
       pintarDinamica(p);
     }
@@ -611,5 +635,8 @@ const Entrada = (() => {
     // Sólo cuando lo que se espera es texto libre el espacio es un espacio.
     get esperandoTextoLibre() { return !!(pendienteTexto && pendienteTexto.libre); },
     get base() { return pendiente && pendiente.base; },
+    // El plano en el que ya está trabajando la herramienta, o null si todavía
+    // no ha tomado su primer punto.
+    planoComando: () => planoComando,
   };
 })();

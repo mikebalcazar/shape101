@@ -1335,7 +1335,10 @@ function pintarHule(c = ctx) {
   c.strokeStyle = T.acc2;
   c.lineWidth = 1;
   c.setLineDash(h.punteado === false ? [] : [5, 4]);
-  const partes = h.partes || [h];
+  // Las partes heredan el plano del hule: el plano es del trazo, no de la
+  // ventana que lo esté pintando.
+  const partes = (h.partes || [h]).map((parte) =>
+    parte && h.plano && !parte.plano ? { ...parte, plano: h.plano } : parte);
   // Con una medida tecleada o fijada (ver Entrada.previaLargo): el vector de
   // dirección sigue punteado hasta el ratón, y encima, **lo que va a quedar**
   // —el tramo exacto de esa medida— va sólido y más grueso, con su cifra en
@@ -1579,7 +1582,7 @@ lienzo.addEventListener("mousedown", (e) => {
     const [mx, my] = aMM(e.clientX - caja.left, e.clientY - caja.top);
     if (!cajaZoom.a) {
       cajaZoom.a = [mx, my];
-      estado.hule = { tipo: "caja", a: cajaZoom.a, b: [mx, my] };
+      estado.hule = { tipo: "caja", a: cajaZoom.a, b: [mx, my], plano: estado.vista.plano };
     } else {
       encuadrarCaja(cajaZoom.a[0], cajaZoom.a[1], mx, my);
       cajaZoom = null;
@@ -1638,6 +1641,31 @@ lienzo.addEventListener("mousemove", (e) => {
   if (typeof TresD !== "undefined" && TresD.mover(e)) return;
   const caja = lienzo.getBoundingClientRect();
   const px = e.clientX - caja.left, py = e.clientY - caja.top;
+  // Con un comando pidiendo un punto, **manda la ventana donde está el ratón**
+  // (Mike, 23-sep). Antes el punto se leía siempre con la cámara de la ventana
+  // activa: medido el 24-sep, apuntar al centro de la Perspectiva con la
+  // Superior activa tomaba un punto a 558 mm del que se estaba señalando. Eso
+  // es «aparece en un lugar que no tienes control».
+  //
+  // El plano del comando manda sobre esto: una vez tomado el primer punto, una
+  // ventana de otro plano ya no puede adoptar el trazo —la línea acabaría con
+  // un extremo en el suelo y el otro en la pared—, así que el hule se queda
+  // quieto mientras el cursor ande por ahí.
+  if (typeof Ventanas !== "undefined" && estado.captura && estado.modo !== "papel" &&
+      !arrastrePan && !cajaZoom) {
+    const i = Ventanas.bajo(px, py);
+    if (i >= 0 && i !== Ventanas.activa) {
+      const fijo = typeof Entrada !== "undefined" ? Entrada.planoComando() : null;
+      if (!fijo || Ventanas.la(i).plano === fijo) {
+        Ventanas.activar(i);
+        invalidarPlano();
+      } else {
+        estado.cursor = { ...estado.cursor, px, py };
+        pintar();
+        return;
+      }
+    }
+  }
   const [mx, my] = aMM(px, py);
   estado.cursor = { px, py, x: mx, y: my };
   // El ratón sabe si Shift está apretado aunque el teclado se haya perdido un
@@ -1653,7 +1681,7 @@ lienzo.addEventListener("mousemove", (e) => {
     return;
   }
   if (cajaZoom && cajaZoom.a) {
-    estado.hule = { tipo: "caja", a: cajaZoom.a, b: [mx, my] };
+    estado.hule = { tipo: "caja", a: cajaZoom.a, b: [mx, my], plano: estado.vista.plano };
     pintar();
     return;
   }

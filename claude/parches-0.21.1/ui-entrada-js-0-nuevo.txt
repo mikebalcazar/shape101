@@ -1,7 +1,0 @@
-  let pendiente = null;      // {resolver, rechazar, base, mensaje, hule}
-  let bloqueo = null;        // {campo:'longitud'|'angulo', valor:Number}
-  let pendienteTexto = null; // {resolver, rechazar, opciones}
-  let planoComando = null;   // el plano que fijó el primer punto de la herramienta
-  let _medidaDinamica = null; // {ancho, alto} de la cajita, medidos al aparecer
-  let _coordsTxt = "";
-
