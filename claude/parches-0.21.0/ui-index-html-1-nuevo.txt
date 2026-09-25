@@ -1,0 +1,9 @@
+  <div class="barra">
+    <button id="b-inicio" class="gh" title="Pantalla de inicio (Ctrl+I)">⌂</button>
+    <button id="b-nuevo" class="gh" title="Nuevo dibujo">Nuevo</button>
+    <button id="b-abrir" class="gh" title="Abrir una pieza .101s, un dibujo de draw101, DXF o DWG (Ctrl+O)">Abrir…</button>
+    <button id="b-importar" class="gh" title="Traer un dibujo 2D de draw101 adentro de esta pieza (IMPORTAR)">Importar…</button>
+    <button id="b-guardar" class="pri" title="Guardar la pieza .101s (Ctrl+S)">Guardar</button>
+    <button id="b-guardar-como" class="gh" title="Guardar con otro nombre (Ctrl+Shift+S)">Guardar como…</button>
+    <button id="b-exportar" class="gh" title="Exportar DXF R2013">Exportar DXF…</button>
+  </div>

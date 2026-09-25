@@ -1,0 +1,8 @@
+  <div class="barra">
+    <button id="b-inicio" class="gh" title="Pantalla de inicio (Ctrl+I)">⌂</button>
+    <button id="b-nuevo" class="gh" title="Nuevo dibujo">Nuevo</button>
+    <button id="b-abrir" class="gh" title="Abrir DXF, DWG o .t101d (Ctrl+O)">Abrir…</button>
+    <button id="b-guardar" class="pri" title="Guardar .t101d (Ctrl+S)">Guardar</button>
+    <button id="b-guardar-como" class="gh" title="Guardar con otro nombre (Ctrl+Shift+S)">Guardar como…</button>
+    <button id="b-exportar" class="gh" title="Exportar DXF R2013">Exportar DXF…</button>
+  </div>

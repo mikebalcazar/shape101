@@ -1,0 +1,7 @@
+  "Dibujo nuevo": "New drawing",
+  "Hoja en blanco, capas 0 y COTAS": "Blank sheet, layers 0 and COTAS",
+  "Abrir un plano…": "Open a drawing…",
+  "DWG, DXF o .t101d": "DWG, DXF or .t101d",
+  "Traer de Taller 101…": "Import from Taller 101…",
+  "Un mueble .t101x ya despiezado": "A .t101x cabinet, already cut-listed",
+  "Recientes": "Recent", "limpiar": "clear",

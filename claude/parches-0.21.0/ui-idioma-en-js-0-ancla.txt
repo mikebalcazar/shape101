@@ -1,0 +1,8 @@
+  "Vaciar la lista": "Clear the list",
+  "Pantalla de inicio (Ctrl+I)": "Start screen (Ctrl+I)",
+  "Nuevo dibujo": "New drawing",
+  "Abrir DXF, DWG o .t101d (Ctrl+O)": "Open DXF, DWG or .t101d (Ctrl+O)",
+  "Guardar .t101d (Ctrl+S)": "Save .t101d (Ctrl+S)",
+  "Guardar con otro nombre (Ctrl+Shift+S)": "Save under another name (Ctrl+Shift+S)",
+  "Exportar DXF R2013": "Export DXF R2013",
+  "Deshacer (Ctrl+Z)": "Undo (Ctrl+Z)",
