@@ -1,0 +1,7 @@
+const http = require("http");
+
+const RAIZ = path.join(__dirname, "..");
+const EXTENSIONES = [".t101d", ".dxf", ".dwg"];
+
+let ventana = null;
+let python = null;

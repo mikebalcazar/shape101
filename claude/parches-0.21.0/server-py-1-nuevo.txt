@@ -1,0 +1,31 @@
+CAPA_XREF = "REF-EXTERNA"
+
+
+def _id_libre() -> str:
+    """Un id que no esté en uso **en el documento abierto**.
+
+    `ent_mod.nuevo_id()` cuenta desde un contador global, y ese contador se
+    resiembra cada vez que se lee un archivo: `proyecto.abrir` llama a
+    `sembrar_contador` con las entidades del archivo leído. Un dibujo de
+    draw101 trae ids suyos —no `e1, e2, …`—, así que el contador se queda en
+    cero y los ids nuevos **vuelven a empezar**. Y `Documento.agregar` guarda
+    por llave: un id repetido pisa lo que había, sin avisar.
+
+    Medido el 24-sep con una pieza ya levantada: importar encima la borraba —
+    la polilínea y el sólido desaparecían y quedaba sólo lo importado—. La
+    forma de defecto de siempre por aquí: no truena, se equivoca en silencio.
+
+    Se pide hasta que salga uno libre. Dos líneas, y valen para cualquier
+    archivo ajeno que entre, venga de donde venga.
+    """
+    with contextlib.suppress(Exception):
+        ent_mod.sembrar_contador(list(S.doc.entidades.values()))
+    while True:
+        id_ = ent_mod.nuevo_id()
+        if id_ not in S.doc.entidades:
+            return id_
+
+
+@app.post("/api/refext")
+def refext(entrada: RutaEntrada):
+    """Trae otro dibujo a una capa bloqueada  ·  feature 77.
