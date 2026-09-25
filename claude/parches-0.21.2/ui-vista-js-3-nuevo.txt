@@ -1,0 +1,16 @@
+ * Va translúcido y de un solo color a propósito. Si se pintara con los colores
+ * de sus capas no se distinguiría del dibujo de verdad, y el usuario no sabría
+ * cuál de las dos figuras es la que existe. */
+function pintarFantasma(trazos, c, plano) {
+  if (!trazos || !trazos.length) return;
+  // El fantasma también va por el plano del trazo: sin esto, en la
+  // Perspectiva se pintaba como si todo estuviera en el suelo, y en la
+  // Frontal como si el suelo fuera la pared.
+  const P = (x, y) => {
+    const m = typeof Planos !== "undefined"
+      ? Planos.aMundo(plano || estado.vista.plano || "XY", x, y, 0) : [x, y, 0];
+    return aPX(m[0], m[1], m[2]);
+  };
+  c.save();
+  c.globalAlpha = 0.45;
+  c.strokeStyle = tema().acc2;

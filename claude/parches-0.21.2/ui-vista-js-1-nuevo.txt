@@ -1,0 +1,17 @@
+    const [bx, by] = P(h.b[0], h.b[1]);
+    c.moveTo(ax, ay); c.lineTo(bx, by);
+  } else if (h.tipo === "caja") {
+    // Las cuatro esquinas, cada una por su plano. Con dos esquinas y c.rect
+    // salía un cuadro derecho de pantalla, así que en la Perspectiva el
+    // rectángulo en curso se veía flotando, no acostado en el suelo como va a
+    // quedar. Lo pidió Mike el 24-sep: «ir representando el dibujo real sobre
+    // el XY de la perspectiva», como Rhino.
+    const esquinas = [[h.a[0], h.a[1]], [h.b[0], h.a[1]], [h.b[0], h.b[1]], [h.a[0], h.b[1]]];
+    esquinas.forEach(([x, y], i) => {
+      const [px, py] = P(x, y);
+      i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+    });
+    c.closePath();
+  } else if (h.tipo === "polilinea") {
+    const pts = h.puntos || [];
+    for (let i = 0; i < pts.length; i++) {

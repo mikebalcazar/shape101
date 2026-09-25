@@ -1,0 +1,12 @@
+    }
+    if (h.cerrada && pts.length > 2) c.closePath();
+  } else if (h.tipo === "circulo") {
+    // Un círculo sobre el suelo, visto en la Perspectiva, es una elipse; y de
+    // canto, una raya. c.arc con radio de pantalla siempre da un círculo, así
+    // que el contorno se recorre punto a punto y cada punto pasa por el plano.
+    arcoPorElPlano(h.c, Math.abs(h.r), 0, 360, P, c);
+  } else if (h.tipo === "arco") {
+    arcoPorElPlano(h.c, Math.abs(h.r), h.a0, h.a1, P, c);
+  } else if (h.tipo === "texto") {
+    // Texto de una previa (la cifra de una cota): mismo tamaño y giro que
+    // tendrá la entidad, para que lo que se ve sea lo que va a quedar.

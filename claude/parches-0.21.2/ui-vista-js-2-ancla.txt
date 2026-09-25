@@ -1,0 +1,14 @@
+    }
+    if (h.cerrada && pts.length > 2) c.closePath();
+  } else if (h.tipo === "circulo") {
+    const [cx, cy] = P(h.c[0], h.c[1]);
+    c.arc(cx, cy, Math.abs(h.r) * estado.vista.escala, 0, Math.PI * 2);
+  } else if (h.tipo === "arco") {
+    const [cx, cy] = P(h.c[0], h.c[1]);
+    // El lienzo tiene la Y al revés que el dibujo, así que el sentido del
+    // barrido también se invierte.
+    c.arc(cx, cy, Math.abs(h.r) * estado.vista.escala,
+            -h.a0 * Math.PI / 180, -h.a1 * Math.PI / 180, true);
+  } else if (h.tipo === "texto") {
+    // Texto de una previa (la cifra de una cota): mismo tamaño y giro que
+    // tendrá la entidad, para que lo que se ve sea lo que va a quedar.

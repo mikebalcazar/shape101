@@ -1,0 +1,7 @@
+    if (t.clase === "texto") {
+      const alturaPX = t.altura * estado.vista.escala;
+      if (alturaPX < 4) continue;
+      const [px, py] = aPX(t.p[0], t.p[1]);
+      c.save();
+      c.translate(px, py);
+      if (t.rotacion) c.rotate(-t.rotacion * Math.PI / 180);
