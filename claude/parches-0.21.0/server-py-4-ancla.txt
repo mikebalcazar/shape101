@@ -1,0 +1,6 @@
+    return {"entidades": n, "capa": CAPA_XREF, "ruta": str(ruta), **S.resumen()}
+
+
+@app.post("/api/comparar")
+def comparar(entrada: RutaEntrada):
+    """Qué cambió entre este dibujo y otro archivo  ·  feature 78.

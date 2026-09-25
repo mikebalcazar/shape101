@@ -1,0 +1,74 @@
+    return {"entidades": n, "capa": CAPA_XREF, "ruta": str(ruta), **S.resumen()}
+
+
+class Importar(BaseModel):
+    ruta: str
+
+
+@app.post("/api/importar")
+def importar(entrada: Importar):
+    """Trae un dibujo 2D **adentro** del que ya está abierto  ·  0.21.0
+
+    Mike, 24-sep: *«necesito poder importar dibujo 2D desde draw»*. Las dos
+    puertas que ya había no servían para eso:
+
+      · **Abrir** reemplaza lo que tienes. Sirve para empezar, no para sumar.
+      · **Referencia externa** trae el otro dibujo a una capa **bloqueada**,
+        para calcar encima. Bloqueado no se selecciona, y lo que no se
+        selecciona no se puede levantar con EXTRUIR.
+
+    Lo que entra por aquí es geometría de verdad: se selecciona, se edita y se
+    levanta. Que es exactamente para lo que la pidió.
+
+    **Cae siempre en el suelo (XY)**, lo eligió Mike. Un dibujo de draw101 es
+    plano y no sabe de planos de trabajo; ponerlo según dónde estuviera parado
+    uno acierta nueve veces y a la décima deja la pieza de canto sin que nadie
+    entienda por qué. Si hace falta parado, se gira aquí y se ve.
+
+    Las capas que trae y aquí no están se crean; las que ya existen **no se
+    tocan**. Traer un dibujo no puede repintarle al taller sus propias capas.
+    """
+    ruta = pathlib.Path(entrada.ruta)
+    if not ruta.exists():
+        _error(FileNotFoundError(f"No existe {ruta}"), 404)
+    try:
+        otro = (proyecto.abrir(ruta) if config.es_propio(ruta) else leer(ruta)[0])
+    except Exception as exc:
+        if isinstance(exc, DWGNoDisponible):
+            _error(exc, 501)
+        _error(exc)
+
+    puestas, capas_nuevas, solidos = 0, [], 0
+    try:
+        with S.candado:
+            with S.doc.transaccion(f"Importar «{ruta.name}»"):
+                for nombre, bl in otro.bloques.items():
+                    if nombre not in S.doc.bloques:
+                        S.doc.bloque_agregar(bl)
+                for nombre, capa in otro.capas.items():
+                    if nombre not in S.doc.capas:
+                        S.doc.capa_agregar(Capa.de_dict(capa.a_dict()))
+                        capas_nuevas.append(nombre)
+                for e in otro.lista():
+                    # Las piezas sólidas no se traen: esto importa el dibujo,
+                    # no el modelo. Se cuentan para poder decirlo.
+                    if e.tipo == "cuerpo":
+                        solidos += 1
+                        continue
+                    copia = ent_mod.de_dict({**e.a_dict(), "id": None,
+                                             "plano": "XY", "origen": "importado"})
+                    copia.id = _id_libre()
+                    S.doc.agregar(copia)
+                    puestas += 1
+    except Exception as exc:
+        _error(exc)
+    # Las llaves propias van **después** del resumen: al revés, `capas` del
+    # resumen se comía `capas` de aquí y la interfaz anunciaba las capas del
+    # documento como si las acabara de traer.
+    return {**S.resumen(), "importadas": puestas, "capas_nuevas": capas_nuevas,
+            "solidos_omitidos": solidos, "archivo": ruta.name}
+
+
+@app.post("/api/comparar")
+def comparar(entrada: RutaEntrada):
+    """Qué cambió entre este dibujo y otro archivo  ·  feature 78.
