@@ -1,27 +1,41 @@
-"""El mandadero · recado 43: la rejilla de la Perspectiva, sin orillas.
+"""El mandadero · recado 44: traer un dibujo 2D de draw101.
 
-Mike, 20-sep, sobre la 0.20.0 ya publicada: *«se dibuja mal el grid en
-perspectiva. se ven como 3 planos espaciados»* —con una foto y sólo el plano XY
-prendido—.
+Mike, 24-sep: *«necesito poder importar dibujo 2D desde draw. El formato 101d»*.
 
-Eran los tres discos concéntricos con que la 0.20.0 desvanecía la rejilla en
-perspectiva. Las líneas quedaban cortadas en el borde de cada disco, y los
-extremos de todas esas líneas trazaban tres arcos. Vistos casi de canto cerca
-del horizonte, esos arcos se leen como tres planos espaciados. El desvanecido
-estaba bien pensado y mal hecho: a pasos, cuando tenía que ser de un golpe.
+Lo primero que se midió, antes de escribir una línea: **el documento de los dos
+programas es idéntico campo por campo**. Se escribió un dibujo con el propio
+draw101 0.21.0 y el motor de aquí lo abrió entero — 3 entidades, 2 capas. Así
+que un dibujo de draw101 nunca necesitó traducción; necesitaba que alguien lo
+dejara entrar. `/api/abrir` repartía por extensión, `.t101d` no estaba en la
+lista, y el archivo acababa en el lector de DXF contestando «is not a DXF file».
 
-Ahora la rejilla de la Perspectiva se pinta en un lienzo aparte y se le aplica
-una máscara de degradado, en coordenadas del plano y no de la pantalla. No
-queda ninguna orilla porque no hay ningún corte: el tono baja hasta cero y ya.
+Lo que va aquí:
 
-`t032` crece con una comprobación que no habla de discos ni de máscaras sino de
-lo que se ve, y por eso seguirá valiendo si mañana el desvanecido se hace de
-otra manera: **acercándose, la rejilla nunca puede volverse más tenue**.
-Medido: 0.013 de salto con el desvanecido nuevo, 0.142 con el de la 0.20.0.
-La prueba falla contra el visor publicado.
+  · `IMPORTAR` (y el botón «Importar…») mete el dibujo **adentro** de la pieza
+    abierta, sin borrar lo que haya. Lo que entra es geometría de verdad: se
+    selecciona y se levanta con EXTRUIR. Ni Abrir —que reemplaza— ni REFEXT
+    —que entra bloqueado, para calcar— servían para eso.
+  · Cae siempre en el suelo (XY). Lo eligió Mike.
+  · Las capas que trae y aquí no están se crean; las que ya existen no se tocan.
+  · Abrir acepta `.101d` y `.t101d`, y abrir uno **no** lo vuelve el archivo de
+    guardado: el 2D sigue siendo de draw101.
 
-Probado aquí antes de mandarlo: la suite entera, 810 comprobaciones en 32
-pruebas.
+Y dos defectos que aparecieron al medir, los dos ya publicados:
+
+  · La interfaz decía `.t101d` mientras el motor guardaba `.101s`. Las piezas
+    que Mike guardaba **no aparecían en su propio diálogo de Abrir**, Guardar le
+    volvía a pedir la ruta cada vez, y el doble clic de Windows no abría una
+    pieza propia.
+  · El peligroso: traer otro dibujo encima de una pieza levantada **la borraba
+    sin avisar**. `nuevo_id()` cuenta desde un contador global que se resiembra
+    al leer cualquier archivo; los ids de draw101 no son `e1, e2, …`, así que el
+    contador volvía a cero y `Documento.agregar`, que guarda por llave, pisaba
+    lo que ya estaba. Medido: la polilínea y el sólido desaparecían. Tocaba
+    también a la referencia externa, y ahí queda arreglado igual.
+
+Probado aquí antes de mandarlo: la suite entera, 834 comprobaciones en 33
+pruebas. `t033` es la nueva y falla contra el código publicado — su primer
+fallo es justamente el de las extensiones.
 """
 from __future__ import annotations
 
@@ -34,9 +48,9 @@ import subprocess
 import sys
 
 DUENO = "mikebalcazar"
-PARCHES = "claude/parches-0.20.1"
-NUMERO = 43
-ASUNTO = "la rejilla de la Perspectiva, sin orillas"
+PARCHES = "claude/parches-0.21.0"
+NUMERO = 44
+ASUNTO = "traer un dibujo 2D de draw101"
 
 lineas: list[str] = []
 
@@ -110,42 +124,53 @@ def aplicar(raiz: pathlib.Path) -> None:
 def revisar(shape: pathlib.Path) -> None:
     """Lo comprobable sin navegador y sin el motor de sólidos, que aquí no
     están. La suite ya corrió entera en el chat con estos mismos parches sobre
-    una copia de main, y eso es lo que autoriza a mandarlos. Aquí se comprueba
-    lo que se rompe al transportar texto."""
+    una copia de main, y eso es lo que autoriza a mandarlos."""
     import py_compile
 
-    for arch in ("core/version.py", "verificar.py", "pruebas/t032_rejilla_y_encuadre.py"):
+    for arch in ("core/config.py", "core/version.py", "server.py", "verificar.py",
+                 "pruebas/t033_importar_de_draw.py"):
         py_compile.compile(str(shape / arch), doraise=True)
-    anotar("los tres archivos de Python compilan")
+    anotar("los cinco archivos de Python compilan")
 
     v = json.loads((shape / "package.json").read_text(encoding="utf-8"))["version"]
     if f'VERSION = "{v}"' not in (shape / "core" / "version.py").read_text(encoding="utf-8"):
         raise RuntimeError(f"package.json dice {v} y core/version.py dice otra cosa")
-    if v != "0.20.1":
-        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.20.1")
+    if v != "0.21.0":
+        raise RuntimeError(f"la versión quedó en {v} y debía quedar en 0.21.0")
     anotar(f"la versión dice {v} en los dos sitios")
 
-    visor = (shape / "ui" / "visor.js").read_text(encoding="utf-8")
-    # Lo que se fue: el desvanecido a tres discos, que es el defecto. Se busca
-    # el código y no la palabra: «discos» aparece en el comentario que explica
-    # justamente por qué ya no se hacen así.
-    for rastro in ("let discos = null", "discos || [null]", "[1, 0.72, 0.46]"):
-        if rastro in visor:
-            raise RuntimeError(f"visor.js todavía desvanece a discos: «{rastro}»")
-    # Y lo que llegó: el lienzo aparte con su máscara de degradado.
-    for clave in ("lienzoAparte", "createRadialGradient", "destination-in"):
-        if clave not in visor:
-            raise RuntimeError(f"visor.js no trae {clave}: el desvanecido no es de una pieza")
-    # La `g` de la escalera y el contexto aparte comparten función: ya se
-    # colaron una vez y el ensayo lo cazó con la ventana en blanco.
-    if "const grad = g.createRadialGradient" in visor:
-        raise RuntimeError("visor.js confunde el contador `g` con el contexto del lienzo aparte")
-    anotar("visor.js desvanece la rejilla de una sola pieza")
+    # El defecto que Mike vivía: el motor guardaba .101s y la interfaz decía
+    # .t101d. Se comprueba aquí y además en t033, porque es la clase de cosa
+    # que se vuelve a desincronizar sola.
+    cfg = (shape / "core" / "config.py").read_text(encoding="utf-8")
+    app = (shape / "ui" / "app.js").read_text(encoding="utf-8")
+    if 'EXT_PROYECTO = ".101s"' not in cfg:
+        raise RuntimeError("core/config.py ya no guarda en .101s")
+    if 'const EXT_PROPIA = "101s"' not in app:
+        raise RuntimeError("ui/app.js y core/config.py no dicen la misma extensión")
+    for clave in ("EXT_DRAW101", "def es_propio", "def es_de_draw"):
+        if clave not in cfg:
+            raise RuntimeError(f"core/config.py no trae {clave}")
+    anotar("el motor y la interfaz guardan con la misma extensión, y reconocen draw101")
 
-    prueba = (shape / "pruebas" / "t032_rejilla_y_encuadre.py").read_text(encoding="utf-8")
-    if "_sin_orillas" not in prueba or "nunca se vuelve más tenue" not in prueba:
-        raise RuntimeError("t032 no fija la regla de las orillas")
-    anotar("t032 fija que acercándose la rejilla nunca se vuelve más tenue")
+    srv = (shape / "server.py").read_text(encoding="utf-8")
+    if 'ruta.suffix.lower() == config.EXT_PROYECTO' in srv:
+        raise RuntimeError("queda una puerta repartiendo por una sola extensión")
+    for clave in ('@app.post("/api/importar")', "def _id_libre", "config.es_de_draw(ruta)"):
+        if clave not in srv:
+            raise RuntimeError(f"server.py no trae {clave}")
+    # El que borraba piezas: si alguien vuelve a pedir un id sin mirar lo que
+    # hay abierto, importar vuelve a pisar lo que ya estaba.
+    if "copia.id = ent_mod.nuevo_id()" in srv:
+        raise RuntimeError("alguna puerta vuelve a pedir ids sin mirar el documento abierto")
+    anotar("la puerta de importar está puesta y los ids ya no pisan lo que hay")
+
+    for arch, clave in (("ui/suite.js", 'nombre: "IMPORTAR"'),
+                        ("ui/index.html", 'id="b-importar"'),
+                        ("electron/main.js", '".101s"')):
+        if clave not in (shape / arch).read_text(encoding="utf-8"):
+            raise RuntimeError(f"{arch} no trae {clave}")
+    anotar("el comando, el botón y el doble clic de Windows están enganchados")
 
 
 def main() -> int:
@@ -181,25 +206,32 @@ def main() -> int:
         encoding="utf-8")
     correr(["git", "add", "-A"], cwd=shape)
     correr(["git", "commit", "-m",
-            "La rejilla de la Perspectiva, sin orillas\n\n"
-            "Mike, sobre la 0.20.0 ya publicada: se dibuja mal el grid en perspectiva, se\n"
-            "ven como 3 planos espaciados. Con foto y solo el plano XY prendido.\n\n"
-            "Eran los tres discos concentricos con que la 0.20.0 desvanecia la rejilla.\n"
-            "Las lineas quedaban cortadas en el borde de cada disco, y los extremos de\n"
-            "todas esas lineas trazaban tres arcos; vistos casi de canto cerca del\n"
-            "horizonte, esos arcos se leen como tres planos. El desvanecido estaba bien\n"
-            "pensado y mal hecho: a pasos, cuando tenia que ser de un golpe.\n\n"
-            "Ahora la rejilla de la Perspectiva se pinta en un lienzo aparte y se le\n"
-            "aplica una mascara de degradado, en coordenadas del plano y no de la\n"
-            "pantalla: sobre el suelo es un circulo y en pantalla cae como la elipse que\n"
-            "le toca, asi que lo que se apaga es lo lejano y no lo que queda a los lados.\n"
-            "No hay ninguna orilla porque no hay ningun corte. 5 ms por cuadro con las\n"
-            "cuatro ventanas y los tres planos.\n\n"
-            "t032 crece con una comprobacion que no habla de discos ni de mascaras sino\n"
-            "de lo que se ve, y por eso seguira valiendo si el desvanecido cambia:\n"
-            "acercandose, la rejilla nunca puede volverse mas tenue. Medido 0.013 con lo\n"
-            "nuevo y 0.142 con lo publicado; la prueba falla contra el visor de la 0.20.0.\n\n"
-            "Suite completa en el chat: 810 comprobaciones en 32 pruebas.\n\n"
+            "Traer un dibujo 2D de draw101, y dos defectos que salieron al medir\n\n"
+            "Mike: necesito poder importar dibujo 2D desde draw, el formato 101d.\n\n"
+            "Lo primero que se midio: el documento de los dos programas es identico\n"
+            "campo por campo. Se escribio un dibujo con draw101 0.21.0 de verdad y el\n"
+            "motor de aqui lo abrio entero. Nunca necesito traduccion; necesitaba que\n"
+            "alguien lo dejara entrar. /api/abrir repartia por extension, .t101d no\n"
+            "estaba en la lista, y acababa en el lector de DXF diciendo is not a DXF.\n\n"
+            "IMPORTAR mete el dibujo adentro de la pieza abierta sin borrar lo que haya,\n"
+            "como geometria de verdad que se selecciona y se levanta con EXTRUIR. Ni\n"
+            "Abrir -que reemplaza- ni REFEXT -que entra bloqueado para calcar- servian.\n"
+            "Cae siempre en el suelo (XY), que lo eligio Mike. Las capas que trae y aqui\n"
+            "no estan se crean; las que ya existen no se tocan.\n\n"
+            "Dos defectos ya publicados que aparecieron al medir:\n\n"
+            "1. La interfaz decia .t101d y el motor guardaba .101s. Las piezas guardadas\n"
+            "   no aparecian en el propio dialogo de Abrir, Guardar volvia a pedir ruta\n"
+            "   cada vez, y el doble clic de Windows no abria una pieza propia.\n\n"
+            "2. El peligroso: importar encima de una pieza levantada la borraba sin\n"
+            "   avisar. nuevo_id() cuenta desde un contador global que se resiembra al\n"
+            "   leer cualquier archivo; los ids de draw101 no son e1, e2, asi que el\n"
+            "   contador volvia a cero y Documento.agregar, que guarda por llave, pisaba\n"
+            "   lo que ya estaba. Tocaba tambien a la referencia externa.\n\n"
+            "t033, 24 comprobaciones, con draw101 de verdad como referencia. Su primera\n"
+            "comprobacion no prueba una funcion: prueba que el motor y la interfaz digan\n"
+            "la misma extension, que es el defecto 1 y la clase de cosa que se vuelve a\n"
+            "desincronizar sola.\n\n"
+            "Suite completa en el chat: 834 comprobaciones en 33 pruebas.\n\n"
             "Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
             "Claude-Session: https://claude.ai/code/session_01TKb4oF3d8wwHYJ6eKA7qew"],
            cwd=shape)
