@@ -1,0 +1,8 @@
+
+$("#b-nuevo").onclick = () => Marco.nuevoDoc();
+$("#b-abrir").onclick = () => Archivo.pedirYAbrir();
+const bImportar = $("#b-importar");
+if (bImportar) bImportar.onclick = () => Archivo.importar();
+$("#b-guardar").onclick = () => Archivo.guardar(false);
+$("#b-guardar-como").onclick = () => Archivo.guardar(true);
+

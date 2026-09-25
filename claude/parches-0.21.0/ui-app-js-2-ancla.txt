@@ -1,0 +1,7 @@
+    } catch (e) { avisar(e.message, true); return false; }
+  }
+
+  return { abrir, pedirYAbrir, guardar, FILTROS_ABRIR };
+})();
+
+/* Se conserva el nombre viejo: lo usan el doble clic de Windows y las pruebas. */
