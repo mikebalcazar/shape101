@@ -5,40 +5,37 @@ dispara el push, así que esta versión corre únicamente cuando el chat de
 nest101 crea `claude/recado-nest101-*`. El mandadero de shape101 sigue siendo
 el de `main`, con su `recado.json`, intacto.
 
-## Por qué existe esto
+Por qué existe: el conector de GitHub del chat da 403 en `.github/workflows/` y
+manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
+ni reescribir `ui/app.js` (140 KB) o `verificar.py` (46 KB). Un corredor con
+token sí. Mike lo autorizó. El primer mandado dejó a nest101 publicando sola
+—`apps.yml` se dispara con `claude/publicar-<version>`, como draw101— y la
+0.19.0 salió por ahí.
 
-nest101 no puede publicar solo y draw101 sí. La diferencia es una línea: el
-`armar-y-publicar.yml` de draw101 se dispara con `push` de
-`claude/publicar-*`, y el `apps.yml` de nest101 sólo tiene
-`workflow_dispatch`, que necesita la API de Actions. Medido hoy desde el chat
-de nest101: `git push` 403 del proxy, `api.github.com` 403, `gh` no está, y el
-conector da 403 en `.github/workflows/` tanto con `create_or_update_file` como
-con `push_files` — lo mismo que midió draw101 el 12-sep (muro
-`2026-09-14-1000`) y que el muro `2026-09-14-1010` dejó claro que Mike no
-puede arreglar dando permisos.
+## Este mandado (el segundo)
 
-Mike autorizó usar este mandadero para romper el círculo: un corredor con un
-token sí puede escribir en `.github/workflows/`. Es la misma idea del muro
-`2026-09-14-1000` §3 vía A, aplicada al revés.
+Todo lo que viaja ya está dentro de nest101; aquí sólo se aplica y se mide.
 
-## Qué hace, en orden, y qué lo detiene
+1. `claude/100-licencia-robusta.patch` — **#100**, el arreglo que importa de
+   esta tanda: un 429, un 408, un 401 de proxy, un 404 o una página de «acceso
+   bloqueado» ya no le borran la licencia al taller. Sólo un «no» con motivo
+   conocido cuenta como «la suite dice que no». Y Ayuda → «Licencia de este
+   equipo…» para ver con qué cuenta quedó y cambiarla sin borrar archivos a mano.
+2. `build/apps-notas-desde-archivo.patch` — las notas de la release salen de
+   `claude/notas-<version>.txt` cuando el disparo es por rama. La 0.19.0 salió
+   con «Compilada y verificada por el chat» porque por rama no hay formulario, y
+   esas notas son lo que el taller lee en el aviso de actualizar.
+3. `claude/aplicar_103_pruebas.py` — las ocho comprobaciones de #103 se mudan
+   adentro de `verificar.py`. Fuera de él no corren en el armado, y una
+   comprobación que no corre donde se publica es media comprobación.
 
-1. Clona `nest101` con `TOKEN_SHAPE101`. Si ese token no alcanza a nest101,
-   aquí se para y lo dice: es lo primero que hay que saber.
-2. Aplica `build/apps-disparo-por-rama.patch` (el disparo por rama) y retira el
-   parche del repositorio.
-3. Corre los dos aplicadores de `claude/` —los cambios de #102 que no caben por
-   el conector (`core/modelos.py` de 50 KB, `ui/app.js` de 140 KB) y las
-   comprobaciones de #101/#102 para `verificar.py`— y retira los andamios.
-4. **Mide**: `python verificar.py` y `python claude/comprobar_103.py`. Si
-   cualquiera de los dos no acaba en verde, no se empuja nada.
-5. Empuja a `main` de nest101.
+Y se mide antes de empujar: `verificar.py` TODO OK y `pruebas/licencia.mjs`
+39 de 39. Si cualquiera de los dos falla, no se empuja nada y el aviso queda en
+`claude/recado-fallo` de shape101.
 
-Si algo falla, el aviso con el detalle queda en la rama `claude/recado-fallo`
-de shape101, igual que siempre (y esa rama no vuelve a disparar el flujo).
-
-Este archivo se borra de la rama cuando el mandado esté hecho; la rama entera
-es desechable.
+Medido en el chat sobre una copia de `main` antes de mandar esto: los dos
+parches aplican limpios, `verificar.py` acaba en TODO OK con el bloque de #103
+dentro, y las 39 de licencia pasan.
 """
 from __future__ import annotations
 
@@ -51,44 +48,53 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHE = "build/apps-disparo-por-rama.patch"
-APLICADORES = ["claude/aplicar_101_102.py", "claude/aplicar_101_102_pruebas.py"]
-ANDAMIOS = APLICADORES + ["claude/101-102-pendiente.md"]
+PARCHES = ["claude/100-licencia-robusta.patch", "build/apps-notas-desde-archivo.patch"]
+APLICADORES = ["claude/aplicar_103_pruebas.py"]
 LIBRERIAS = [
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore",
 ]
-COMMIT = """Se publica desde el chat: apps.yml se dispara con la rama (#104), y los tres pendientes
+COMMIT = """La licencia aguanta el mal rato (#100), las notas salen del repo y #103 se mide adentro
 
-Lo que desatasca: `apps.yml` ahora arranca también con `push` de
-`claude/publicar-<version>`, como el `armar-y-publicar.yml` de draw101. El
-conector del chat sabe crear ramas, así que con esto nest101 se publica desde el
-chat sin que nadie apriete un botón. La versión sale del nombre de la rama; a
-mano sigue saliendo del formulario, y disparado por rama `publicar` es true.
+#100 · un mal rato del camino ya no le quita la licencia al taller
+  El latido contaba como «la suite dice que no» todo lo que no fuera un 5xx, y
+  medidas una por una, cinco situaciones normales borraban la licencia que ya
+  estaba guardada en el equipo: un 429 con tres equipos del taller abriendo a la
+  vez, un 408, un 401 del proxy de la empresa, un 404 el día que cambie una
+  dirección, y un 200 con la página de «acceso bloqueado» de un proxy.
 
-Por qué llega por el mandadero de shape101: el conector de GitHub da 403 en
-`.github/workflows/` (medido hoy con `create_or_update_file` y con `push_files`,
-y ya lo había medido draw101 el 12-sep), el proxy del chat no deja `git push` ni
-`api.github.com`, y el permiso que lo arreglaría no lo puede dar Mike (muro
-2026-09-14-1010). Un corredor con token sí puede. Mike lo autorizó.
+  Ahora es lista blanca: la suite dice que no cuando contesta un JSON con un
+  motivo conocido —sin_pago, suspendida, maquina_desconocida,
+  licencia_desconocida, token_invalido— y todo lo demás es «no se pudo llegar»,
+  que no toca lo guardado. Un motivo que la suite invente mañana cae del lado
+  seguro: el token trae su propio `hasta` firmado, así que se cierra solo cuando
+  venza; cerrarle a un taller que sí pagó no se arregla solo.
 
-De paso entran los tres cambios de #102 y #101 que no caben por el conector
-porque el archivo viaja entero desde el contexto del chat:
+  Y Ayuda → «Licencia de este equipo…»: con qué cuenta quedó, qué licencia,
+  hasta cuándo con los días que faltan, y el equipo con la huella cortada. Si
+  está activa ofrece «Cambiar de cuenta…», que pregunta otra vez antes de
+  cerrar el programa y liberar el lugar. Antes, la única forma de pasar la
+  licencia a otra cuenta era borrar a mano un archivo dentro de AppData.
 
-  · core/modelos.py — con el total derivado y sin zoclo, `alto_cuerpo` ya es el
-    cuerpo: quitarle la plancha otra vez encogía el mueble un espesor en cada
-    recálculo (900 → 880 → 860 con piedra de 20). Es #059 otra vez, que se
-    arregló en la rama con zoclo y se quedó vivo en ésta.
-  · ui/app.js — la captura: la plancha entra en las cuatro ramas. Es donde nace
-    #102. El saneo de core/proyecto.py ya corregía el resultado; esto evita que
-    la pantalla siga generando el dato malo.
-  · verificar.py — las comprobaciones de #101 y #102, incluido el barrido de 636
-    configuraciones de tipo, zoclo, cubierta, candado y overrides.
+  pruebas/licencia.mjs pasa de 20 a 39 comprobaciones. Los seis fallos del
+  camino se miden por las DOS mitades: que se llamen «no se pudo llegar» y que
+  el archivo de licencia siga ahí — es el llamador quien borra al oír «vencida».
 
-Medido por el corredor antes de empujar: `python verificar.py` en verde y
-`python claude/comprobar_103.py` en verde. Si alguno no lo estuviera, este
-commit no existiría.
+notas de la release desde el repositorio
+  La 0.19.0 salió con «Compilada y verificada por el chat»: disparado por rama
+  no hay formulario donde escribirlas. Ahora el flujo lee
+  `claude/notas-<version>.txt`, un renglón por cambio. Es lo que el taller lee
+  en el aviso de actualizar, así que importa que diga algo.
+
+#103 se mide donde se publica
+  Las ocho comprobaciones del zoclo vivían en `claude/comprobar_103.py`, fuera
+  de `verificar.py`, y por tanto no corrían en el armado. Se mudan adentro y el
+  archivo suelto se retira: dos verdades sobre lo mismo es una de más.
+
+Medido por el corredor antes de empujar: verificar.py TODO OK y
+pruebas/licencia.mjs 39 de 39. Llega por el mandadero de shape101 por lo de
+siempre: el conector da 403 en .github/workflows/ y manda los archivos enteros.
 """
 
 lineas: list[str] = []
@@ -123,39 +129,41 @@ def main() -> int:
     tmp.mkdir(parents=True)
     repo = tmp / REPO
 
-    # 1 · ¿alcanza el token?
     correr(["git", "clone", "--depth", "1",
             f"https://x-access-token:{t}@github.com/{DUENO}/{REPO}", str(repo)])
-    anotar(f"{REPO} clonado: el token alcanza para leer")
+    anotar(f"{REPO} clonado")
     correr(["git", "config", "user.name", "nest101 (mandado desde shape101)"], cwd=repo)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=repo)
 
-    # 2 · el disparo por rama
-    if (repo / PARCHE).exists():
-        correr(["git", "apply", "--check", PARCHE], cwd=repo)
-        correr(["git", "apply", PARCHE], cwd=repo)
-        correr(["git", "rm", "-q", PARCHE], cwd=repo)
-        anotar(f"{PARCHE} aplicado y retirado")
-    else:
-        anotar(f"{PARCHE} no está: se da por aplicado")
+    # 1 · los parches
+    for p in PARCHES:
+        if not (repo / p).exists():
+            anotar(f"{p} no está: se da por aplicado")
+            continue
+        correr(["git", "apply", "--check", p], cwd=repo)
+        correr(["git", "apply", p], cwd=repo)
+        correr(["git", "rm", "-q", p], cwd=repo)
+        anotar(f"{p} aplicado y retirado")
 
-    texto_flujo = (repo / ".github/workflows/apps.yml").read_text(encoding="utf-8")
-    if "claude/publicar-*" not in texto_flujo:
-        raise RuntimeError("apps.yml no quedó con el disparo por rama")
-    anotar("apps.yml dice claude/publicar-*")
+    # lo que cada parche tenía que dejar, comprobado en el texto
+    nucleo = (repo / "electron/licencia-nucleo.js").read_text(encoding="utf-8")
+    if "function esUnNo(" not in nucleo or "function resumen(" not in nucleo:
+        raise RuntimeError("licencia-nucleo.js no quedó con esUnNo() y resumen()")
+    flujo = (repo / ".github/workflows/apps.yml").read_text(encoding="utf-8")
+    if 'claude/notas-{os.environ[' not in flujo:
+        raise RuntimeError("apps.yml no quedó leyendo las notas del repositorio")
+    anotar("los dos parches dejaron lo que debían")
 
-    # 3 · los tres pendientes
+    # 2 · los aplicadores
     for a in APLICADORES:
         if (repo / a).exists():
             anotar(correr([sys.executable, a], cwd=repo).strip())
+            correr(["git", "rm", "-q", a], cwd=repo)
         else:
             anotar(f"{a} no está: se da por aplicado")
-    for a in ANDAMIOS:
-        if (repo / a).exists():
-            correr(["git", "rm", "-q", a], cwd=repo)
     anotar("andamios retirados")
 
-    # 4 · medir, que es lo que autoriza a empujar
+    # 3 · medir, que es lo que autoriza a empujar
     correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
     correr([sys.executable, "-m", "pip", "install", "--quiet"] + LIBRERIAS)
     anotar(f"{len(LIBRERIAS)} librerías instaladas")
@@ -166,12 +174,12 @@ def main() -> int:
         raise RuntimeError("verificar.py no acabó en TODO OK")
     anotar("verificar.py: TODO OK")
 
-    salida = correr([sys.executable, "claude/comprobar_103.py"], cwd=repo, entorno=entorno)
-    if "TODO OK" not in salida:
-        raise RuntimeError("comprobar_103.py no acabó en TODO OK")
-    anotar("comprobar_103.py: TODO OK")
+    salida = correr(["node", "pruebas/licencia.mjs"], cwd=repo, entorno=entorno)
+    if "todo bien" not in salida:
+        raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
+    anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
 
-    # 5 · empujar
+    # 4 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
         anotar("no había nada que cambiar")
         return 0
