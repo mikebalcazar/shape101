@@ -21,13 +21,21 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.21.8"
-FECHA = "2026-09-25"
+VERSION = "0.21.9"
+FECHA = "2026-10-09"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.21.9",
+        "fecha": "2026-10-09",
+        "cambios": [
+            "Ícono nuevo: shape101 estrena el ícono que se eligió para la app, en el "
+            "escritorio, la barra de tareas, el menú Inicio y el instalador.",
+        ],
+    },
     {
         "version": "0.21.8",
         "fecha": "2026-09-25",
