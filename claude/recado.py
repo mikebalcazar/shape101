@@ -10,23 +10,19 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el sexto)
+## Este mandado (el séptimo)
 
-#109 · que una librería ajena no tumbe la ventana
-  El instrumental de la 0.19.4 ya enseñó el patrón en la máquina de Mike, y es
-  el mismo tres veces seguidas: la ventana de activación empieza a cargar y a
-  los 50 ms alguien le destruye el contenido —sin que el programa la cierre— y
-  al abrir la segunda se muere el programa entero. La ventana del arranque, que
-  es local, sí se ve.
+#110 · sin aceleración gráfica, y con volcado de caída
+  La 0.19.5 descartó lo anterior: ningún proceso se cayó —los detectores
+  estaban puestos— y el segundo intento iba con sesión limpia. Lo que queda:
+  el contenido de una ventana CON MARCO se desarma a los 22 ms sin que nadie la
+  cierre, y crear la siguiente tumba a Electron a nivel nativo. La de arranque,
+  transparente y sin marco, sobrevive. Esa diferencia señala al driver de
+  video. Se apaga la aceleración gráfica y se enciende el volcado de caída en
+  disco, que dice en qué DLL se cayó si vuelve a pasar.
 
-  Eso apunta a `RendererCodeIntegrity`: cuando una protección de empresa inyecta
-  su librería en una ventana tipo Chrome, Chromium mata la ventana. Microsoft
-  documenta el interruptor para los programas Electron que conviven con eso. Y
-  si no fuera eso, esta misma versión lo dice: ahora cualquier proceso que se
-  caiga deja su nombre y su motivo en `arranque.log`.
-
-Medido en el chat: `verificar.py` TODO OK, `pruebas/licencia.mjs` 53 de 53 y
-`pruebas/arranque.mjs` 18 de 18 con Electron de verdad.
+Medido en el chat con Electron: las dos llamadas corren antes de `ready` sin
+reventar y una ventana con marco pinta por software.
 """
 from __future__ import annotations
 
@@ -39,16 +35,13 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = ["build/109-que-no-la-tumben.patch"]
+PARCHES = ["build/110-sin-grafica.patch"]
 APLICADORES: list[str] = []
 SENAS = [
-    ("electron/main.js", 'appendSwitch("disable-features", "RendererCodeIntegrity")',
-     "el interruptor que impide que tumben la ventana"),
-    ("electron/main.js", 'app.on("child-process-gone"',
-     "el apunte de cualquier proceso que se caiga"),
-    ("electron/licencia.js", "creando la ventana",
-     "el renglón antes de crear cada ventana"),
-    ("claude/notas-0.19.5.txt", "librería ajena", "las notas de la 0.19.5"),
+    ("electron/main.js", "app.disableHardwareAcceleration()", "la gráfica apagada"),
+    ("electron/main.js", "crashReporter.start(", "el volcado de caída"),
+    ("electron/main.js", 'app.getGPUInfo("basic")', "el apunte de qué gráfica hay"),
+    ("claude/notas-0.19.6.txt", "por software", "las notas de la 0.19.6"),
 ]
 NO_DEBE: list[tuple[str, str, str]] = []
 LIBRERIAS = [
@@ -56,44 +49,44 @@ LIBRERIAS = [
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """Que una librería ajena no pueda tumbar la ventana de activación (#109)
+COMMIT = """Sin aceleración gráfica, y con volcado de caída (#110)
 
-El instrumental de la 0.19.4 hizo su trabajo. En la máquina de Mike, tres
-arranques seguidos, exactamente el mismo patrón:
+Lo que dijo el registro de la 0.19.5 en la máquina de Mike:
 
-    22:22:54.842  empieza a cargar
-    22:22:54.895  el contenido de la ventana se destruyó   ← 53 ms
-    22:22:54.896  la pantalla no cargó: ERR_FAILED (-2)
-    22:22:54.902  segundo intento, con una sesión limpia
-                  ← y ahí se acaba el registro: el programa se murió
+    22:56:31.055  creando la ventana
+    22:56:31.091  empieza a cargar
+    22:56:31.113  el contenido de la ventana se destruyó   ← 22 ms
+    22:56:31.129  creando la ventana (sesión limpia)       ← y aquí muere todo
 
-Lo que eso descarta, que es la mitad del valor: no es la red —la misma
-dirección abre en su Chrome, medido—, no es la sesión guardada —el segundo
-intento va limpio— y no es el programa cerrando la ventana: el código que la
-cierra todavía no había corrido cuando el contenido ya estaba destruido.
+Y NINGÚN proceso se cayó: ni ventana, ni gráfica, ni red, ni utilidades. Los
+detectores de #108 y #109 estaban puestos y no vieron nada. Eso descarta la
+librería ajena matando procesos (#109) y la sesión guardada (#108): el segundo
+intento iba limpio y ni llegó a abrir.
 
-Y lo que señala: la ventana del arranque, que carga un archivo local, sí se ve;
-la que carga una dirección de internet se muere a los 50 ms. Esa diferencia
-tiene nombre conocido en máquinas de empresa: cuando un antivirus inyecta su
-librería dentro de una ventana tipo Chrome, Chromium mata la ventana entera si
-esa librería no está firmada como él exige —RendererCodeIntegrity—. Microsoft
-documenta justo este interruptor para los programas Electron que conviven con
-esas protecciones, y es lo que se apaga aquí.
+Lo que queda: el contenido de una ventana CON MARCO se desarma sin que nadie la
+cierre —no hay renglón de «se está cerrando»— y crear la siguiente tumba a
+Electron a nivel nativo, por debajo de cualquier atrapador de errores. La
+ventana del arranque, transparente y sin marco, sobrevive: usa otro camino de
+composición. Esa diferencia señala a la gráfica —driver de video—, que es por
+donde Electron pinta las ventanas con marco.
 
-Apagarlo no abre un agujero nuevo en esta app: lo que carga son su propia
-interfaz local y la pantalla de la suite, las dos sin integración con Node. En
-una máquina donde el problema no existe, no cambia nada.
+Dos cosas, las dos antes de que arranque nada:
 
-Y por si no fuera eso, la misma versión lo dirá sin otra vuelta:
+1. Se apaga la aceleración gráfica (`app.disableHardwareAcceleration()`).
+   Chromium pinta por software; el 3D (WebGL) sigue funcionando, más lento. Si
+   con esto abre, era eso, y se afina después: prender la gráfica sólo donde
+   no tumba.
+2. Se enciende el volcado de caída (`crashReporter`), sólo en disco, sin mandar
+   nada a ningún lado. Si vuelve a caerse, queda un archivo en la carpeta de
+   datos que dice en qué módulo —qué DLL— se cayó. Es el dato que no se puede
+   adivinar desde fuera y el que cierra esto.
 
-· `child-process-gone` y `render-process-gone` a nivel de TODO el programa
-  —ventanas, GPU, red, utilidades—, con `reason` y `exitCode`. El escucha de
-  #108 estaba pegado sólo a la ventana de la licencia y no cazó nada.
-· un renglón ANTES de crear cada ventana, para que un registro que se corta de
-  golpe señale el punto exacto. El de la 0.19.4 se cortaba sin decir dónde.
+Y en arranque.log queda la tarjeta de video del equipo y dónde quedan los
+volcados, para leerlos desde el chat.
 
-Medido antes de empujar: verificar.py TODO OK, pruebas/licencia.mjs 53 de 53 y
-pruebas/arranque.mjs 18 de 18 con Electron de verdad.
+Medido antes de empujar con Electron de verdad: las dos llamadas corren antes
+de `ready` sin reventar, y una ventana con marco pinta por software. Lo demás
+igual: verificar.py TODO OK y pruebas/licencia.mjs 53 de 53.
 """
 
 lineas: list[str] = []
