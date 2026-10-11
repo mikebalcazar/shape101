@@ -10,26 +10,22 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el cuarto; el 108 se cayó y éste es el mismo, corregido)
+## Este mandado (el quinto)
 
-Un solo parche, y de los que el conector no puede ni tocar: es del flujo.
+#108 · el instrumental de la puerta de licencia
+  La 0.19.3 ya dice por qué no abre, y lo que dijo en la máquina de Mike no
+  cuadraba: `ERR_FAILED (-2)` y, un milisegundo después, «Object has been
+  destroyed». Medido desde el chat: esa misma dirección abre perfecto en su
+  Chrome, en su máquina, en ese momento. O sea que no es la red.
 
-#107 · el escaparate se arma al publicar
-  Mike, 11-oct-2026: «no se ha actualizado la descarga de la versión en el
-  website showcase de suite101.app». El sitio enseñaba la 0.19.2 con la 0.19.3
-  ya publicada. `armar-sitio.py` ya lee la versión y la liga de `<app>.json`,
-  pero volver a armarlo era un paso a mano después de publicar — y un paso a
-  mano dentro de algo automático es un paso que no existe. Ahora `apps.yml` lo
-  arma y lo empuja en la misma entrega, justo después del contrato.
+  Esta tanda apunta lo que falta para saberlo —si el proceso de la ventana se
+  cae y con qué motivo, y si la suite contesta desde el proceso principal sin
+  ventana de por medio— y arregla el error de la pantalla de fallo. De paso
+  intenta otra vez con una sesión limpia, que puede ser el arreglo entero.
 
-El 108 falló en la comprobación del YAML: se le pedía leer el flujo antes de
-instalar `pyyaml`. El parche estaba bien y el mandadero hizo lo correcto —no
-empujó nada y dejó el motivo escrito—; lo que estaba mal era el orden, y aquí
-las librerías se instalan primero.
-
-El parche se midió en el chat: aplica limpio sobre `main` y el YAML sigue
-siendo válido. Si algo falla, no se empuja nada y el aviso queda en
-`claude/recado-fallo` de shape101.
+Medido en el chat: `verificar.py` TODO OK, `pruebas/licencia.mjs` 53 de 53 y
+`pruebas/arranque.mjs` 18 de 18 con Electron de verdad. Si algo falla aquí, no
+se empuja nada y el aviso queda en `claude/recado-fallo` de shape101.
 """
 from __future__ import annotations
 
@@ -42,48 +38,70 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = ["build/107-sitio-al-publicar.patch"]
+PARCHES = ["build/108-instrumental.patch"]
 APLICADORES: list[str] = []
 # Lo que el parche TIENE que haber dejado.
 SENAS = [
-    (".github/workflows/apps.yml", "armar-sitio.py", "el sitio armado al publicar"),
-    (".github/workflows/apps.yml", 'git commit -m "el sitio enseña nest101 $V"',
-     "el empujón del sitio"),
+    ("electron/licencia.js", "function probarRed(", "la prueba de red sin ventana"),
+    ("electron/licencia.js", "render-process-gone", "el motivo de que se caiga la ventana"),
+    ("electron/licencia.js", "function unIntento(", "los dos intentos"),
+    ("electron/licencia-nucleo.js", "Tu conexión está bien",
+     "el aviso que ya no culpa a la red cuando la red va"),
+    ("claude/notas-0.19.4.txt", "sesión limpia", "las notas de la 0.19.4"),
 ]
-NO_DEBE: list[tuple[str, str, str]] = []
+# Y lo que tiene que haber DESAPARECIDO: la llamada que reventaba.
+NO_DEBE = [
+    ("electron/licencia.js", "if (!v.isDestroyed()) v.loadURL(pantallaDeFallo",
+     "la llamada que comprobaba la ventana y no su contenido"),
+]
 LIBRERIAS = [
-    "pyyaml",
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """Publicar también deja el escaparate al día (#107)
+COMMIT = """Saber por qué se muere la ventana de activación (#108)
 
-Mike, 11-oct-2026: «no se ha actualizado la descarga de la versión en el website
-showcase de suite101.app». Con la 0.19.3 publicada y comprobada, el sitio seguía
-ofreciendo la 0.19.2 y su instalador.
+La 0.19.3 ya dice por qué no abre. En la máquina de Mike dijo esto:
 
-No era que el sitio estuviera mal escrito. `descargas/sitio/herramientas/
-armar-sitio.py` ya lee la versión y la liga de descarga de `<app>.json` —se
-arregló así en octubre, justo porque la ficha llevaba tres semanas de atraso—,
-pero volver a armarlo seguía siendo un paso a mano después de cada entrega. Un
-paso a mano dentro de algo automático es un paso que no existe: el instalador se
-publica solo, el contrato se actualiza solo, y el sitio se quedaba esperando a
-que alguien se acordara.
+    ERR_FAILED (-2) loading 'https://…/licencias/entrar?…'
+    TypeError: Object has been destroyed      ← 1 ms después
 
-Ahora `apps.yml` lo arma y lo empuja en la misma entrega, dentro del mismo clon
-de `descargas` donde ya escribe `nest101.json` y el README. Va DESPUÉS de empujar
-el contrato a propósito: si armar el sitio fallara, los programas instalados ya
-se enteraron de la versión nueva y lo único que queda rojo es el sitio; al revés
-sería peor. Empujar `sitio/` dispara `publicar-sitio.yml` de descargas, que lo
-sube a Cloudflare Pages.
+Y no cuadra. Medido desde el chat, con su propio navegador: esa MISMA dirección
+abre perfecto en su Chrome, en su máquina, en ese momento. Así que no es la red,
+ni el proxy, ni la VPN —que es lo que decía el aviso—: lo que se muere es la
+ventana. Dos detalles del registro lo confirman: no hubo `did-fail-load` (la
+promesa se rechazó por el camino genérico de Electron, el de «la navegación se
+detuvo sin llegar») y, un milisegundo después, el contenido de la ventana ya
+estaba destruido.
 
-De paso rearma las diez páginas, así que también se lleva lo que otra app haya
-publicado sin armar el sitio.
+Hasta ahí llega lo que se puede deducir. Lo demás se mide:
 
-Medido por el corredor antes de empujar: el flujo sigue siendo YAML válido,
-verificar.py TODO OK y pruebas/licencia.mjs 50 de 50. Llega por el mandadero de
-shape101 porque el conector del chat da 403 en .github/workflows/.
+· `render-process-gone` con su `reason` y su `exitCode`. Si un antivirus de
+  empresa está matando el proceso de la ventana, se ve ahí y en ningún otro
+  lado: dice «killed», «crashed», «launch-failed».
+· Una llamada a la suite DESDE EL PROCESO PRINCIPAL, con `net.request`, sin
+  ventana de por medio. Separa las dos cosas que hasta ahora se confundían:
+  «esta computadora no llega a la suite» y «la ventana no pudo enseñarla». El
+  resultado va al registro y también al aviso.
+· Cada paso de la navegación con su hora: empieza a cargar, deja de cargar,
+  dom listo, se destruye el contenido, se cierra la ventana.
+
+Y dos arreglos que salen del mismo reporte:
+
+· El TypeError. Se comprobaba `v.isDestroyed()` —la ventana— y el que estaba
+  muerto era su CONTENIDO. Ahora se comprueban los dos y además va dentro de un
+  try, porque entre la comprobación y la llamada puede morirse.
+· Si la prueba sin ventana dice que la suite sí contestó, el aviso ya no manda
+  al taller a revisar su proxy. Dice lo que se midió.
+
+De paso, un segundo intento con una sesión limpia, sin la partición guardada. Si
+lo que estorbaba era `Partitions/suite101` —cosa que pasa—, con esto abre y el
+taller ni se entera. Cuesta volver a escribir la contraseña una vez; vale más
+eso que no abrir.
+
+Medido antes de empujar: verificar.py TODO OK, pruebas/licencia.mjs 53 de 53, y
+pruebas/arranque.mjs 18 de 18 con Electron de verdad (esa última corre a mano:
+pide pantalla, y el corredor no tiene).
 """
 
 lineas: list[str] = []
@@ -124,8 +142,7 @@ def main() -> int:
     correr(["git", "config", "user.name", "nest101 (mandado desde shape101)"], cwd=repo)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=repo)
 
-    # 1 · las librerías, ANTES de medir nada: la comprobación del YAML necesita
-    # pyyaml, y pedírselo antes de instalarlo fue lo que tiró el mandado 108.
+    # 1 · las librerías primero: medir sin ellas fue lo que tiró el mandado 108.
     correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
     correr([sys.executable, "-m", "pip", "install", "--quiet"] + LIBRERIAS)
     anotar(f"{len(LIBRERIAS)} librerías instaladas")
@@ -140,21 +157,19 @@ def main() -> int:
         correr(["git", "rm", "-q", p], cwd=repo)
         anotar(f"{p} aplicado y retirado")
 
-    # lo que el parche tenía que dejar —y lo que tenía que llevarse
     for archivo, sena, que in SENAS:
         if sena not in (repo / archivo).read_text(encoding="utf-8"):
             raise RuntimeError(f"{archivo} no quedó con {que}")
     for archivo, sena, que in NO_DEBE:
         if sena in (repo / archivo).read_text(encoding="utf-8"):
             raise RuntimeError(f"{archivo} todavía trae {que}")
-    anotar("el parche dejó lo que debía")
+    anotar("el parche dejó lo que debía, y se llevó lo que debía")
 
-    # el flujo tiene que seguir siendo YAML válido: si no, la próxima entrega
-    # no arranca siquiera, y eso se ve hasta que hace falta publicar
-    correr([sys.executable, "-c",
-            "import yaml; yaml.safe_load(open('.github/workflows/apps.yml',"
-            "encoding='utf-8')); print('yaml ok')"], cwd=repo)
-    anotar("apps.yml sigue siendo YAML válido")
+    # el JavaScript tiene que seguir siendo JavaScript: `node --check` cuesta
+    # un parpadeo y caza un paréntesis mal puesto antes de publicar nada
+    for js in ("electron/licencia.js", "electron/licencia-nucleo.js", "electron/main.js"):
+        correr(["node", "--check", js], cwd=repo)
+    anotar("los tres archivos de la puerta pasan node --check")
 
     for a in APLICADORES:
         if (repo / a).exists():
@@ -172,6 +187,8 @@ def main() -> int:
     if "todo bien" not in salida:
         raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
     anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
+    # `pruebas/arranque.mjs` necesita Electron con pantalla: se midió en el chat
+    # (18 de 18) y viaja en el repo para poder repetirla.
 
     # 4 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
