@@ -7,35 +7,25 @@ el de `main`, con su `recado.json`, intacto.
 
 Por qué existe: el conector de GitHub del chat da 403 en `.github/workflows/` y
 manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
-ni reescribir `ui/app.js` (140 KB) o `verificar.py` (46 KB). Un corredor con
-token sí. Mike lo autorizó. El primer mandado dejó a nest101 publicando sola
-—`apps.yml` se dispara con `claude/publicar-<version>`, como draw101— y la
-0.19.0 salió por ahí.
+ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
+token sí. Mike lo autorizó.
 
-## Este mandado (el segundo)
+## Este mandado (el tercero)
 
-Todo lo que viaja ya está dentro de nest101; aquí sólo se aplica y se mide.
+Todo lo que viaja ya está dentro de nest101, en `build/`; aquí se aplica, se
+mide y se empuja. Los seis parches se midieron en el chat sobre una copia
+limpia de `main`: aplican sin ruido y dejan el árbol idéntico al medido.
 
-1. `claude/100-licencia-robusta.patch` — **#100**, el arreglo que importa de
-   esta tanda: un 429, un 408, un 401 de proxy, un 404 o una página de «acceso
-   bloqueado» ya no le borran la licencia al taller. Sólo un «no» con motivo
-   conocido cuenta como «la suite dice que no». Y Ayuda → «Licencia de este
-   equipo…» para ver con qué cuenta quedó y cambiarla sin borrar archivos a mano.
-2. `build/apps-notas-desde-archivo.patch` — las notas de la release salen de
-   `claude/notas-<version>.txt` cuando el disparo es por rama. La 0.19.0 salió
-   con «Compilada y verificada por el chat» porque por rama no hay formulario, y
-   esas notas son lo que el taller lee en el aviso de actualizar.
-3. `claude/aplicar_103_pruebas.py` — las ocho comprobaciones de #103 se mudan
-   adentro de `verificar.py`. Fuera de él no corren en el armado, y una
-   comprobación que no corre donde se publica es media comprobación.
+#105 · el menú de Ajustes
+  Mike: «no hay ningún lugar donde pueda gestionar el key de Claude. Necesito
+  un menú de configuración… la licencia, el key, el idioma, las unidades».
 
-Y se mide antes de empujar: `verificar.py` TODO OK y `pruebas/licencia.mjs`
-39 de 39. Si cualquiera de los dos falla, no se empuja nada y el aviso queda en
-`claude/recado-fallo` de shape101.
+#106 · el arranque que ya no se calla
+  Mike: «nest 0.19.2 no abre. Se ve que apenas aparece una ventana pero muy
+  rápido y desaparece». Su `arranque.log` acaba en «Activando tu licencia».
 
-Medido en el chat sobre una copia de `main` antes de mandar esto: los dos
-parches aplican limpios, `verificar.py` acaba en TODO OK con el bloque de #103
-dentro, y las 39 de licencia pasan.
+Si `verificar.py` o `pruebas/licencia.mjs` fallan, no se empuja nada y el
+aviso queda en `claude/recado-fallo` de shape101.
 """
 from __future__ import annotations
 
@@ -48,52 +38,102 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = ["claude/100-licencia-robusta.patch", "build/apps-notas-desde-archivo.patch"]
-APLICADORES = ["claude/aplicar_103_pruebas.py"]
+PARCHES = [
+    "build/105-a-pantalla.patch",
+    "build/105-b-diccionario.patch",
+    "build/105-c-medicion.patch",
+    "build/105-d-motor.patch",
+    "build/106-a-puerta.patch",
+    "build/106-b-pruebas.patch",
+]
+APLICADORES: list[str] = []
+# Lo que cada parche TIENE que haber dejado. Se mide en el texto del archivo,
+# que es barato y caza un parche aplicado a medias antes de empujar nada.
+SENAS = [
+    ("ui/app.js", 'modal("Ajustes"', "el menú de Ajustes"),
+    ("ui/app.js", "const UNI = {", "las unidades"),
+    ("server.py", "/api/llave/probar", "probar la llave"),
+    ("core/taller.py", 'UNIDADES = ("mm", "cm", "pulg")', "las unidades en el perfil"),
+    ("electron/licencia-nucleo.js", "function noAbrio(", "por qué no abrió"),
+    ("electron/preload.js", "licenciaCambiar:", "la licencia asomada a la ventana"),
+    ("pruebas/ajustes.py", "sync_playwright", "la prueba del menú"),
+    ("pruebas/arranque.mjs", "se cerró solo a media prueba", "la prueba del arranque"),
+    ("claude/notas-0.19.3.txt", "ya no se cierra en silencio", "las notas de la 0.19.3"),
+]
+# Y lo que tiene que haber DESAPARECIDO: es la mitad que se olvida.
+NO_DEBE = [
+    ("electron/main.js", "no-proxy-server",
+     "el proxy apagado para todo, que es lo que dejaba sin salida a la activación"),
+    ("ui/app.js", "window.t101",
+     "el puente con el nombre equivocado, que nunca existió"),
+]
 LIBRERIAS = [
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
-    "python-multipart", "truststore",
+    "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """La licencia aguanta el mal rato (#100), las notas salen del repo y #103 se mide adentro
+COMMIT = """Un solo menú de Ajustes (#105) y un arranque que ya no se cierra callado (#106)
 
-#100 · un mal rato del camino ya no le quita la licencia al taller
-  El latido contaba como «la suite dice que no» todo lo que no fuera un 5xx, y
-  medidas una por una, cinco situaciones normales borraban la licencia que ya
-  estaba guardada en el equipo: un 429 con tres equipos del taller abriendo a la
-  vez, un 408, un 401 del proxy de la empresa, un 404 el día que cambie una
-  dirección, y un 200 con la página de «acceso bloqueado» de un proxy.
+#106 · «nest 0.19.2 no abre»
+  Mike, 11-oct: «se ve que apenas aparece una ventana pero muy rápido y
+  desaparece». Su arranque.log acaba en «Activando tu licencia» y ahí se corta.
+  Lo que pasaba, en tres fallas encadenadas:
 
-  Ahora es lista blanca: la suite dice que no cuando contesta un JSON con un
-  motivo conocido —sin_pago, suspendida, maquina_desconocida,
-  licencia_desconocida, token_invalido— y todo lo demás es «no se pudo llegar»,
-  que no toca lo guardado. Un motivo que la suite invente mañana cae del lado
-  seguro: el token trae su propio `hasta` firmado, así que se cierra solo cuando
-  venza; cerrarle a un taller que sí pagó no se arregla solo.
+  1. La ventana de activación no cargaba y el código la DESTRUÍA. Destruir
+     dispara `closed`, que resolvía primero y con el motivo equivocado
+     —«cancelado», aunque nadie cancelara—, y arriba sólo había diálogo para
+     «sin_red». Resultado: el programa se cerraba sin una palabra. Una falla
+     que no se puede ni reportar.
+  2. `no-proxy-server` apagaba el proxy del sistema para TODO. Se puso para
+     que el backend local no se bloqueara —y para eso basta la excepción de
+     loopback, que se queda—, pero de paso dejaba sin salida a la pantalla de
+     activación en una máquina que sale a internet por proxy o VPN.
+  3. El `icon` de esa ventana apuntaba a `build/icon.ico`, que no viaja dentro
+     del paquete: `files` empaqueta sólo `electron/**`. Medido con Electron:
+     no revienta, pero tampoco pinta nada. Se quita la línea.
 
-  Y Ayuda → «Licencia de este equipo…»: con qué cuenta quedó, qué licencia,
-  hasta cuándo con los días que faltan, y el equipo con la huella cortada. Si
-  está activa ofrece «Cambiar de cuenta…», que pregunta otra vez antes de
-  cerrar el programa y liberar el lugar. Antes, la única forma de pasar la
-  licencia a otra cuenta era borrar a mano un archivo dentro de AppData.
+  Ahora: la ventana se queda abierta enseñando el motivo con su código crudo,
+  cada manera de no pasar la puerta tiene su frase (`noAbrio`), todo queda en
+  arranque.log, cerrar la última ventana no mata el arranque mientras la
+  puerta está abierta, y una excepción suelta se enseña en vez de morir muda.
 
-  pruebas/licencia.mjs pasa de 20 a 39 comprobaciones. Los seis fallos del
-  camino se miden por las DOS mitades: que se llamen «no se pudo llegar» y que
-  el archivo de licencia siga ahí — es el llamador quien borra al oír «vencida».
+  pruebas/arranque.mjs lo reproduce con Electron de verdad: con el código de
+  la 0.19.2 no imprime ni una línea —se muere a media prueba, igual que en la
+  máquina de Mike—; con el arreglo, 15 de 15. pruebas/licencia.mjs pasa de 39
+  a 50.
 
-notas de la release desde el repositorio
-  La 0.19.0 salió con «Compilada y verificada por el chat»: disparado por rama
-  no hay formulario donde escribirlas. Ahora el flujo lee
-  `claude/notas-<version>.txt`, un renglón por cambio. Es lo que el taller lee
-  en el aviso de actualizar, así que importa que diga algo.
+#105 · un solo lugar para lo del equipo
+  Mike: «no hay ningún lugar donde pueda gestionar el key de Claude. Necesito
+  un menú de configuración donde se puedan ajustar los varios parámetros de la
+  aplicación, incluida la licencia con la que está trabajando, el key, el
+  idioma, las unidades».
 
-#103 se mide donde se publica
-  Las ocho comprobaciones del zoclo vivían en `claude/comprobar_103.py`, fuera
-  de `verificar.py`, y por tanto no corrían en el armado. Se mudan adentro y el
-  archivo suelto se retira: dos verdades sobre lo mismo es una de más.
+  La llave SÍ existía —pestaña Estándar, bajo «Leer plano», desde #040— y la
+  licencia también —menú nativo de Ayuda, desde #100—. Que el dueño del
+  programa no las encontrara es el reporte: estaban donde se usan y no había
+  un lugar donde se administren. El engrane abre «Ajustes» con siete
+  secciones: licencia de este equipo (con qué cuenta, hasta cuándo, cambiarla),
+  llave de Claude (pegar, PROBAR, quitar, y los pasos para sacarla), idioma,
+  unidades, logotipo, actualizaciones y carpeta del taller.
+
+  Probar la llave le pregunta a Anthropic con el mismo modelo que lee los
+  planos. Es lo que le faltaba a Mike: su llave era válida pero no estaba
+  ligada a un workspace, y el programa sólo sabía decir «Anthropic no aceptó
+  la llave». Ahora ese caso se explica y dice cómo hacer una que sirva.
+
+  Y «Quitar» ahora quita de verdad: `taller.llave()` mira el entorno antes que
+  el archivo, así que al borrar el archivo la llave vieja seguía puesta en el
+  proceso y no se iba hasta reiniciar. Lo cazó la prueba del navegador.
+
+unidades (sólo de lectura)
+  Las cotas del dibujo y las medidas de la parrilla se leen en milímetros,
+  centímetros o pulgadas —en quebrados de dieciseisavo, como las cintas—. La
+  lista de corte, los planos, el Excel y el DXF se quedan en milímetros a
+  propósito: son los que van a la máquina y al carpintero. Medido: el mismo
+  mueble despiezado en pulgadas da exactamente el mismo corte.
 
 Medido por el corredor antes de empujar: verificar.py TODO OK y
-pruebas/licencia.mjs 39 de 39. Llega por el mandadero de shape101 por lo de
+pruebas/licencia.mjs 50 de 50. Llega por el mandadero de shape101 por lo de
 siempre: el conector da 403 en .github/workflows/ y manda los archivos enteros.
 """
 
@@ -145,23 +185,20 @@ def main() -> int:
         correr(["git", "rm", "-q", p], cwd=repo)
         anotar(f"{p} aplicado y retirado")
 
-    # lo que cada parche tenía que dejar, comprobado en el texto
-    nucleo = (repo / "electron/licencia-nucleo.js").read_text(encoding="utf-8")
-    if "function esUnNo(" not in nucleo or "function resumen(" not in nucleo:
-        raise RuntimeError("licencia-nucleo.js no quedó con esUnNo() y resumen()")
-    flujo = (repo / ".github/workflows/apps.yml").read_text(encoding="utf-8")
-    if 'claude/notas-{os.environ[' not in flujo:
-        raise RuntimeError("apps.yml no quedó leyendo las notas del repositorio")
-    anotar("los dos parches dejaron lo que debían")
+    # lo que cada parche tenía que dejar —y lo que tenía que llevarse
+    for archivo, sena, que in SENAS:
+        if sena not in (repo / archivo).read_text(encoding="utf-8"):
+            raise RuntimeError(f"{archivo} no quedó con {que}")
+    for archivo, sena, que in NO_DEBE:
+        if sena in (repo / archivo).read_text(encoding="utf-8"):
+            raise RuntimeError(f"{archivo} todavía trae {que}")
+    anotar(f"los {len(PARCHES)} parches dejaron lo que debían, y se llevaron lo que debían")
 
-    # 2 · los aplicadores
+    # 2 · los aplicadores (esta vez no hay)
     for a in APLICADORES:
         if (repo / a).exists():
             anotar(correr([sys.executable, a], cwd=repo).strip())
             correr(["git", "rm", "-q", a], cwd=repo)
-        else:
-            anotar(f"{a} no está: se da por aplicado")
-    anotar("andamios retirados")
 
     # 3 · medir, que es lo que autoriza a empujar
     correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
@@ -178,6 +215,10 @@ def main() -> int:
     if "todo bien" not in salida:
         raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
     anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
+    # `pruebas/arranque.mjs` y `pruebas/ajustes.py` NO se corren aquí: piden
+    # Electron con pantalla y un Chromium de playwright, que este corredor no
+    # tiene. Se midieron en el chat —15 de 15 y TODO OK— y viajan en el repo
+    # para que se puedan volver a correr.
 
     # 4 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
