@@ -61,8 +61,11 @@ SENAS = [
     ("claude/notas-0.19.3.txt", "ya no se cierra en silencio", "las notas de la 0.19.3"),
 ]
 # Y lo que tiene que haber DESAPARECIDO: es la mitad que se olvida.
+#
+# Se busca la LLAMADA, no el nombre: el comentario que explica por qué se quitó
+# nombra el interruptor, y buscando el nombre a secas el mandado se caía solo.
 NO_DEBE = [
-    ("electron/main.js", "no-proxy-server",
+    ("electron/main.js", 'appendSwitch("no-proxy-server")',
      "el proxy apagado para todo, que es lo que dejaba sin salida a la activación"),
     ("ui/app.js", "window.t101",
      "el puente con el nombre equivocado, que nunca existió"),
