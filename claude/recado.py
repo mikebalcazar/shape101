@@ -10,7 +10,7 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el cuarto)
+## Este mandado (el cuarto; el 108 se cayó y éste es el mismo, corregido)
 
 Un solo parche, y de los que el conector no puede ni tocar: es del flujo.
 
@@ -22,9 +22,14 @@ Un solo parche, y de los que el conector no puede ni tocar: es del flujo.
   mano dentro de algo automático es un paso que no existe. Ahora `apps.yml` lo
   arma y lo empuja en la misma entrega, justo después del contrato.
 
+El 108 falló en la comprobación del YAML: se le pedía leer el flujo antes de
+instalar `pyyaml`. El parche estaba bien y el mandadero hizo lo correcto —no
+empujó nada y dejó el motivo escrito—; lo que estaba mal era el orden, y aquí
+las librerías se instalan primero.
+
 El parche se midió en el chat: aplica limpio sobre `main` y el YAML sigue
-siendo válido. Si `verificar.py` o `pruebas/licencia.mjs` fallan, no se empuja
-nada y el aviso queda en `claude/recado-fallo` de shape101.
+siendo válido. Si algo falla, no se empuja nada y el aviso queda en
+`claude/recado-fallo` de shape101.
 """
 from __future__ import annotations
 
@@ -47,6 +52,7 @@ SENAS = [
 ]
 NO_DEBE: list[tuple[str, str, str]] = []
 LIBRERIAS = [
+    "pyyaml",
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
@@ -75,9 +81,9 @@ sube a Cloudflare Pages.
 De paso rearma las diez páginas, así que también se lleva lo que otra app haya
 publicado sin armar el sitio.
 
-Medido por el corredor antes de empujar: verificar.py TODO OK y
-pruebas/licencia.mjs 50 de 50. Llega por el mandadero de shape101 porque el
-conector del chat da 403 en .github/workflows/.
+Medido por el corredor antes de empujar: el flujo sigue siendo YAML válido,
+verificar.py TODO OK y pruebas/licencia.mjs 50 de 50. Llega por el mandadero de
+shape101 porque el conector del chat da 403 en .github/workflows/.
 """
 
 lineas: list[str] = []
@@ -118,7 +124,13 @@ def main() -> int:
     correr(["git", "config", "user.name", "nest101 (mandado desde shape101)"], cwd=repo)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=repo)
 
-    # 1 · los parches
+    # 1 · las librerías, ANTES de medir nada: la comprobación del YAML necesita
+    # pyyaml, y pedírselo antes de instalarlo fue lo que tiró el mandado 108.
+    correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
+    correr([sys.executable, "-m", "pip", "install", "--quiet"] + LIBRERIAS)
+    anotar(f"{len(LIBRERIAS)} librerías instaladas")
+
+    # 2 · los parches
     for p in PARCHES:
         if not (repo / p).exists():
             anotar(f"{p} no está: se da por aplicado")
@@ -140,7 +152,7 @@ def main() -> int:
     # el flujo tiene que seguir siendo YAML válido: si no, la próxima entrega
     # no arranca siquiera, y eso se ve hasta que hace falta publicar
     correr([sys.executable, "-c",
-            "import yaml,sys; yaml.safe_load(open('.github/workflows/apps.yml',"
+            "import yaml; yaml.safe_load(open('.github/workflows/apps.yml',"
             "encoding='utf-8')); print('yaml ok')"], cwd=repo)
     anotar("apps.yml sigue siendo YAML válido")
 
@@ -149,11 +161,7 @@ def main() -> int:
             anotar(correr([sys.executable, a], cwd=repo).strip())
             correr(["git", "rm", "-q", a], cwd=repo)
 
-    # 2 · medir, que es lo que autoriza a empujar
-    correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
-    correr([sys.executable, "-m", "pip", "install", "--quiet", "pyyaml"] + LIBRERIAS)
-    anotar(f"{len(LIBRERIAS) + 1} librerías instaladas")
-
+    # 3 · medir, que es lo que autoriza a empujar
     entorno = dict(os.environ, PYTHONUTF8="1")
     salida = correr([sys.executable, "verificar.py"], cwd=repo, entorno=entorno)
     if "TODO OK" not in salida:
@@ -165,7 +173,7 @@ def main() -> int:
         raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
     anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
 
-    # 3 · empujar
+    # 4 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
         anotar("no había nada que cambiar")
         return 0
