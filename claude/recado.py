@@ -10,19 +10,21 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el séptimo)
+## Este mandado (el octavo)
 
-#110 · sin aceleración gráfica, y con volcado de caída
-  La 0.19.5 descartó lo anterior: ningún proceso se cayó —los detectores
-  estaban puestos— y el segundo intento iba con sesión limpia. Lo que queda:
-  el contenido de una ventana CON MARCO se desarma a los 22 ms sin que nadie la
-  cierre, y crear la siguiente tumba a Electron a nivel nativo. La de arranque,
-  transparente y sin marco, sobrevive. Esa diferencia señala al driver de
-  video. Se apaga la aceleración gráfica y se enciende el volcado de caída en
-  disco, que dice en qué DLL se cayó si vuelve a pasar.
+#111 · la guardia antes de cerrar el splash — la causa de raíz
+  El volcado de caída de la 0.19.6, leído con los símbolos de Electron 33:
+  `CHECK(!BrowserMainRunner::ExitedMainMessageLoop())` en
+  render_process_host_impl.cc:1494, en el proceso principal, al crear la
+  ventana de activación. El programa ya se estaba cerrando. Por qué: cerrar el
+  splash —la única ventana— emite `window-all-closed` DENTRO de `destroy()`, de
+  forma síncrona (medido), y el escucha llamaba a `app.quit()` porque la
+  guardia `enLaPuerta` se ponía un renglón DESPUÉS. Desde la 0.19.1 (#100).
+  Se pone antes, se protege el arranque entero con `listo`, y se retiran las
+  dos conjeturas de #109 y #110.
 
-Medido en el chat con Electron: las dos llamadas corren antes de `ready` sin
-reventar y una ventana con marco pinta por software.
+Medido en el chat: `verificar.py` TODO OK (con el bloque #111), `pruebas/
+licencia.mjs` 53 de 53 y `pruebas/arranque.mjs` 19 de 19 con Electron de verdad.
 """
 from __future__ import annotations
 
@@ -35,58 +37,66 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = ["build/110-sin-grafica.patch"]
+PARCHES = ["build/111-la-guardia-antes.patch"]
 APLICADORES: list[str] = []
 SENAS = [
-    ("electron/main.js", "app.disableHardwareAcceleration()", "la gráfica apagada"),
-    ("electron/main.js", "crashReporter.start(", "el volcado de caída"),
-    ("electron/main.js", 'app.getGPUInfo("basic")', "el apunte de qué gráfica hay"),
-    ("claude/notas-0.19.6.txt", "por software", "las notas de la 0.19.6"),
+    ("electron/main.js", "enLaPuerta || !listo", "la guardia del arranque entero"),
+    ("electron/main.js", "listo = true;", "el momento en que ya se puede cerrar"),
+    ("claude/notas-0.19.7.txt", "arreglado de raíz", "las notas de la 0.19.7"),
+    ("verificar.py", "#111: LA GUARDIA VA ANTES", "la comprobación del orden"),
 ]
-NO_DEBE: list[tuple[str, str, str]] = []
+NO_DEBE = [
+    ("electron/main.js", "\napp.disableHardwareAcceleration();", "la gráfica apagada a ciegas"),
+    ("electron/main.js", 'appendSwitch("disable-features", "RendererCodeIntegrity")',
+     "el interruptor que no hacía falta"),
+]
 LIBRERIAS = [
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """Sin aceleración gráfica, y con volcado de caída (#110)
+COMMIT = """La guardia va antes de cerrar el splash: la causa de raíz (#111)
 
-Lo que dijo el registro de la 0.19.5 en la máquina de Mike:
+El volcado de caída de la 0.19.6 en la máquina de Mike, leído con los símbolos
+de Electron 33.4.11, dice dónde y por qué. Proceso principal, `nest101.exe` sin
+`--type`, EXCEPTION_BREAKPOINT en:
 
-    22:56:31.055  creando la ventana
-    22:56:31.091  empieza a cargar
-    22:56:31.113  el contenido de la ventana se destruyó   ← 22 ms
-    22:56:31.129  creando la ventana (sesión limpia)       ← y aquí muere todo
+    content::RenderProcessHostImpl::RenderProcessHostImpl(...)
+    render_process_host_impl.cc:1494
+    CHECK(!BrowserMainRunner::ExitedMainMessageLoop());
 
-Y NINGÚN proceso se cayó: ni ventana, ni gráfica, ni red, ni utilidades. Los
-detectores de #108 y #109 estaban puestos y no vieron nada. Eso descarta la
-librería ajena matando procesos (#109) y la sesión guardada (#108): el segundo
-intento iba limpio y ni llegó a abrir.
+Es decir: al crear la ventana de activación, el bucle principal YA HABÍA
+TERMINADO. El programa se estaba cerrando. Ningún driver, ninguna librería
+ajena, ninguna red: Electron había recibido la orden de cerrarse.
 
-Lo que queda: el contenido de una ventana CON MARCO se desarma sin que nadie la
-cierre —no hay renglón de «se está cerrando»— y crear la siguiente tumba a
-Electron a nivel nativo, por debajo de cualquier atrapador de errores. La
-ventana del arranque, transparente y sin marco, sobrevive: usa otro camino de
-composición. Esa diferencia señala a la gráfica —driver de video—, que es por
-donde Electron pinta las ventanas con marco.
+De dónde salía la orden. `window-all-closed` se emite DENTRO de `destroy()`,
+de forma síncrona —medido: el escucha corre antes de que `destroy()` devuelva—.
+La puerta de licencia (#100, 0.19.1) cerraba el splash ANTES de abrir la
+ventana de activación, y el splash era la única ventana: cerrarlo emitía
+`window-all-closed` y el escucha llamaba a `app.quit()`. Todo lo que seguía
+corría sobre un programa muriéndose: la ventana de activación nacía, su
+contenido se desarmaba a los 20 ms sin que nadie la tocara (eso era el
+«flash»), y la siguiente ventana reventaba en el CHECK.
 
-Dos cosas, las dos antes de que arranque nada:
+#106 ya había visto el hueco y puso la guardia `enLaPuerta`… un renglón DESPUÉS
+de `cerrarSplash()`. Como el evento es síncrono, cuando la guardia se ponía ya
+era tarde. Un renglón.
 
-1. Se apaga la aceleración gráfica (`app.disableHardwareAcceleration()`).
-   Chromium pinta por software; el 3D (WebGL) sigue funcionando, más lento. Si
-   con esto abre, era eso, y se afina después: prender la gráfica sólo donde
-   no tumba.
-2. Se enciende el volcado de caída (`crashReporter`), sólo en disco, sin mandar
-   nada a ningún lado. Si vuelve a caerse, queda un archivo en la carpeta de
-   datos que dice en qué módulo —qué DLL— se cayó. Es el dato que no se puede
-   adivinar desde fuera y el que cierra esto.
+Lo que cambia:
+· `enLaPuerta = true` va ANTES de `cerrarSplash()`.
+· `listo` cubre todo el arranque: hasta que la ventana principal exista,
+  quedarse sin ventanas no es una orden de cerrar. Antes de la puerta no hacía
+  falta porque el splash se cerraba con la ventana principal ya creada.
+· Se retiran #109 (`RendererCodeIntegrity`) y #110 (gráfica apagada): eran
+  conjeturas, y el volcado dijo otra cosa. El `crashReporter` de #110 se queda:
+  es lo que resolvió esto.
 
-Y en arranque.log queda la tarjeta de video del equipo y dónde quedan los
-volcados, para leerlos desde el chat.
+Cómo se mide: verificar.py comprueba el ORDEN en el texto de main.js (corre en
+cada armado); pruebas/arranque.mjs comprueba el HECHO en el que se apoya —que
+el evento es síncrono— con Electron de verdad (a mano, 19 de 19).
 
-Medido antes de empujar con Electron de verdad: las dos llamadas corren antes
-de `ready` sin reventar, y una ventana con marco pinta por software. Lo demás
-igual: verificar.py TODO OK y pruebas/licencia.mjs 53 de 53.
+Medido antes de empujar: verificar.py TODO OK, pruebas/licencia.mjs 53 de 53,
+pruebas/arranque.mjs 19 de 19.
 """
 
 lineas: list[str] = []
@@ -127,12 +137,10 @@ def main() -> int:
     correr(["git", "config", "user.name", "nest101 (mandado desde shape101)"], cwd=repo)
     correr(["git", "config", "user.email", "mike@forespot.com"], cwd=repo)
 
-    # 1 · las librerías primero: medir sin ellas fue lo que tiró el mandado 108.
     correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
     correr([sys.executable, "-m", "pip", "install", "--quiet"] + LIBRERIAS)
     anotar(f"{len(LIBRERIAS)} librerías instaladas")
 
-    # 2 · los parches
     for p in PARCHES:
         if not (repo / p).exists():
             anotar(f"{p} no está: se da por aplicado")
@@ -148,7 +156,7 @@ def main() -> int:
     for archivo, sena, que in NO_DEBE:
         if sena in (repo / archivo).read_text(encoding="utf-8"):
             raise RuntimeError(f"{archivo} todavía trae {que}")
-    anotar("el parche dejó lo que debía")
+    anotar("el parche dejó lo que debía, y se llevó lo que debía")
 
     for js in ("electron/licencia.js", "electron/licencia-nucleo.js", "electron/main.js"):
         correr(["node", "--check", js], cwd=repo)
@@ -159,7 +167,6 @@ def main() -> int:
             anotar(correr([sys.executable, a], cwd=repo).strip())
             correr(["git", "rm", "-q", a], cwd=repo)
 
-    # 3 · medir, que es lo que autoriza a empujar
     entorno = dict(os.environ, PYTHONUTF8="1")
     salida = correr([sys.executable, "verificar.py"], cwd=repo, entorno=entorno)
     if "TODO OK" not in salida:
@@ -171,7 +178,6 @@ def main() -> int:
         raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
     anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
 
-    # 4 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
         anotar("no había nada que cambiar")
         return 0
