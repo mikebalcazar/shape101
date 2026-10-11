@@ -10,22 +10,21 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el tercero)
+## Este mandado (el cuarto)
 
-Todo lo que viaja ya está dentro de nest101, en `build/`; aquí se aplica, se
-mide y se empuja. Los seis parches se midieron en el chat sobre una copia
-limpia de `main`: aplican sin ruido y dejan el árbol idéntico al medido.
+Un solo parche, y de los que el conector no puede ni tocar: es del flujo.
 
-#105 · el menú de Ajustes
-  Mike: «no hay ningún lugar donde pueda gestionar el key de Claude. Necesito
-  un menú de configuración… la licencia, el key, el idioma, las unidades».
+#107 · el escaparate se arma al publicar
+  Mike, 11-oct-2026: «no se ha actualizado la descarga de la versión en el
+  website showcase de suite101.app». El sitio enseñaba la 0.19.2 con la 0.19.3
+  ya publicada. `armar-sitio.py` ya lee la versión y la liga de `<app>.json`,
+  pero volver a armarlo era un paso a mano después de publicar — y un paso a
+  mano dentro de algo automático es un paso que no existe. Ahora `apps.yml` lo
+  arma y lo empuja en la misma entrega, justo después del contrato.
 
-#106 · el arranque que ya no se calla
-  Mike: «nest 0.19.2 no abre. Se ve que apenas aparece una ventana pero muy
-  rápido y desaparece». Su `arranque.log` acaba en «Activando tu licencia».
-
-Si `verificar.py` o `pruebas/licencia.mjs` fallan, no se empuja nada y el
-aviso queda en `claude/recado-fallo` de shape101.
+El parche se midió en el chat: aplica limpio sobre `main` y el YAML sigue
+siendo válido. Si `verificar.py` o `pruebas/licencia.mjs` fallan, no se empuja
+nada y el aviso queda en `claude/recado-fallo` de shape101.
 """
 from __future__ import annotations
 
@@ -38,106 +37,47 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = [
-    "build/105-a-pantalla.patch",
-    "build/105-b-diccionario.patch",
-    "build/105-c-medicion.patch",
-    "build/105-d-motor.patch",
-    "build/106-a-puerta.patch",
-    "build/106-b-pruebas.patch",
-]
+PARCHES = ["build/107-sitio-al-publicar.patch"]
 APLICADORES: list[str] = []
-# Lo que cada parche TIENE que haber dejado. Se mide en el texto del archivo,
-# que es barato y caza un parche aplicado a medias antes de empujar nada.
+# Lo que el parche TIENE que haber dejado.
 SENAS = [
-    ("ui/app.js", 'modal("Ajustes"', "el menú de Ajustes"),
-    ("ui/app.js", "const UNI = {", "las unidades"),
-    ("server.py", "/api/llave/probar", "probar la llave"),
-    ("core/taller.py", 'UNIDADES = ("mm", "cm", "pulg")', "las unidades en el perfil"),
-    ("electron/licencia-nucleo.js", "function noAbrio(", "por qué no abrió"),
-    ("electron/preload.js", "licenciaCambiar:", "la licencia asomada a la ventana"),
-    ("pruebas/ajustes.py", "sync_playwright", "la prueba del menú"),
-    ("pruebas/arranque.mjs", "se cerró solo a media prueba", "la prueba del arranque"),
-    ("claude/notas-0.19.3.txt", "ya no se cierra en silencio", "las notas de la 0.19.3"),
+    (".github/workflows/apps.yml", "armar-sitio.py", "el sitio armado al publicar"),
+    (".github/workflows/apps.yml", 'git commit -m "el sitio enseña nest101 $V"',
+     "el empujón del sitio"),
 ]
-# Y lo que tiene que haber DESAPARECIDO: es la mitad que se olvida.
-#
-# Se busca la LLAMADA, no el nombre: el comentario que explica por qué se quitó
-# nombra el interruptor, y buscando el nombre a secas el mandado se caía solo.
-NO_DEBE = [
-    ("electron/main.js", 'appendSwitch("no-proxy-server")',
-     "el proxy apagado para todo, que es lo que dejaba sin salida a la activación"),
-    ("ui/app.js", "window.t101",
-     "el puente con el nombre equivocado, que nunca existió"),
-]
+NO_DEBE: list[tuple[str, str, str]] = []
 LIBRERIAS = [
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """Un solo menú de Ajustes (#105) y un arranque que ya no se cierra callado (#106)
+COMMIT = """Publicar también deja el escaparate al día (#107)
 
-#106 · «nest 0.19.2 no abre»
-  Mike, 11-oct: «se ve que apenas aparece una ventana pero muy rápido y
-  desaparece». Su arranque.log acaba en «Activando tu licencia» y ahí se corta.
-  Lo que pasaba, en tres fallas encadenadas:
+Mike, 11-oct-2026: «no se ha actualizado la descarga de la versión en el website
+showcase de suite101.app». Con la 0.19.3 publicada y comprobada, el sitio seguía
+ofreciendo la 0.19.2 y su instalador.
 
-  1. La ventana de activación no cargaba y el código la DESTRUÍA. Destruir
-     dispara `closed`, que resolvía primero y con el motivo equivocado
-     —«cancelado», aunque nadie cancelara—, y arriba sólo había diálogo para
-     «sin_red». Resultado: el programa se cerraba sin una palabra. Una falla
-     que no se puede ni reportar.
-  2. `no-proxy-server` apagaba el proxy del sistema para TODO. Se puso para
-     que el backend local no se bloqueara —y para eso basta la excepción de
-     loopback, que se queda—, pero de paso dejaba sin salida a la pantalla de
-     activación en una máquina que sale a internet por proxy o VPN.
-  3. El `icon` de esa ventana apuntaba a `build/icon.ico`, que no viaja dentro
-     del paquete: `files` empaqueta sólo `electron/**`. Medido con Electron:
-     no revienta, pero tampoco pinta nada. Se quita la línea.
+No era que el sitio estuviera mal escrito. `descargas/sitio/herramientas/
+armar-sitio.py` ya lee la versión y la liga de descarga de `<app>.json` —se
+arregló así en octubre, justo porque la ficha llevaba tres semanas de atraso—,
+pero volver a armarlo seguía siendo un paso a mano después de cada entrega. Un
+paso a mano dentro de algo automático es un paso que no existe: el instalador se
+publica solo, el contrato se actualiza solo, y el sitio se quedaba esperando a
+que alguien se acordara.
 
-  Ahora: la ventana se queda abierta enseñando el motivo con su código crudo,
-  cada manera de no pasar la puerta tiene su frase (`noAbrio`), todo queda en
-  arranque.log, cerrar la última ventana no mata el arranque mientras la
-  puerta está abierta, y una excepción suelta se enseña en vez de morir muda.
+Ahora `apps.yml` lo arma y lo empuja en la misma entrega, dentro del mismo clon
+de `descargas` donde ya escribe `nest101.json` y el README. Va DESPUÉS de empujar
+el contrato a propósito: si armar el sitio fallara, los programas instalados ya
+se enteraron de la versión nueva y lo único que queda rojo es el sitio; al revés
+sería peor. Empujar `sitio/` dispara `publicar-sitio.yml` de descargas, que lo
+sube a Cloudflare Pages.
 
-  pruebas/arranque.mjs lo reproduce con Electron de verdad: con el código de
-  la 0.19.2 no imprime ni una línea —se muere a media prueba, igual que en la
-  máquina de Mike—; con el arreglo, 15 de 15. pruebas/licencia.mjs pasa de 39
-  a 50.
-
-#105 · un solo lugar para lo del equipo
-  Mike: «no hay ningún lugar donde pueda gestionar el key de Claude. Necesito
-  un menú de configuración donde se puedan ajustar los varios parámetros de la
-  aplicación, incluida la licencia con la que está trabajando, el key, el
-  idioma, las unidades».
-
-  La llave SÍ existía —pestaña Estándar, bajo «Leer plano», desde #040— y la
-  licencia también —menú nativo de Ayuda, desde #100—. Que el dueño del
-  programa no las encontrara es el reporte: estaban donde se usan y no había
-  un lugar donde se administren. El engrane abre «Ajustes» con siete
-  secciones: licencia de este equipo (con qué cuenta, hasta cuándo, cambiarla),
-  llave de Claude (pegar, PROBAR, quitar, y los pasos para sacarla), idioma,
-  unidades, logotipo, actualizaciones y carpeta del taller.
-
-  Probar la llave le pregunta a Anthropic con el mismo modelo que lee los
-  planos. Es lo que le faltaba a Mike: su llave era válida pero no estaba
-  ligada a un workspace, y el programa sólo sabía decir «Anthropic no aceptó
-  la llave». Ahora ese caso se explica y dice cómo hacer una que sirva.
-
-  Y «Quitar» ahora quita de verdad: `taller.llave()` mira el entorno antes que
-  el archivo, así que al borrar el archivo la llave vieja seguía puesta en el
-  proceso y no se iba hasta reiniciar. Lo cazó la prueba del navegador.
-
-unidades (sólo de lectura)
-  Las cotas del dibujo y las medidas de la parrilla se leen en milímetros,
-  centímetros o pulgadas —en quebrados de dieciseisavo, como las cintas—. La
-  lista de corte, los planos, el Excel y el DXF se quedan en milímetros a
-  propósito: son los que van a la máquina y al carpintero. Medido: el mismo
-  mueble despiezado en pulgadas da exactamente el mismo corte.
+De paso rearma las diez páginas, así que también se lleva lo que otra app haya
+publicado sin armar el sitio.
 
 Medido por el corredor antes de empujar: verificar.py TODO OK y
-pruebas/licencia.mjs 50 de 50. Llega por el mandadero de shape101 por lo de
-siempre: el conector da 403 en .github/workflows/ y manda los archivos enteros.
+pruebas/licencia.mjs 50 de 50. Llega por el mandadero de shape101 porque el
+conector del chat da 403 en .github/workflows/.
 """
 
 lineas: list[str] = []
@@ -188,25 +128,31 @@ def main() -> int:
         correr(["git", "rm", "-q", p], cwd=repo)
         anotar(f"{p} aplicado y retirado")
 
-    # lo que cada parche tenía que dejar —y lo que tenía que llevarse
+    # lo que el parche tenía que dejar —y lo que tenía que llevarse
     for archivo, sena, que in SENAS:
         if sena not in (repo / archivo).read_text(encoding="utf-8"):
             raise RuntimeError(f"{archivo} no quedó con {que}")
     for archivo, sena, que in NO_DEBE:
         if sena in (repo / archivo).read_text(encoding="utf-8"):
             raise RuntimeError(f"{archivo} todavía trae {que}")
-    anotar(f"los {len(PARCHES)} parches dejaron lo que debían, y se llevaron lo que debían")
+    anotar("el parche dejó lo que debía")
 
-    # 2 · los aplicadores (esta vez no hay)
+    # el flujo tiene que seguir siendo YAML válido: si no, la próxima entrega
+    # no arranca siquiera, y eso se ve hasta que hace falta publicar
+    correr([sys.executable, "-c",
+            "import yaml,sys; yaml.safe_load(open('.github/workflows/apps.yml',"
+            "encoding='utf-8')); print('yaml ok')"], cwd=repo)
+    anotar("apps.yml sigue siendo YAML válido")
+
     for a in APLICADORES:
         if (repo / a).exists():
             anotar(correr([sys.executable, a], cwd=repo).strip())
             correr(["git", "rm", "-q", a], cwd=repo)
 
-    # 3 · medir, que es lo que autoriza a empujar
+    # 2 · medir, que es lo que autoriza a empujar
     correr([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
-    correr([sys.executable, "-m", "pip", "install", "--quiet"] + LIBRERIAS)
-    anotar(f"{len(LIBRERIAS)} librerías instaladas")
+    correr([sys.executable, "-m", "pip", "install", "--quiet", "pyyaml"] + LIBRERIAS)
+    anotar(f"{len(LIBRERIAS) + 1} librerías instaladas")
 
     entorno = dict(os.environ, PYTHONUTF8="1")
     salida = correr([sys.executable, "verificar.py"], cwd=repo, entorno=entorno)
@@ -218,12 +164,8 @@ def main() -> int:
     if "todo bien" not in salida:
         raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
     anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
-    # `pruebas/arranque.mjs` y `pruebas/ajustes.py` NO se corren aquí: piden
-    # Electron con pantalla y un Chromium de playwright, que este corredor no
-    # tiene. Se midieron en el chat —15 de 15 y TODO OK— y viajan en el repo
-    # para que se puedan volver a correr.
 
-    # 4 · empujar
+    # 3 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
         anotar("no había nada que cambiar")
         return 0
