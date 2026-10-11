@@ -10,22 +10,23 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el quinto)
+## Este mandado (el sexto)
 
-#108 · el instrumental de la puerta de licencia
-  La 0.19.3 ya dice por qué no abre, y lo que dijo en la máquina de Mike no
-  cuadraba: `ERR_FAILED (-2)` y, un milisegundo después, «Object has been
-  destroyed». Medido desde el chat: esa misma dirección abre perfecto en su
-  Chrome, en su máquina, en ese momento. O sea que no es la red.
+#109 · que una librería ajena no tumbe la ventana
+  El instrumental de la 0.19.4 ya enseñó el patrón en la máquina de Mike, y es
+  el mismo tres veces seguidas: la ventana de activación empieza a cargar y a
+  los 50 ms alguien le destruye el contenido —sin que el programa la cierre— y
+  al abrir la segunda se muere el programa entero. La ventana del arranque, que
+  es local, sí se ve.
 
-  Esta tanda apunta lo que falta para saberlo —si el proceso de la ventana se
-  cae y con qué motivo, y si la suite contesta desde el proceso principal sin
-  ventana de por medio— y arregla el error de la pantalla de fallo. De paso
-  intenta otra vez con una sesión limpia, que puede ser el arreglo entero.
+  Eso apunta a `RendererCodeIntegrity`: cuando una protección de empresa inyecta
+  su librería en una ventana tipo Chrome, Chromium mata la ventana. Microsoft
+  documenta el interruptor para los programas Electron que conviven con eso. Y
+  si no fuera eso, esta misma versión lo dice: ahora cualquier proceso que se
+  caiga deja su nombre y su motivo en `arranque.log`.
 
 Medido en el chat: `verificar.py` TODO OK, `pruebas/licencia.mjs` 53 de 53 y
-`pruebas/arranque.mjs` 18 de 18 con Electron de verdad. Si algo falla aquí, no
-se empuja nada y el aviso queda en `claude/recado-fallo` de shape101.
+`pruebas/arranque.mjs` 18 de 18 con Electron de verdad.
 """
 from __future__ import annotations
 
@@ -38,70 +39,61 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = ["build/108-instrumental.patch"]
+PARCHES = ["build/109-que-no-la-tumben.patch"]
 APLICADORES: list[str] = []
-# Lo que el parche TIENE que haber dejado.
 SENAS = [
-    ("electron/licencia.js", "function probarRed(", "la prueba de red sin ventana"),
-    ("electron/licencia.js", "render-process-gone", "el motivo de que se caiga la ventana"),
-    ("electron/licencia.js", "function unIntento(", "los dos intentos"),
-    ("electron/licencia-nucleo.js", "Tu conexión está bien",
-     "el aviso que ya no culpa a la red cuando la red va"),
-    ("claude/notas-0.19.4.txt", "sesión limpia", "las notas de la 0.19.4"),
+    ("electron/main.js", 'appendSwitch("disable-features", "RendererCodeIntegrity")',
+     "el interruptor que impide que tumben la ventana"),
+    ("electron/main.js", 'app.on("child-process-gone"',
+     "el apunte de cualquier proceso que se caiga"),
+    ("electron/licencia.js", "creando la ventana",
+     "el renglón antes de crear cada ventana"),
+    ("claude/notas-0.19.5.txt", "librería ajena", "las notas de la 0.19.5"),
 ]
-# Y lo que tiene que haber DESAPARECIDO: la llamada que reventaba.
-NO_DEBE = [
-    ("electron/licencia.js", "if (!v.isDestroyed()) v.loadURL(pantallaDeFallo",
-     "la llamada que comprobaba la ventana y no su contenido"),
-]
+NO_DEBE: list[tuple[str, str, str]] = []
 LIBRERIAS = [
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """Saber por qué se muere la ventana de activación (#108)
+COMMIT = """Que una librería ajena no pueda tumbar la ventana de activación (#109)
 
-La 0.19.3 ya dice por qué no abre. En la máquina de Mike dijo esto:
+El instrumental de la 0.19.4 hizo su trabajo. En la máquina de Mike, tres
+arranques seguidos, exactamente el mismo patrón:
 
-    ERR_FAILED (-2) loading 'https://…/licencias/entrar?…'
-    TypeError: Object has been destroyed      ← 1 ms después
+    22:22:54.842  empieza a cargar
+    22:22:54.895  el contenido de la ventana se destruyó   ← 53 ms
+    22:22:54.896  la pantalla no cargó: ERR_FAILED (-2)
+    22:22:54.902  segundo intento, con una sesión limpia
+                  ← y ahí se acaba el registro: el programa se murió
 
-Y no cuadra. Medido desde el chat, con su propio navegador: esa MISMA dirección
-abre perfecto en su Chrome, en su máquina, en ese momento. Así que no es la red,
-ni el proxy, ni la VPN —que es lo que decía el aviso—: lo que se muere es la
-ventana. Dos detalles del registro lo confirman: no hubo `did-fail-load` (la
-promesa se rechazó por el camino genérico de Electron, el de «la navegación se
-detuvo sin llegar») y, un milisegundo después, el contenido de la ventana ya
-estaba destruido.
+Lo que eso descarta, que es la mitad del valor: no es la red —la misma
+dirección abre en su Chrome, medido—, no es la sesión guardada —el segundo
+intento va limpio— y no es el programa cerrando la ventana: el código que la
+cierra todavía no había corrido cuando el contenido ya estaba destruido.
 
-Hasta ahí llega lo que se puede deducir. Lo demás se mide:
+Y lo que señala: la ventana del arranque, que carga un archivo local, sí se ve;
+la que carga una dirección de internet se muere a los 50 ms. Esa diferencia
+tiene nombre conocido en máquinas de empresa: cuando un antivirus inyecta su
+librería dentro de una ventana tipo Chrome, Chromium mata la ventana entera si
+esa librería no está firmada como él exige —RendererCodeIntegrity—. Microsoft
+documenta justo este interruptor para los programas Electron que conviven con
+esas protecciones, y es lo que se apaga aquí.
 
-· `render-process-gone` con su `reason` y su `exitCode`. Si un antivirus de
-  empresa está matando el proceso de la ventana, se ve ahí y en ningún otro
-  lado: dice «killed», «crashed», «launch-failed».
-· Una llamada a la suite DESDE EL PROCESO PRINCIPAL, con `net.request`, sin
-  ventana de por medio. Separa las dos cosas que hasta ahora se confundían:
-  «esta computadora no llega a la suite» y «la ventana no pudo enseñarla». El
-  resultado va al registro y también al aviso.
-· Cada paso de la navegación con su hora: empieza a cargar, deja de cargar,
-  dom listo, se destruye el contenido, se cierra la ventana.
+Apagarlo no abre un agujero nuevo en esta app: lo que carga son su propia
+interfaz local y la pantalla de la suite, las dos sin integración con Node. En
+una máquina donde el problema no existe, no cambia nada.
 
-Y dos arreglos que salen del mismo reporte:
+Y por si no fuera eso, la misma versión lo dirá sin otra vuelta:
 
-· El TypeError. Se comprobaba `v.isDestroyed()` —la ventana— y el que estaba
-  muerto era su CONTENIDO. Ahora se comprueban los dos y además va dentro de un
-  try, porque entre la comprobación y la llamada puede morirse.
-· Si la prueba sin ventana dice que la suite sí contestó, el aviso ya no manda
-  al taller a revisar su proxy. Dice lo que se midió.
+· `child-process-gone` y `render-process-gone` a nivel de TODO el programa
+  —ventanas, GPU, red, utilidades—, con `reason` y `exitCode`. El escucha de
+  #108 estaba pegado sólo a la ventana de la licencia y no cazó nada.
+· un renglón ANTES de crear cada ventana, para que un registro que se corta de
+  golpe señale el punto exacto. El de la 0.19.4 se cortaba sin decir dónde.
 
-De paso, un segundo intento con una sesión limpia, sin la partición guardada. Si
-lo que estorbaba era `Partitions/suite101` —cosa que pasa—, con esto abre y el
-taller ni se entera. Cuesta volver a escribir la contraseña una vez; vale más
-eso que no abrir.
-
-Medido antes de empujar: verificar.py TODO OK, pruebas/licencia.mjs 53 de 53, y
-pruebas/arranque.mjs 18 de 18 con Electron de verdad (esa última corre a mano:
-pide pantalla, y el corredor no tiene).
+Medido antes de empujar: verificar.py TODO OK, pruebas/licencia.mjs 53 de 53 y
+pruebas/arranque.mjs 18 de 18 con Electron de verdad.
 """
 
 lineas: list[str] = []
@@ -163,10 +155,8 @@ def main() -> int:
     for archivo, sena, que in NO_DEBE:
         if sena in (repo / archivo).read_text(encoding="utf-8"):
             raise RuntimeError(f"{archivo} todavía trae {que}")
-    anotar("el parche dejó lo que debía, y se llevó lo que debía")
+    anotar("el parche dejó lo que debía")
 
-    # el JavaScript tiene que seguir siendo JavaScript: `node --check` cuesta
-    # un parpadeo y caza un paréntesis mal puesto antes de publicar nada
     for js in ("electron/licencia.js", "electron/licencia-nucleo.js", "electron/main.js"):
         correr(["node", "--check", js], cwd=repo)
     anotar("los tres archivos de la puerta pasan node --check")
@@ -187,8 +177,6 @@ def main() -> int:
     if "todo bien" not in salida:
         raise RuntimeError("pruebas/licencia.mjs no acabó en «todo bien»")
     anotar("pruebas/licencia.mjs: " + salida.strip().splitlines()[-1])
-    # `pruebas/arranque.mjs` necesita Electron con pantalla: se midió en el chat
-    # (18 de 18) y viaja en el repo para poder repetirla.
 
     # 4 · empujar
     if not correr(["git", "status", "--porcelain"], cwd=repo).strip():
