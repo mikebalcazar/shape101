@@ -10,21 +10,20 @@ manda cada archivo entero desde su contexto, así que no puede ni tocar el flujo
 ni reescribir `ui/app.js` (150 KB) o `verificar.py` (50 KB). Un corredor con
 token sí. Mike lo autorizó.
 
-## Este mandado (el octavo)
+## Este mandado (el noveno)
 
-#111 · la guardia antes de cerrar el splash — la causa de raíz
-  El volcado de caída de la 0.19.6, leído con los símbolos de Electron 33:
-  `CHECK(!BrowserMainRunner::ExitedMainMessageLoop())` en
-  render_process_host_impl.cc:1494, en el proceso principal, al crear la
-  ventana de activación. El programa ya se estaba cerrando. Por qué: cerrar el
-  splash —la única ventana— emite `window-all-closed` DENTRO de `destroy()`, de
-  forma síncrona (medido), y el escucha llamaba a `app.quit()` porque la
-  guardia `enLaPuerta` se ponía un renglón DESPUÉS. Desde la 0.19.1 (#100).
-  Se pone antes, se protege el arranque entero con `listo`, y se retiran las
-  dos conjeturas de #109 y #110.
+#112 · la interfaz no se queda vieja en la caché
+  Mike, 11-oct, con la 0.19.7 recién instalada y abriendo: «Solo me sale esto
+  en el engrane de configuración», y la foto era el menú de SEPTIEMBRE. El
+  instalador sí traía el menú nuevo (se abrió y se leyó). En su
+  `%APPDATA%\\nest101\\Cache` estaba el `app.js` del 16-sep: `StaticFiles`
+  no manda `Cache-Control`, y sin él Chromium da por fresco un archivo viejo
+  durante días sin volver a preguntar. El servidor manda ahora `no-cache`
+  (pregunta antes de usar; con ETag es un 304 barato) y el programa vacía la
+  caché antes de abrir la ventana, para lo ya guardado sin cabecera.
 
-Medido en el chat: `verificar.py` TODO OK (con el bloque #111), `pruebas/
-licencia.mjs` 53 de 53 y `pruebas/arranque.mjs` 19 de 19 con Electron de verdad.
+Medido en el chat: `verificar.py` TODO OK (con el bloque #112: cabecera, ETag,
+304 y orden en main.js), `clearCache()` corrido en Electron 33 de verdad.
 """
 from __future__ import annotations
 
@@ -37,66 +36,54 @@ import sys
 
 DUENO = "mikebalcazar"
 REPO = "nest101"
-PARCHES = ["build/111-la-guardia-antes.patch"]
+PARCHES = ["build/112-interfaz-sin-cache-vieja.patch"]
 APLICADORES: list[str] = []
 SENAS = [
-    ("electron/main.js", "enLaPuerta || !listo", "la guardia del arranque entero"),
-    ("electron/main.js", "listo = true;", "el momento en que ya se puede cerrar"),
-    ("claude/notas-0.19.7.txt", "arreglado de raíz", "las notas de la 0.19.7"),
-    ("verificar.py", "#111: LA GUARDIA VA ANTES", "la comprobación del orden"),
+    ("server.py", 'r.headers["Cache-Control"] = "no-cache"', "la cabecera que hace preguntar"),
+    ("server.py", "_UISinCacheVieja(directory=UI", "el montaje de la interfaz con esa cabecera"),
+    ("electron/main.js", "session.defaultSession.clearCache()", "el vaciado de la caché vieja"),
+    ("claude/notas-0.19.8.txt", "no se queda vieja", "las notas de la 0.19.8"),
+    ("verificar.py", "#112: LA INTERFAZ SE VUELVE A PEDIR", "la comprobación"),
 ]
 NO_DEBE = [
-    ("electron/main.js", "\napp.disableHardwareAcceleration();", "la gráfica apagada a ciegas"),
-    ("electron/main.js", 'appendSwitch("disable-features", "RendererCodeIntegrity")',
-     "el interruptor que no hacía falta"),
+    ("server.py", 'app.mount("/", StaticFiles(directory=UI', "el montaje viejo sin cabecera"),
 ]
 LIBRERIAS = [
     "fastapi", "uvicorn", "ezdxf", "openpyxl", "reportlab==4.4.10", "pillow",
     "numpy", "opencv-python-headless", "anthropic", "pypdfium2",
     "python-multipart", "truststore", "httpx",
 ]
-COMMIT = """La guardia va antes de cerrar el splash: la causa de raíz (#111)
+COMMIT = """La interfaz no se queda vieja en la caché (#112)
 
-El volcado de caída de la 0.19.6 en la máquina de Mike, leído con los símbolos
-de Electron 33.4.11, dice dónde y por qué. Proceso principal, `nest101.exe` sin
-`--type`, EXCEPTION_BREAKPOINT en:
+Mike, 11-oct-2026, con la 0.19.7 recién instalada y ya abriendo: «Solo me sale
+esto en el engrane de configuración». La foto era el menú de ajustes de
+SEPTIEMBRE —cuatro secciones, «General settings»—, no el de #105 con licencia,
+llave de Claude y unidades. El instalador publicado sí traía el nuevo: se
+abrió el 7z de adentro y `resources/app_py/ui/app.js` lleva `cLicCambiar`.
 
-    content::RenderProcessHostImpl::RenderProcessHostImpl(...)
-    render_process_host_impl.cc:1494
-    CHECK(!BrowserMainRunner::ExitedMainMessageLoop());
-
-Es decir: al crear la ventana de activación, el bucle principal YA HABÍA
-TERMINADO. El programa se estaba cerrando. Ningún driver, ninguna librería
-ajena, ninguna red: Electron había recibido la orden de cerrarse.
-
-De dónde salía la orden. `window-all-closed` se emite DENTRO de `destroy()`,
-de forma síncrona —medido: el escucha corre antes de que `destroy()` devuelva—.
-La puerta de licencia (#100, 0.19.1) cerraba el splash ANTES de abrir la
-ventana de activación, y el splash era la única ventana: cerrarlo emitía
-`window-all-closed` y el escucha llamaba a `app.quit()`. Todo lo que seguía
-corría sobre un programa muriéndose: la ventana de activación nacía, su
-contenido se desarmaba a los 20 ms sin que nadie la tocara (eso era el
-«flash»), y la siguiente ventana reventaba en el CHECK.
-
-#106 ya había visto el hueco y puso la guardia `enLaPuerta`… un renglón DESPUÉS
-de `cerrarSplash()`. Como el evento es síncrono, cuando la guardia se ponía ya
-era tarde. Un renglón.
+Lo que pasaba. En `%APPDATA%\\nest101\\Cache\\Cache_Data` había un archivo de
+143 KB del 16 de septiembre: el `app.js` de entonces. El servidor local sirve
+la interfaz con `StaticFiles`, que manda `ETag` y `Last-Modified` pero NO
+`Cache-Control`. Sin esa cabecera, Chromium —el de Electron— calcula la
+frescura por su cuenta: un archivo que llevaba semanas sin cambiar se da por
+bueno varios días SIN volver a preguntar. Tres actualizaciones seguidas, y la
+ventana seguía pintando la interfaz de hace un mes.
 
 Lo que cambia:
-· `enLaPuerta = true` va ANTES de `cerrarSplash()`.
-· `listo` cubre todo el arranque: hasta que la ventana principal exista,
-  quedarse sin ventanas no es una orden de cerrar. Antes de la puerta no hacía
-  falta porque el splash se cerraba con la ventana principal ya creada.
-· Se retiran #109 (`RendererCodeIntegrity`) y #110 (gráfica apagada): eran
-  conjeturas, y el volcado dijo otra cosa. El `crashReporter` de #110 se queda:
-  es lo que resolvió esto.
+· `server.py`: la interfaz viaja con `Cache-Control: no-cache`. No es «no
+  guardes», es «pregunta antes de usar»; como ya hay `ETag`, la pregunta es
+  un 304 contra el propio equipo. Vale también para quien la abra en un
+  navegador de verdad.
+· `main.js`: `session.defaultSession.clearCache()` antes de abrir la ventana.
+  La cabecera sólo gobierna lo que se guarde de aquí en adelante; lo ya
+  guardado sin ella seguiría dándose por fresco. Vaciar cuesta nada.
 
-Cómo se mide: verificar.py comprueba el ORDEN en el texto de main.js (corre en
-cada armado); pruebas/arranque.mjs comprueba el HECHO en el que se apoya —que
-el evento es síncrono— con Electron de verdad (a mano, 19 de 19).
+Cómo se mide: verificar.py pide index.html, app.js y styles.css y comprueba la
+cabecera, que viene ETag, que preguntar con él es un 304, y que el vaciado va
+antes de `crearVentana()` en main.js. `clearCache()` se corrió en Electron 33
+de verdad.
 
-Medido antes de empujar: verificar.py TODO OK, pruebas/licencia.mjs 53 de 53,
-pruebas/arranque.mjs 19 de 19.
+Medido antes de empujar: verificar.py TODO OK.
 """
 
 lineas: list[str] = []
