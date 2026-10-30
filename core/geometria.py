@@ -65,6 +65,105 @@ def _de_polilinea(puntos, cerrada):
     return prim
 
 
+#: Lo más que el trozo de una curva libre (spline, elipse) se separa de la curva
+#: de verdad, para el osnap. Diez micras en un dibujo en milímetros: por debajo
+#: de lo que corta una CNC de taller. El pintado usa una flecha mayor
+#: (`core/dibujo.FLECHA_MAX`): lo que se ve no necesita tanto como lo que se pica.
+FLECHA_OSNAP = 0.01
+
+
+def _trozos_de_curva(pts) -> list[dict]:
+    """Los segmentos de una curva teselada, marcados `curva`: el osnap los usa
+    para cercano, perpendicular e intersección, pero no les saca extremos ni
+    medios (ui/osnap.js), porque el extremo de un trozo no es nada."""
+    return [dict(_seg(pts[i], pts[i + 1]), curva=True) for i in range(len(pts) - 1)]
+
+
+def _teselar_parametrica(f, t0, t1, flecha, semillas=16, profundidad=12) -> list:
+    """Poligonal de una curva paramétrica `f(t)` que no se separa de ella más
+    de `flecha`: se parte donde el punto medio queda lejos de la cuerda."""
+    from .nurbs import _distancia_a_segmento as dist_seg
+    ts = [t0 + (t1 - t0) * i / semillas for i in range(semillas + 1)]
+    pts = [f(t) for t in ts]
+    salida = [pts[0]]
+
+    def partir(ta, pa, tb, pb, prof):
+        tm = (ta + tb) / 2
+        pm = f(tm)
+        if prof > 0 and dist_seg(pm, pa, pb) > flecha:
+            partir(ta, pa, tm, pm, prof - 1)
+            partir(tm, pm, tb, pb, prof - 1)
+        else:
+            salida.append(pb)
+
+    for i in range(semillas):
+        partir(ts[i], pts[i], ts[i + 1], pts[i + 1], profundidad)
+    return salida
+
+
+def _de_spline(e) -> list[dict]:
+    try:
+        c = e.curva()
+    except (ValueError, ArithmeticError):
+        pts = e.puntos_ajuste or e.puntos_control
+        return [_seg(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+    pts = c.teselar(FLECHA_OSNAP)
+    prim = _trozos_de_curva(pts)
+    # Los puntos que la definen, para jalarlos (grips). Van `aprox`: el osnap
+    # no se engancha a un punto de control, que casi nunca está sobre la curva.
+    for q in (e.puntos_ajuste or e.puntos_control):
+        prim.append({"tipo": "punto", "p": [q[0], q[1]], "clase": "definicion", "aprox": True})
+    a, b = c.dominio
+    ini, fin = c.punto(a), c.punto(b)
+    if e.cerrada or math.dist(ini, fin) < 1e-9:
+        prim.append({"tipo": "punto", "p": ini[:2], "clase": "extremo"})
+        return prim
+    prim.append({"tipo": "punto", "p": ini[:2], "clase": "extremo"})
+    prim.append({"tipo": "punto", "p": fin[:2], "clase": "extremo"})
+    # El medio de una curva es el de su **longitud**, no el de su parámetro:
+    # el parámetro no avanza parejo con la distancia.
+    largos = [0.0]
+    for i in range(len(pts) - 1):
+        largos.append(largos[-1] + math.dist(pts[i], pts[i + 1]))
+    mitad = largos[-1] / 2
+    for i in range(len(pts) - 1):
+        if largos[i + 1] >= mitad:
+            f = 0.0 if largos[i + 1] == largos[i] else (mitad - largos[i]) / (largos[i + 1] - largos[i])
+            aprox = [pts[i][0] + f * (pts[i + 1][0] - pts[i][0]), pts[i][1] + f * (pts[i + 1][1] - pts[i][1])]
+            prim.append({"tipo": "punto", "p": c.cercano(aprox)[1][:2], "clase": "medio"})
+            break
+    return prim
+
+
+def _de_elipse(e) -> list[dict]:
+    cx, cy = e.centro[0], e.centro[1]
+    ax, ay = e.eje_mayor[0], e.eje_mayor[1]
+    bx, by = -ay * e.razon, ax * e.razon
+    t0, t1 = e.param_ini, e.param_fin
+    while t1 <= t0:
+        t1 += 2 * math.pi
+    completa = t1 - t0 >= 2 * math.pi - 1e-9
+
+    def punto(t):
+        return [cx + ax * math.cos(t) + bx * math.sin(t), cy + ay * math.cos(t) + by * math.sin(t)]
+
+    pts = _teselar_parametrica(punto, t0, t1, FLECHA_OSNAP)
+    prim = _trozos_de_curva(pts)
+    prim.append({"tipo": "punto", "p": [cx, cy], "clase": "centro"})
+    for k in range(4):
+        t = k * math.pi / 2
+        tt = t
+        while tt < t0 - 1e-12:
+            tt += 2 * math.pi
+        if completa or tt <= t1 + 1e-12:
+            prim.append({"tipo": "punto", "p": punto(t), "clase": "cuadrante"})
+    if not completa:
+        prim.append({"tipo": "punto", "p": punto(t0), "clase": "extremo"})
+        prim.append({"tipo": "punto", "p": punto(t1), "clase": "extremo"})
+        prim.append({"tipo": "punto", "p": punto((t0 + t1) / 2), "clase": "medio"})
+    return prim
+
+
 def primitivas_de(doc: Documento, e, transf=None) -> list[dict]:
     """Primitivas exactas de una entidad, en coordenadas del dibujo."""
     t = e.tipo
@@ -79,16 +178,17 @@ def primitivas_de(doc: Documento, e, transf=None) -> list[dict]:
         return [{"tipo": "arco", "c": [e.centro[0], e.centro[1]], "r": e.radio,
                  "a0": e.ang_ini % 360, "a1": e.ang_fin % 360}]
     if t == "elipse":
-        # La elipse se aproxima por segmentos: el osnap sobre elipse sólo
-        # promete centro y cercano, y para eso alcanza. Sus ejes van aparte.
-        from . import dibujo
-        pts = dibujo._elipse(e)
-        prim = [_seg(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
-        prim.append({"tipo": "punto", "p": [e.centro[0], e.centro[1]], "clase": "centro"})
-        return prim
+        # La elipse se pinta en trozos, pero el osnap no se engancha a los
+        # trozos: van marcados `curva` (sólo cercano, perpendicular e
+        # intersección, con error menor que FLECHA_OSNAP). Lo que sí se ofrece
+        # es exacto y sale de la ecuación: centro, los cuatro cuadrantes (las
+        # puntas de los ejes) y, si es un arco de elipse, sus extremos y medio.
+        return _de_elipse(e)
     if t == "spline":
-        pts = e.puntos_ajuste or e.puntos_control
-        return [_seg(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+        # Igual que la elipse, sobre la NURBS exacta (core/nurbs.py). Hasta
+        # 0.21.9 esto unía los puntos de ajuste con rectas: el «cercano» de una
+        # spline caía hasta 60 unidades fuera de la curva.
+        return _de_spline(e)
     if t == "punto":
         return [{"tipo": "punto", "p": [e.p[0], e.p[1]], "clase": "nodo"}]
     if t == "solido":
