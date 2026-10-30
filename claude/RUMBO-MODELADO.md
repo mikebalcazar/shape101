@@ -36,7 +36,8 @@ documentación:
 | **A4** | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | hecha (t046) |
 | **B1** | Recortar splines y elipses (partir la NURBS por inserción de nudos) | hecha (t047) |
 | B1b | Extender una spline o una elipse más allá de su punta (en recta, en arco o suave, como Rhino) | pendiente |
-| B2 | Regiones: booleanas 2D de contornos cerrados (unión, resta, intersección) y rayado picando dentro, con islas | pendiente |
+| **B2a** | Regiones: booleanas 2D exactas de contornos cerrados (UNION, RESTA, INTERSECCION) con OpenCASCADE | hecha (t048) |
+| B2b | Rayado picando dentro, con islas | pendiente |
 | B3 | Desfase exacto de curvas libres (aproximado a la tolerancia, como Rhino) | pendiente |
 | C1 | Boceto 3D con varios contornos e islas (caras con huecos) | pendiente |
 | C2 | Splines y elipses entran al kernel como curvas B-spline, no como polilíneas | pendiente |
@@ -148,3 +149,23 @@ decide Mike.
   unidades. Se corren a cero al armar la spline recortada.
 - Extender una spline (alargarla) quedó aparte, en B1b: hay que decidir cómo
   se prolonga, y eso es una decisión de producto.
+
+## Lo que se aprendió en B2a
+
+- **Mike pidió seguir con B2 antes de publicar** (30-oct-2026). Se partió en
+  B2a (booleanas) y B2b (rayado picando dentro).
+- **Exacto de verdad**: cada contorno entra al kernel como cara (la spline como
+  B-spline, no como polilínea) y el borde vuelve como polilínea con bulges, o
+  como piezas agrupadas si trae splines o elipses (shape101 no tiene policurva).
+- **OpenCASCADE calcula mal el área de una cara con B-spline**: la misma curva
+  daba 28 803.8 o 28 807.8 según cómo se le pasara (la de verdad, 28 805.6).
+  El área se calcula aparte, exacta, por Green con Gauss-Legendre sobre la
+  curva (`regiones.area_de_contorno`); con ella, unión + intersección suman
+  exactamente las dos áreas aun con splines.
+- **OCP 7.8 renombró los arreglos** (`TColgp_Array1OfPnt` → `Array1_gp_Pnt`
+  en `OCP.collections`). Se importan de los dos lugares.
+- **Trampa del arnés de pruebas**: `fill("")` de Playwright vacía la caja con
+  un Supr simulado, y con algo seleccionado Supr borra la selección. Se
+  arregló `pruebas/navegador.comando`; no es un defecto del programa.
+- Pendiente aparte, encontrado al elegir alias: `UN` está a la vez en UNIDADES
+  y en UNIR (de antes). Se le pregunta a Mike cuál se queda.

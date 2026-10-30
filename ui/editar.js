@@ -1224,6 +1224,61 @@ Comandos.registrar({
 /* ===================================================================== */
 /* Unir  ·  varias líneas y arcos en una sola polilínea                  */
 /* ===================================================================== */
+/* ===================================================================== */
+/* Regiones: UNION, RESTA e INTERSECCION de contornos cerrados (fase B2a) */
+/* ===================================================================== */
+/* Exactas, con el kernel de los sólidos (core/regiones.py): los arcos siguen
+ * siendo arcos y las splines, splines. Las originales se reemplazan, como en
+ * AutoCAD; un Ctrl+Z las devuelve. */
+async function combinarRegiones(operacion, ids) {
+  Comandos.eco("Calculando con el kernel…");
+  const r = await post("/api/regiones", { ids, operacion });
+  aplicar(r);
+  if (r.error) return Comandos.eco(r.error, "malo");
+  if (!aplicarParche(r)) await recargarTrazos();
+  Seleccion.limpiar();
+  const u = (estado.resumen && estado.resumen.unidades) || "mm";
+  const piezas = r.piezas > 1 ? ` en ${r.piezas} piezas` : "";
+  Comandos.eco(`Listo${piezas}: ${r.contornos} contorno(s), área ${r.area.toFixed(2)} ${u}².`);
+}
+
+const CERRABLES = (e) => ["polilinea", "circulo", "elipse", "spline"].includes(e.tipo);
+
+Comandos.registrar({
+  nombre: "UNION", alias: ["UNI"],
+  ayuda: "Junta dos o más contornos cerrados en uno (región)",
+  correr: async () => {
+    const ids = await Seleccion.pedir({ mensaje: "Selecciona los contornos cerrados que se juntan" });
+    if (ids.length < 2) return Comandos.eco("Hacen falta al menos dos contornos cerrados.", "malo");
+    await combinarRegiones("union", ids);
+  },
+});
+
+Comandos.registrar({
+  nombre: "RESTA", alias: ["SUBTRACT", "SU"],
+  ayuda: "A un contorno cerrado le quita lo que tapan otros (región)",
+  correr: async () => {
+    const base = await Seleccion.pedirUna({
+      mensaje: "Elige el contorno al que se le quita", filtro: CERRABLES,
+      queja: "Se restan polilíneas cerradas, círculos, elipses y splines cerradas." });
+    Seleccion.limpiar();
+    const quitar = await Seleccion.pedir({ mensaje: "Selecciona lo que se le quita" });
+    const otros = quitar.filter((i) => i !== base);
+    if (!otros.length) return Comandos.eco("Falta lo que se le quita.", "malo");
+    await combinarRegiones("resta", [base, ...otros]);
+  },
+});
+
+Comandos.registrar({
+  nombre: "INTERSECCION", alias: ["INTERSECT", "INT"],
+  ayuda: "Deja sólo lo que tienen en común dos o más contornos cerrados (región)",
+  correr: async () => {
+    const ids = await Seleccion.pedir({ mensaje: "Selecciona los contornos cerrados que se cruzan" });
+    if (ids.length < 2) return Comandos.eco("Hacen falta al menos dos contornos cerrados.", "malo");
+    await combinarRegiones("interseccion", ids);
+  },
+});
+
 Comandos.registrar({
   nombre: "UNIR", alias: ["J", "UN", "JOIN"],
   ayuda: "Une líneas, arcos y polilíneas que se tocan en una sola polilínea",

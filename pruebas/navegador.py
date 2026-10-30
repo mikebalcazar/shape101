@@ -112,7 +112,11 @@ def comando(pagina, texto: str, confirmar: str = "Enter") -> None:
     espacio, que es como se dibuja en AutoCAD: la izquierda en la barra y la
     derecha en el ratón."""
     pagina.click("#cmd")
-    pagina.fill("#cmd", "")
+    # Se vacía la caja sin teclas. `fill("")` de Playwright la vacía con un
+    # Supr simulado, y con algo seleccionado Supr **borra lo seleccionado**
+    # (ui/comandos.js): una prueba con selección previa perdía la selección
+    # entera antes de teclear el comando (pasó en t048 con UNION).
+    pagina.evaluate("() => { document.querySelector('#cmd').value = ''; }")
     pagina.type("#cmd", texto, delay=10)
     pagina.keyboard.press(confirmar if confirmar != " " else "Space")
     pagina.wait_for_timeout(250)
