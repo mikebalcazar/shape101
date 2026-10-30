@@ -37,6 +37,40 @@ from core import config
 from core.documento import Documento
 
 
+def _escribir_spline(espacio, e, atributos) -> None:
+    """La SPLINE con su NURBS completa: grado, nudos, pesos y puntos de control.
+
+    Hasta 0.21.9 salía sólo con los puntos (de ajuste o de control), y cada
+    programa la volvía a interpolar a su modo: la de puntos de control cerrada
+    incluso salía **abierta**. Ahora va la curva misma, la que shape101 pinta y
+    a la que engancha el osnap; AutoCAD, Rhino o la CNC no tienen nada que
+    adivinar. Los puntos de ajuste viajan también, para que en AutoCAD se pueda
+    seguir editándola por ellos.
+    """
+    try:
+        c = e.curva()
+    except (ValueError, ArithmeticError):
+        pts = [tuple(p[:2]) for p in (e.puntos_ajuste or e.puntos_control)]
+        if len(pts) >= 2:
+            espacio.add_lwpolyline(pts, dxfattribs=atributos)
+        return
+    sp = espacio.add_spline(dxfattribs=atributos)
+    sp.dxf.degree = c.grado
+    sp.control_points = [(p[0], p[1], 0.0) for p in c.control]
+    sp.knots = list(c.nudos)
+    if c.pesos is not None:
+        sp.weights = list(c.pesos)
+        sp.set_flag_state(sp.RATIONAL, True)
+    if e.puntos_ajuste:
+        sp.fit_points = [(p[0], p[1], 0.0) for p in e.puntos_ajuste]
+    if e.cerrada:
+        # Cerrada y periódica: así la marca AutoCAD cuando el lazo es suave en
+        # la costura, que es como la arma core/nurbs.py.
+        sp.set_flag_state(sp.CLOSED, True)
+        sp.set_flag_state(sp.PERIODIC, True)
+    sp.set_flag_state(sp.PLANAR, True)
+
+
 class ResultadoEscritura:
     def __init__(self):
         self.escritas = 0
@@ -154,12 +188,7 @@ def _escribir_entidad(espacio, e, res: ResultadoEscritura) -> None:
             espacio.add_ellipse(tuple(e.centro[:2]), tuple(e.eje_mayor[:2]), e.razon,
                                 e.param_ini, e.param_fin, dxfattribs=a)
         elif t == "spline":
-            if e.puntos_ajuste:
-                espacio.add_spline([tuple(p[:2]) for p in e.puntos_ajuste],
-                                   degree=e.grado, dxfattribs=a)
-            else:
-                espacio.add_open_spline([tuple(p[:2]) for p in e.puntos_control],
-                                        degree=e.grado, dxfattribs=a)
+            _escribir_spline(espacio, e, a)
         elif t == "punto":
             espacio.add_point(tuple(e.p[:2]), dxfattribs=a)
         elif t == "solido":

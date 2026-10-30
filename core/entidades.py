@@ -200,14 +200,48 @@ class Elipse(Entidad):
 
 @dataclass
 class Spline(Entidad):
+    """Una curva libre. **Es su NURBS**: ver `core/nurbs.py`.
+
+    Tres maneras de definirla, de la más explícita a la más cómoda:
+
+    - `puntos_control` + `nudos` (+ `pesos`): la NURBS tal cual, como viene de
+      un DXF o de otro programa. Nadie la reinterpreta.
+    - `puntos_ajuste`: pasa por ellos. La NURBS se calcula al vuelo, con el
+      mismo método que AutoCAD (`nurbs.interpolar_cad`).
+    - sólo `puntos_control`: se deja jalar por ellos, con nudos uniformes.
+
+    `nudos` y `pesos` vacíos quieren decir «derivados»: un archivo viejo no los
+    trae y abre igual. Si se editan los puntos de ajuste, los nudos explícitos
+    dejan de valer y se vacían (lo hace quien edita, ver `server.py`).
+    """
     puntos_ajuste: list = field(default_factory=list)     # por dónde pasa
     puntos_control: list = field(default_factory=list)    # o los de control
     grado: int = 3
     cerrada: bool = False
+    nudos: list = field(default_factory=list)             # vacío = derivados
+    pesos: list = field(default_factory=list)             # vacío = todos 1
     tipo: str = field(init=False, default="spline")
 
+    def curva(self):
+        """La NURBS exacta de esta spline. Lanza ValueError si los datos no
+        alcanzan para una curva (menos de dos puntos, nudos que no cuadran)."""
+        from . import nurbs
+        if self.nudos and self.puntos_control:
+            return nurbs.Nurbs(self.grado, [p[:2] for p in self.puntos_control],
+                               self.nudos, self.pesos or None)
+        if self.puntos_ajuste:
+            if self.cerrada:
+                return nurbs.interpolar_cerrada([p[:2] for p in self.puntos_ajuste], 3)
+            return nurbs.interpolar_cad(self.puntos_ajuste)
+        if self.cerrada:
+            return nurbs.periodica_uniforme([p[:2] for p in self.puntos_control], self.grado or 3)
+        return nurbs.sujeta_uniforme([p[:2] for p in self.puntos_control], self.grado or 3)
+
     def caja(self):
-        return _caja_de_puntos(self.puntos_ajuste or self.puntos_control)
+        try:
+            return self.curva().caja()
+        except (ValueError, ArithmeticError):
+            return _caja_de_puntos(self.puntos_ajuste or self.puntos_control)
 
 
 @dataclass

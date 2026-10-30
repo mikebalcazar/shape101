@@ -657,8 +657,12 @@ const Seleccion = (() => {
     // polilíneas: un tramo con bulge no se traslada sin deformarse.
     const medios = [];
     const esLineal = prims.length && prims.every((pr) => pr.tipo === "seg") &&
-      !prims.some((pr) => pr.aprox || pr.cota);
+      !prims.some((pr) => pr.aprox || pr.cota || pr.curva);
     for (const pr of prims) {
+      // Una curva libre (spline, elipse) se pinta en trozos, pero sus grips son
+      // los puntos que la definen, no las esquinas de los trozos; y el medio
+      // de la curva es para el osnap, no para jalarlo.
+      if (pr.curva || (pr.tipo === "punto" && pr.clase === "medio")) continue;
       if (pr.tipo === "seg") {
         pts.push(pr.a, pr.b);
         if (esLineal) medios.push({ p: [(pr.a[0] + pr.b[0]) / 2, (pr.a[1] + pr.b[1]) / 2], a: pr.a, b: pr.b });
@@ -816,9 +820,12 @@ const Seleccion = (() => {
     } else if (ent.tipo === "punto") {
       cambios.p = p;
     } else if (ent.tipo === "spline") {
-      const pts = (ent.puntos_ajuste || []).map((v) => v.slice());
-      const i = pts.findIndex((v) => igual(v, punto));
-      if (i >= 0) { pts[i] = p; cambios.puntos_ajuste = pts; }
+      // Se jala un punto de ajuste o, en una spline CV, uno de control. Los
+      // nudos no se tocan: con el mismo número de puntos siguen valiendo.
+      const campo = (ent.puntos_ajuste || []).length ? "puntos_ajuste" : "puntos_control";
+      const pts = (ent[campo] || []).map((v) => v.slice());
+      const i = pts.findIndex((v) => igual([v[0], v[1]], punto));
+      if (i >= 0) { pts[i] = [p[0], p[1]]; cambios[campo] = pts; }
     }
     if (!Object.keys(cambios).length) return;
     const r = await patch(`/api/entidad/${id}`, { cambios });

@@ -187,7 +187,7 @@ const Osnap = (() => {
   function proyecciones(amplias, cercanas, p, base, tol) {
     const out = [];
     for (const pr of amplias) {
-      if (pr.tipo !== "seg" || pr.aprox || pr.cota) continue;
+      if (pr.tipo !== "seg" || pr.aprox || pr.cota || pr.curva) continue;
       const pie = pieEnRecta(pr, base);
       if (!pie) continue;
       const v = [pie.p[0] - base[0], pie.p[1] - base[1]];
@@ -222,11 +222,20 @@ const Osnap = (() => {
     const mete = (modo, punto) => { if (punto && modos[modo]) out.push({ modo, p: punto, id: pr.id }); };
 
     if (pr.tipo === "punto") {
+      // Los puntos exactos de una curva libre (spline, elipse) traen su clase:
+      // el extremo es extremo, no un nodo cualquiera. Ver core/geometria.py.
+      if (pr.clase === "extremo" || pr.clase === "medio" || pr.clase === "cuadrante") {
+        mete(pr.clase, pr.p);
+        return out;
+      }
       mete("nodo", pr.p);
       if (pr.clase === "centro") mete("centro", pr.p);
       return out;
     }
-    if (pr.tipo === "seg") {
+    if (pr.tipo === "seg" && pr.curva) {
+      // Un trozo de curva teselada: el extremo o el medio de un trozo no son
+      // de la curva. Sólo cercano y perpendicular (y la intersección, abajo).
+    } else if (pr.tipo === "seg") {
       mete("extremo", pr.a);
       mete("extremo", pr.b);
       mete("medio", [(pr.a[0] + pr.b[0]) / 2, (pr.a[1] + pr.b[1]) / 2]);
@@ -309,7 +318,7 @@ const Osnap = (() => {
         for (const pr of Indice.enPlano(W).prims) if (cerca(pr, p, tol * 12)) lejanas.push(pr);
       }
       for (const pr of lejanas) {
-        if (pr.tipo !== "seg" || pr.aprox || pr.cota) continue;
+        if (pr.tipo !== "seg" || pr.aprox || pr.cota || pr.curva) continue;
         if (excluir && excluir.has(pr.id)) continue;
         if (cerca(pr, p, tol * 12)) amplias.push(pr);
         if (amplias.length > 80) break;

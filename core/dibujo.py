@@ -121,77 +121,6 @@ def _elipse(e):
     return pts
 
 
-def _spline(puntos, cerrada=False):
-    """Curva suave que pasa por los puntos dados (Catmull–Rom).
-
-    Se dibuja la curva, no el zigzag entre los puntos: una spline que en
-    pantalla parece una polilínea engaña al que la dibuja, que la ve recta y la
-    da por buena. Al DXF sale como SPLINE de verdad, con sus puntos de ajuste.
-    """
-    pts = [[p[0], p[1]] for p in puntos]
-    if len(pts) < 3:
-        return pts
-    if cerrada:
-        pts = pts + [pts[0]]
-    ext = [pts[0]] + pts + [pts[-1]]
-    salida = [pts[0]]
-    POR_TRAMO = 12
-    for i in range(len(pts) - 1):
-        p0, p1, p2, p3 = ext[i], ext[i + 1], ext[i + 2], ext[i + 3]
-        for k in range(1, POR_TRAMO + 1):
-            t = k / POR_TRAMO
-            t2, t3 = t * t, t * t * t
-            salida.append([
-                0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t
-                       + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2
-                       + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
-                0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t
-                       + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2
-                       + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)])
-    return salida
-
-
-def _bspline(control, grado=3, cerrada=False):
-    """Curva por **puntos de control** (B-spline uniforme sujeta, De Boor).
-
-    Es la curva «orgánica» que pidió Mike el 6-sep —la de Bézier de Illustrator
-    y la de puntos de control de Rhino—: no pasa por los puntos, se deja jalar
-    por ellos. Pasar por ellos con Catmull-Rom, como se hacía, la deformaba: en
-    AutoCAD la misma spline se veía distinta. Sujeta en los extremos para que
-    arranque y termine en el primero y el último punto, como el SPLINE CV de
-    AutoCAD.
-    """
-    pts = [[p[0], p[1]] for p in control]
-    if cerrada and len(pts) > 2:
-        pts = pts + pts[:grado]
-    n = len(pts)
-    if n < 2:
-        return pts
-    k = max(1, min(grado, n - 1))
-    # Nudos: sujetos (k+1 repetidos en cada punta) y uniformes en medio.
-    interiores = n - k - 1
-    nudos = [0.0] * (k + 1) + [(i + 1) / (interiores + 1) for i in range(interiores)] + [1.0] * (k + 1)
-
-    def de_boor(t):
-        # Tramo donde cae t.
-        s = k
-        while s < n - 1 and t >= nudos[s + 1]:
-            s += 1
-        d = [pts[j + s - k][:] for j in range(k + 1)]
-        for r in range(1, k + 1):
-            for j in range(k, r - 1, -1):
-                den = nudos[j + 1 + s - r] - nudos[j + s - k]
-                a = 0.0 if den == 0 else (t - nudos[j + s - k]) / den
-                d[j] = [(1 - a) * d[j - 1][0] + a * d[j][0], (1 - a) * d[j - 1][1] + a * d[j][1]]
-        return d[k]
-
-    POR_TRAMO = 10
-    total = max(1, n - k) * POR_TRAMO
-    salida = [de_boor(i / total) for i in range(total)]
-    salida.append(pts[-1] if not cerrada else salida[0])
-    return salida
-
-
 def _transformar(pts, px, py, sx, sy, rot_grados):
     r = math.radians(rot_grados)
     cos, sen = math.cos(r), math.sin(r)
@@ -220,12 +149,15 @@ def _trazos_de(doc: Documento, e, base: dict, transformar=None) -> list[dict]:
     elif t == "elipse":
         lineas.append(_elipse(e))
     elif t == "spline":
-        # Con puntos de ajuste, pasa por ellos; sólo con los de control, se deja
-        # jalar por ellos (ver _bspline). Son dos curvas distintas a propósito.
-        if e.puntos_ajuste:
-            lineas.append(_spline(e.puntos_ajuste, e.cerrada))
-        else:
-            lineas.append(_bspline(e.puntos_control, e.grado or 3, e.cerrada))
+        # Se pinta la NURBS exacta (core/nurbs.py), la misma que va al DXF y al
+        # osnap. Hasta 0.21.9 se pintaba Catmull-Rom: hasta 63 unidades lejos de
+        # la curva que AutoCAD dibujaba con los mismos puntos.
+        try:
+            lineas.append(e.curva().teselar(FLECHA_MAX))
+        except (ValueError, ArithmeticError):
+            pts = [[p[0], p[1]] for p in (e.puntos_ajuste or e.puntos_control)]
+            if len(pts) >= 2:
+                lineas.append(pts)
     elif t == "punto":
         d = 1.0
         lineas.append([[e.p[0] - d, e.p[1]], [e.p[0] + d, e.p[1]]])
