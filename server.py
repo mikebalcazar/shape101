@@ -30,6 +30,7 @@ from core import capas as mod_capas
 from core import actualizar as mod_actualizar, avisos as mod_avisos, config, unidades as mod_unidades, cotas as mod_cotas, licencias as mod_licencias, dibujo, geometria, papel, pdf_fondo, preferencias, proyecto, t101x
 from core import unir as mod_unir
 from core import tolerancia as mod_tolerancia
+from core import recortar as mod_recortar
 from core import agrupar as mod_agrupar
 from core import oda as mod_oda
 from core import version as mod_version
@@ -378,6 +379,31 @@ def unidades_cambiar(entrada: _Unidades):
     except ValueError as exc:
         _error(exc)
     return {**r, **S.resumen()}
+
+
+class _RecortarCurva(BaseModel):
+    id: str
+    punto: list[float]
+    cruces: list[list[float]]
+
+
+@app.post("/api/recortar/curva")
+def recortar_curva(entrada: _RecortarCurva):
+    """El plan de RECORTAR sobre una spline o una elipse (core/recortar.py).
+
+    No cambia nada: devuelve qué cambia y qué se agrega, y el navegador lo
+    aplica con /api/operacion, como el recorte de una línea. Así hay un solo
+    camino para guardar y para deshacer."""
+    with S.candado:
+        e = S.doc.entidades.get(entrada.id)
+        if e is None:
+            raise HTTPException(404, f"no existe la entidad {entrada.id}")
+        try:
+            return mod_recortar.recortar(S.doc, e, entrada.punto, entrada.cruces)
+        except mod_recortar.NoSeRecorta as exc:
+            return {"error": str(exc)}
+        except ValueError as exc:
+            _error(exc)
 
 
 class _Tolerancia(BaseModel):

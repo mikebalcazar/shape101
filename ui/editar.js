@@ -681,13 +681,14 @@ async function recortarOExtender(extender) {
     const id = await Seleccion.pedirUna({
       mensaje: extender ? "Elige la línea a extender" : "Elige el trozo a quitar",
       icono: extender ? "extender" : "tijera",
-      filtro: (e) => ["linea", "arco"].includes(e.tipo) || (!extender && e.tipo === "polilinea"),
-      queja: extender ? "Por ahora se extienden líneas y arcos." : "Por ahora se recortan líneas, arcos y polilíneas.",
+      filtro: (e) => ["linea", "arco"].includes(e.tipo) || (!extender && ["polilinea", "spline", "elipse"].includes(e.tipo)),
+      queja: extender ? "Por ahora se extienden líneas y arcos." : "Por ahora se recortan líneas, arcos, polilíneas, splines y elipses.",
     });
     const ent = await api(`/api/entidad/${id}`);
     const p = [estado.cursor.x, estado.cursor.y];
 
     if (ent.tipo === "polilinea") { await recortarPolilinea(ent, p); Seleccion.limpiar(); return; }
+    if (ent.tipo === "spline" || ent.tipo === "elipse") { await recortarCurva(ent, p); Seleccion.limpiar(); return; }
 
     // cruces con todo lo demás
     const mias = estado.geometria.filter((pr) => pr.id === id);
@@ -943,6 +944,27 @@ async function recortarPolilinea(ent, p) {
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* Recortar una spline o una elipse (fase B1 del rumbo de modelado)        */
+/*                                                                        */
+/* Los cruces se calculan aquí, exactos sobre la curva (ui/curvas.js); la  */
+/* curva se parte en el servidor, donde está la NURBS (core/recortar.py).  */
+/* Lo que vuelve se aplica como cualquier operación: un Ctrl+Z la deshace. */
+/* ---------------------------------------------------------------------- */
+async function recortarCurva(ent, p) {
+  const mias = estado.geometria.filter((pr) => pr.id === ent.id && pr.tipo !== "punto");
+  const otras = estado.geometria.filter((pr) => pr.id !== ent.id && pr.tipo !== "punto");
+  const cruces = [];
+  for (const a of mias) for (const b of otras) for (const q of Osnap.interseccion(a, b)) cruces.push(q);
+  if (!cruces.length) {
+    return Comandos.eco("Esa curva no cruza con ninguna otra entidad: no hay dónde recortar.", "malo");
+  }
+  const plan = await post("/api/recortar/curva", { id: ent.id, punto: p, cruces });
+  if (plan.error) return Comandos.eco(plan.error, "malo");
+  await aplicarOperacion({ accion: ent.tipo === "spline" ? "Recortar spline" : "Recortar elipse",
+                           cambios: plan.cambios, agregar: plan.agregar });
+}
+
 function alargada(pr) {
   if (pr.tipo !== "seg") return pr;
   const dx = pr.b[0] - pr.a[0], dy = pr.b[1] - pr.a[1];
@@ -953,7 +975,7 @@ function alargada(pr) {
 }
 
 Comandos.registrar({ nombre: "RECORTAR", alias: ["RC", "TR"],
-  ayuda: "Quita el trozo de línea, arco o polilínea que señales", correr: () => recortarOExtender(false) });
+  ayuda: "Quita el trozo de línea, arco, polilínea, spline o elipse que señales", correr: () => recortarOExtender(false) });
 Comandos.registrar({ nombre: "EXTENDER", alias: ["EXT", "EX"],
   ayuda: "Alarga una línea hasta lo primero que encuentre", correr: () => recortarOExtender(true) });
 

@@ -34,7 +34,8 @@ documentación:
 | **A2** | Intersección exacta curva-curva (spline, elipse, arco, recta) en el osnap y en recortar/extender; cercano y perpendicular exactos | hecha (t044) |
 | **A3** | Tolerancia absoluta única del documento (0.05 mm por omisión, comando TOLERANCIA), usada por unir, recortar, extender y al coser el boceto de un sólido | hecha (t045) |
 | **A4** | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | hecha (t046) |
-| B1 | Recortar y extender sobre splines y elipses (partir la NURBS por inserción de nudos) | pendiente |
+| **B1** | Recortar splines y elipses (partir la NURBS por inserción de nudos) | hecha (t047) |
+| B1b | Extender una spline o una elipse más allá de su punta (en recta, en arco o suave, como Rhino) | pendiente |
 | B2 | Regiones: booleanas 2D de contornos cerrados (unión, resta, intersección) y rayado picando dentro, con islas | pendiente |
 | B3 | Desfase exacto de curvas libres (aproximado a la tolerancia, como Rhino) | pendiente |
 | C1 | Boceto 3D con varios contornos e islas (caras con huecos) | pendiente |
@@ -131,3 +132,19 @@ decide Mike.
 - Una spline importada se jala por sus **puntos de control** (como en Rhino);
   al mover uno, los puntos de ajuste que traía se vacían porque ya no están
   sobre la curva.
+
+## Lo que se aprendió en B1
+
+- **Mike pidió seguir con B1 antes de publicar** (30-oct-2026).
+- **Partir una curva es exacto**: `Nurbs.tramo` inserta cada punta hasta
+  multiplicidad p (Boehm) y se queda con lo de en medio; `seguida_de` pega dos
+  pedazos (abrir una cerrada por la costura). Probado en mil tramos y uniones
+  al azar: 6e-13 de la curva original.
+- **El navegador calcula los cruces; Python parte la curva.** RECORTAR manda
+  el clic y los cruces exactos a /api/recortar/curva, que devuelve el plan, y
+  se aplica con /api/operacion: un solo camino para guardar y deshacer.
+- **Otra vez los nudos que no empiezan en cero**: el pedazo conserva los de la
+  curva original (empieza en 0.3, por ejemplo) y ezdxf lo leía corrido 300
+  unidades. Se corren a cero al armar la spline recortada.
+- Extender una spline (alargarla) quedó aparte, en B1b: hay que decidir cómo
+  se prolonga, y eso es una decisión de producto.

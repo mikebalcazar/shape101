@@ -444,6 +444,55 @@ class Nurbs:
         NURBS es invariante afín, que es la razón de guardar la curva así."""
         return Nurbs(self.grado, [f(p) for p in self.control], self.nudos, self.pesos)
 
+    def tramo(self, t0: float, t1: float) -> "Nurbs":
+        """El pedazo de la curva entre t0 y t1 (t0 < t1, dentro del dominio),
+        como otra NURBS sujeta: la **misma** curva, no una aproximación.
+
+        Se inserta cada punta hasta multiplicidad p (Boehm): ahí la curva pasa
+        por un punto de control, y lo de en medio son los puntos y nudos del
+        pedazo. Es como Rhino parte una curva al recortarla."""
+        a, b = self.dominio
+        t0, t1 = max(a, t0), min(b, t1)
+        if not t0 < t1:
+            raise ValueError("el tramo está vacío")
+        p = self.grado
+        U = list(self.nudos)
+        P = [list(c) + [1.0] for c in self.control] if self.pesos is None else \
+            [[c[j] * w for j in range(self.dim)] + [w] for c, w in zip(self.control, self.pesos)]
+        for u in (t0, t1):
+            while U.count(u) < p:
+                U, P = _insertar_nudo(p, U, P, u)
+        ultimo0 = max(i for i, k in enumerate(U) if k == t0)
+        ia = ultimo0 - p + 1                     # las p copias de t0: U[ia .. ia+p-1]
+        ib = min(i for i, k in enumerate(U) if k == t1)
+        nudos = [t0] + U[ia:ib + p] + [t1]
+        H = P[ia - 1:ib]
+        control = [[q[j] / q[-1] for j in range(self.dim)] for q in H]
+        pesos = [q[-1] for q in H] if self.pesos is not None else None
+        return Nurbs(p, control, nudos, pesos)
+
+    def seguida_de(self, otra: "Nurbs") -> "Nurbs":
+        """Esta curva y luego `otra`, que empieza donde ésta termina, como una
+        sola NURBS. Las dos deben ser sujetas y del mismo grado. En la unión
+        queda un nudo de multiplicidad p: la curva pasa por ahí sin cambiar de
+        forma (es lo que hace falta para abrir una cerrada por su costura)."""
+        p = self.grado
+        if otra.grado != p:
+            raise ValueError("para seguirse, las dos curvas deben tener el mismo grado")
+        if math.dist(self.control[-1], otra.control[0]) > 1e-9 * max(1.0, math.hypot(*self.control[-1][:2])):
+            raise ValueError("la segunda curva no empieza donde termina la primera")
+        corre = self.nudos[-1] - otra.nudos[0]
+        nudos = self.nudos[:-1] + [k + corre for k in otra.nudos[p + 1:]]
+        control = self.control + otra.control[1:]
+        if self.pesos is None and otra.pesos is None:
+            pesos = None
+        else:
+            w1 = self.pesos or [1.0] * len(self.control)
+            w2 = otra.pesos or [1.0] * len(otra.control)
+            k = w1[-1] / w2[0]            # mismos pesos en el punto que comparten
+            pesos = w1 + [w * k for w in w2[1:]]
+        return Nurbs(p, control, nudos, pesos)
+
     def a_dict(self) -> dict:
         d = {"grado": self.grado, "control": [list(p) for p in self.control],
              "nudos": list(self.nudos)}
