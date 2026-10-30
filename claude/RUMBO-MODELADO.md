@@ -31,7 +31,7 @@ documentación:
 | Fase | Qué | Estado |
 |---|---|---|
 | **A1** | NURBS exacta en la spline: nudos y pesos, pintado y osnap sobre la curva, DXF con la curva completa; elipse exacta en el osnap | hecha (t043) |
-| A2 | Intersección exacta curva-curva (spline, elipse, arco, recta) en el osnap y en recortar/extender | pendiente |
+| **A2** | Intersección exacta curva-curva (spline, elipse, arco, recta) en el osnap y en recortar/extender; cercano y perpendicular exactos | hecha (t044) |
 | A3 | Tolerancia absoluta única del documento, usada por unir, recortar e intersecar | pendiente |
 | A4 | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | pendiente |
 | B1 | Recortar y extender sobre splines y elipses (partir la NURBS por inserción de nudos) | pendiente |
@@ -62,3 +62,21 @@ decide Mike.
   candidatos dentro de la flecha y Gauss-Newton con búsqueda lineal.
 - **Nudos negativos**: la interpolación cerrada los produce y hay lectores de
   DXF que no los esperan. Se corren a cero.
+
+## Lo que se aprendió en A2
+
+- **Mike decidió seguir con A2 antes de publicar** (30-oct-2026): A1 y A2 salen
+  juntas en la próxima versión.
+- **Los trozos dicen dónde buscar, la curva dice qué hay.** Cada trozo viaja
+  con la definición exacta de su curva (`def`) y su tramo de parámetro; el
+  navegador refina sobre ella (ui/curvas.js). Por eso los trozos pasaron de
+  una flecha de 0.01 a 0.1: menos peso para el navegador y respuesta exacta.
+- **Con una recta o un arco, la raíz no se adivina**: los extremos de cada
+  trozo están sobre la curva, así que el cambio de signo la encierra y la
+  bisección con secante no puede fallar. El cruce de las cuerdas puede caer
+  en un trozo y el de la curva en el vecino: se busca también ahí.
+- **Antes vs después** (t044 con el refinado apagado): cruces hasta 0.08
+  fuera de la curva, pies de perpendicular a 13 unidades; RECORTAR dejaba la
+  punta 0.009 fuera de la spline. Ahora, menos de una millonésima.
+- Una curva vista desde otro plano (Frontal, Lateral) pierde su `def` al
+  llevarse: ahí se usa la cuerda, que ya está dentro de la flecha.

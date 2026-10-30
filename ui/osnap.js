@@ -81,7 +81,12 @@ const Osnap = (() => {
     return dist(p, e0) <= dist(p, e1) ? e0 : e1;
   }
 
-  const sobre = (pr, p) => pr.tipo === "seg" ? sobreSeg(pr, p)
+  // Un trozo de curva libre trae su curva exacta (`def`): el cercano se saca
+  // de la curva, no de la cuerda del trozo. Ver ui/curvas.js.
+  const exacta = (pr) => pr.curva && pr.def && typeof Curvas !== "undefined";
+
+  const sobre = (pr, p) => exacta(pr) ? Curvas.cercano(pr, p)
+    : pr.tipo === "seg" ? sobreSeg(pr, p)
     : pr.tipo === "arco" ? sobreArco(pr, p) : pr.p;
 
   /* --- Intersecciones --------------------------------------------------- */
@@ -134,7 +139,7 @@ const Osnap = (() => {
     return salida;
   }
 
-  function interseccion(A, B) {
+  function interseccionCuerdas(A, B) {
     if (A.tipo === "punto" || B.tipo === "punto") return [];
     if (A.tipo === "seg" && B.tipo === "seg") return segSeg(A, B);
     if (A.tipo === "seg" && B.tipo === "arco") return segArco(A, B);
@@ -142,8 +147,31 @@ const Osnap = (() => {
     return arcoArco(A, B);
   }
 
+  /* Con una curva libre de por medio, el cruce de las cuerdas sólo dice que
+   * hay un cruce **cerca**; el punto se recalcula sobre la curva exacta. Si el
+   * refinado no encuentra nada limpio (dos curvas tangentes, por ejemplo), se
+   * queda el de las cuerdas, que está a menos de la flecha. */
+  function interseccion(A, B) {
+    const aproximados = interseccionCuerdas(A, B);
+    if (!aproximados.length || !(exacta(A) || exacta(B))) return aproximados;
+    return aproximados.map((q) => {
+      let r = null;
+      if (exacta(A) && exacta(B)) r = Curvas.conCurva(A, B, q);
+      else {
+        const C = exacta(A) ? A : B, O = exacta(A) ? B : A;
+        if (O.tipo === "seg") r = Curvas.conRecta(O, C);
+        else if (O.tipo === "arco") {
+          r = Curvas.conCirculo(O, C);
+          if (r && !enArco(O, Math.atan2(r[1] - O.c[1], r[0] - O.c[0]) * 180 / Math.PI)) r = null;
+        }
+      }
+      return r || q;
+    });
+  }
+
   /* --- Perpendicular ---------------------------------------------------- */
   function perpendicular(pr, base) {
+    if (exacta(pr)) return Curvas.perpendicular(pr, base);
     if (pr.tipo === "seg") {
       const [ax, ay] = pr.a, [bx, by] = pr.b;
       const dx = bx - ax, dy = by - ay;

@@ -66,26 +66,39 @@ def _de_polilinea(puntos, cerrada):
 
 
 #: Lo más que el trozo de una curva libre (spline, elipse) se separa de la curva
-#: de verdad, para el osnap. Diez micras en un dibujo en milímetros: por debajo
-#: de lo que corta una CNC de taller. El pintado usa una flecha mayor
-#: (`core/dibujo.FLECHA_MAX`): lo que se ve no necesita tanto como lo que se pica.
-FLECHA_OSNAP = 0.01
+#: de verdad. Los trozos sólo dicen **dónde** buscar: cada uno viaja con la
+#: definición exacta de su curva (`def`) y su tramo de parámetro (`ta`, `tb`), y
+#: el navegador calcula sobre la curva misma el cruce, el cercano y la
+#: perpendicular (ui/curvas.js). Por eso pueden ser gruesos: una décima, la
+#: misma escala que la apertura del osnap en un plano a escala de taller.
+FLECHA_OSNAP = 0.1
 
 
-def _trozos_de_curva(pts) -> list[dict]:
-    """Los segmentos de una curva teselada, marcados `curva`: el osnap los usa
-    para cercano, perpendicular e intersección, pero no les saca extremos ni
-    medios (ui/osnap.js), porque el extremo de un trozo no es nada."""
-    return [dict(_seg(pts[i], pts[i + 1]), curva=True) for i in range(len(pts) - 1)]
+def _trozos_de_curva(pares, definicion) -> list[dict]:
+    """Los segmentos de una curva teselada, marcados `curva`, cada uno con su
+    tramo de parámetro y la definición exacta. El osnap no les saca extremos
+    ni medios (el extremo de un trozo no es nada); el cercano, la perpendicular
+    y las intersecciones se refinan sobre `def` en ui/curvas.js."""
+    salida = []
+    for i in range(len(pares) - 1):
+        (ta, a), (tb, b) = pares[i], pares[i + 1]
+        salida.append(dict(_seg(a, b), curva=True, ta=ta, tb=tb, **{"def": definicion}))
+    return salida
+
+
+def _def_nurbs(c) -> dict:
+    return {"t": "nurbs", "p": c.grado, "c": [[p[0], p[1]] for p in c.control],
+            "k": list(c.nudos), "w": list(c.pesos) if c.pesos is not None else None}
 
 
 def _teselar_parametrica(f, t0, t1, flecha, semillas=16, profundidad=12) -> list:
     """Poligonal de una curva paramétrica `f(t)` que no se separa de ella más
-    de `flecha`: se parte donde el punto medio queda lejos de la cuerda."""
+    de `flecha`, como pares (t, punto): se parte donde el punto medio queda
+    lejos de la cuerda."""
     from .nurbs import _distancia_a_segmento as dist_seg
     ts = [t0 + (t1 - t0) * i / semillas for i in range(semillas + 1)]
     pts = [f(t) for t in ts]
-    salida = [pts[0]]
+    salida = [(ts[0], pts[0])]
 
     def partir(ta, pa, tb, pb, prof):
         tm = (ta + tb) / 2
@@ -94,7 +107,7 @@ def _teselar_parametrica(f, t0, t1, flecha, semillas=16, profundidad=12) -> list
             partir(ta, pa, tm, pm, prof - 1)
             partir(tm, pm, tb, pb, prof - 1)
         else:
-            salida.append(pb)
+            salida.append((tb, pb))
 
     for i in range(semillas):
         partir(ts[i], pts[i], ts[i + 1], pts[i + 1], profundidad)
@@ -107,8 +120,9 @@ def _de_spline(e) -> list[dict]:
     except (ValueError, ArithmeticError):
         pts = e.puntos_ajuste or e.puntos_control
         return [_seg(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
-    pts = c.teselar(FLECHA_OSNAP)
-    prim = _trozos_de_curva(pts)
+    pares = c._teselar_t(FLECHA_OSNAP)
+    pts = [p for _, p in pares]
+    prim = _trozos_de_curva(pares, _def_nurbs(c))
     # Los puntos que la definen, para jalarlos (grips). Van `aprox`: el osnap
     # no se engancha a un punto de control, que casi nunca está sobre la curva.
     for q in (e.puntos_ajuste or e.puntos_control):
@@ -147,8 +161,8 @@ def _de_elipse(e) -> list[dict]:
     def punto(t):
         return [cx + ax * math.cos(t) + bx * math.sin(t), cy + ay * math.cos(t) + by * math.sin(t)]
 
-    pts = _teselar_parametrica(punto, t0, t1, FLECHA_OSNAP)
-    prim = _trozos_de_curva(pts)
+    pares = _teselar_parametrica(punto, t0, t1, FLECHA_OSNAP)
+    prim = _trozos_de_curva(pares, {"t": "elipse", "c": [cx, cy], "u": [ax, ay], "v": [bx, by], "r": [t0, t1]})
     prim.append({"tipo": "punto", "p": [cx, cy], "clase": "centro"})
     for k in range(4):
         t = k * math.pi / 2
