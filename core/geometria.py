@@ -66,23 +66,31 @@ def _de_polilinea(puntos, cerrada):
 
 
 #: Lo más que el trozo de una curva libre (spline, elipse) se separa de la curva
-#: de verdad. Los trozos sólo dicen **dónde** buscar: cada uno viaja con la
-#: definición exacta de su curva (`def`) y su tramo de parámetro (`ta`, `tb`), y
-#: el navegador calcula sobre la curva misma el cruce, el cercano y la
-#: perpendicular (ui/curvas.js). Por eso pueden ser gruesos: una décima, la
-#: misma escala que la apertura del osnap en un plano a escala de taller.
-FLECHA_OSNAP = 0.1
+#: de verdad. Los trozos sólo dicen **dónde** buscar: el navegador calcula
+#: sobre la curva exacta el cruce, el cercano y la perpendicular
+#: (ui/curvas.js). Por eso pueden ser gruesos: un cuarto de milímetro, que en
+#: pantalla no se distingue y que sirve igual para picar y seleccionar. Más
+#: finos, un plano de tres mil splines mandaba sesenta megas de trozos.
+FLECHA_OSNAP = 0.25
 
 
 def _trozos_de_curva(pares, definicion) -> list[dict]:
     """Los segmentos de una curva teselada, marcados `curva`, cada uno con su
-    tramo de parámetro y la definición exacta. El osnap no les saca extremos
-    ni medios (el extremo de un trozo no es nada); el cercano, la perpendicular
-    y las intersecciones se refinan sobre `def` en ui/curvas.js."""
-    salida = []
-    for i in range(len(pares) - 1):
-        (ta, a), (tb, b) = pares[i], pares[i + 1]
-        salida.append(dict(_seg(a, b), curva=True, ta=ta, tb=tb, **{"def": definicion}))
+    tramo de parámetro. El osnap no les saca extremos ni medios (el extremo de
+    un trozo no es nada); el cercano, la perpendicular y las intersecciones se
+    refinan sobre la curva exacta en ui/curvas.js.
+
+    La definición exacta (`def`) va **sólo en el primer trozo**; los demás la
+    encuentran por el id de la entidad (Curvas.defDe). Con la curva en cada
+    trozo, un plano de tres mil splines mandaba más de cien megas al navegador.
+    """
+    # Armado a mano y compartiendo los puntos entre trozos vecinos (el fin de
+    # uno es el inicio del otro): en un plano de miles de splines, armar cada
+    # trozo con _seg() y dict() era la mitad del tiempo de toda la geometría.
+    salida = [{"tipo": "seg", "a": pares[i][1], "b": pares[i + 1][1], "curva": True,
+               "ta": pares[i][0], "tb": pares[i + 1][0]} for i in range(len(pares) - 1)]
+    if salida:
+        salida[0]["def"] = definicion
     return salida
 
 
@@ -125,7 +133,9 @@ def _de_spline(e) -> list[dict]:
     prim = _trozos_de_curva(pares, _def_nurbs(c))
     # Los puntos que la definen, para jalarlos (grips). Van `aprox`: el osnap
     # no se engancha a un punto de control, que casi nunca está sobre la curva.
-    for q in (e.puntos_ajuste or e.puntos_control):
+    # Una spline con nudos propios (la que viene de un DXF) se jala por sus
+    # puntos de control, como en Rhino; la nuestra, por los de ajuste.
+    for q in (e.puntos_control if e.nudos else (e.puntos_ajuste or e.puntos_control)):
         prim.append({"tipo": "punto", "p": [q[0], q[1]], "clase": "definicion", "aprox": True})
     a, b = c.dominio
     ini, fin = c.punto(a), c.punto(b)
@@ -142,9 +152,12 @@ def _de_spline(e) -> list[dict]:
     mitad = largos[-1] / 2
     for i in range(len(pts) - 1):
         if largos[i + 1] >= mitad:
+            # Dentro del trozo la curva es casi recta: el parámetro que
+            # corresponde a media longitud se interpola, y el punto se evalúa
+            # sobre la curva misma (sin buscar un cercano por cada spline).
             f = 0.0 if largos[i + 1] == largos[i] else (mitad - largos[i]) / (largos[i + 1] - largos[i])
-            aprox = [pts[i][0] + f * (pts[i + 1][0] - pts[i][0]), pts[i][1] + f * (pts[i + 1][1] - pts[i][1])]
-            prim.append({"tipo": "punto", "p": c.cercano(aprox)[1][:2], "clase": "medio"})
+            t = pares[i][0] + f * (pares[i + 1][0] - pares[i][0])
+            prim.append({"tipo": "punto", "p": c.punto(t)[:2], "clase": "medio"})
             break
     return prim
 
@@ -238,7 +251,15 @@ def primitivas_de(doc: Documento, e, transf=None) -> list[dict]:
         for sub in bl.entidades:
             for pr in primitivas_de(doc, sub):
                 if pr["tipo"] == "seg":
-                    salida.append(_seg(mover(pr["a"]), mover(pr["b"])))
+                    seg = _seg(mover(pr["a"]), mover(pr["b"]))
+                    # Las marcas viajan: un trozo de spline sigue siendo trozo
+                    # (sin extremos falsos), y lo ajeno sigue siendo ajeno. La
+                    # `def` no: sus coordenadas son las del bloque, no las de
+                    # la inserción, y el trozo se queda con su cuerda.
+                    for marca in ("curva", "aprox", "cota"):
+                        if pr.get(marca):
+                            seg[marca] = True
+                    salida.append(seg)
                 elif pr["tipo"] == "arco":
                     # una escala no uniforme deja de dar un arco; se ignora ese
                     # caso a propósito en vez de dar un centro que miente
@@ -248,8 +269,14 @@ def primitivas_de(doc: Documento, e, transf=None) -> list[dict]:
                                        "a0": (pr["a0"] + e.rotacion) % 360,
                                        "a1": (pr["a1"] + e.rotacion) % 360})
                 else:
-                    salida.append({"tipo": "punto", "p": mover(pr["p"]),
-                                   "clase": pr.get("clase", "nodo")})
+                    # Los puntos de definición de una spline son para jalarla;
+                    # dentro de un bloque se jala la inserción, no la spline.
+                    if pr.get("clase") == "definicion":
+                        continue
+                    punto = {"tipo": "punto", "p": mover(pr["p"]), "clase": pr.get("clase", "nodo")}
+                    if pr.get("aprox"):
+                        punto["aprox"] = True
+                    salida.append(punto)
         return salida
     if t == "rayado":
         prim = []

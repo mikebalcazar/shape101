@@ -211,8 +211,9 @@ class Spline(Entidad):
     - sólo `puntos_control`: se deja jalar por ellos, con nudos uniformes.
 
     `nudos` y `pesos` vacíos quieren decir «derivados»: un archivo viejo no los
-    trae y abre igual. Si se editan los puntos de ajuste, los nudos explícitos
-    dejan de valer y se vacían (lo hace quien edita, ver `server.py`).
+    trae y abre igual. Con nudos propios, la spline se edita por sus puntos de
+    control (los nudos siguen valiendo con el mismo número de puntos) y los de
+    ajuste, si los traía, se vacían al mover uno (ver ui/seleccion.js).
     """
     puntos_ajuste: list = field(default_factory=list)     # por dónde pasa
     puntos_control: list = field(default_factory=list)    # o los de control

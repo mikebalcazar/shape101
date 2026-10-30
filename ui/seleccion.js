@@ -94,8 +94,8 @@ const Seleccion = (() => {
       const plano = pr.plano || "XY";
       if (plano === W) continue;
       // La curva exacta (`def`) está en las coordenadas de su plano: llevada a otro
-      // ya no vale, y el trozo se queda con su cuerda.
-      if (pr.tipo === "seg") meter({ ...pr, def: undefined, a: llevar(plano, pr.a[0], pr.a[1]), b: llevar(plano, pr.b[0], pr.b[1]) });
+      // ya no vale (`llevada`), y el trozo se queda con su cuerda.
+      if (pr.tipo === "seg") meter({ ...pr, def: undefined, llevada: true, a: llevar(plano, pr.a[0], pr.a[1]), b: llevar(plano, pr.b[0], pr.b[1]) });
       else if (pr.tipo === "punto") meter({ ...pr, p: llevar(plano, pr.p[0], pr.p[1]) });
       else if (pr.tipo === "arco") {
         let barrido = ((pr.a1 - pr.a0) % 360 + 360) % 360;
@@ -822,12 +822,19 @@ const Seleccion = (() => {
     } else if (ent.tipo === "punto") {
       cambios.p = p;
     } else if (ent.tipo === "spline") {
-      // Se jala un punto de ajuste o, en una spline CV, uno de control. Los
-      // nudos no se tocan: con el mismo número de puntos siguen valiendo.
-      const campo = (ent.puntos_ajuste || []).length ? "puntos_ajuste" : "puntos_control";
+      // Se jala un punto de ajuste o, en una spline CV o con nudos propios
+      // (la de un DXF), uno de control. Los nudos no se tocan: con el mismo
+      // número de puntos siguen valiendo. Movido un punto de control, los de
+      // ajuste que traía ya no están sobre la curva: se vacían.
+      const explicita = (ent.nudos || []).length > 0;
+      const campo = !explicita && (ent.puntos_ajuste || []).length ? "puntos_ajuste" : "puntos_control";
       const pts = (ent[campo] || []).map((v) => v.slice());
       const i = pts.findIndex((v) => igual([v[0], v[1]], punto));
-      if (i >= 0) { pts[i] = [p[0], p[1]]; cambios[campo] = pts; }
+      if (i >= 0) {
+        pts[i] = [p[0], p[1]];
+        cambios[campo] = pts;
+        if (explicita && (ent.puntos_ajuste || []).length) cambios.puntos_ajuste = [];
+      }
     }
     if (!Object.keys(cambios).length) return;
     const r = await patch(`/api/entidad/${id}`, { cambios });

@@ -18,6 +18,27 @@
  */
 
 const Curvas = (() => {
+  /* --- La definición de cada trozo ---------------------------------------
+   * El servidor manda la `def` sólo en el primer trozo de cada curva
+   * (core/geometria.py). Los demás la buscan por el id de su entidad en un
+   * mapa que se rehace cuando cambia el arreglo de la geometría: ese arreglo
+   * siempre se reemplaza entero (app.js, indice.js, papel.js), nunca se edita
+   * en su lugar, así que la identidad basta para saber que hay que rehacerlo. */
+  let _arreglo = null;
+  let _defs = new Map();
+
+  function defDe(pr) {
+    if (pr.llevada) return null;          // vista desde otro plano: sus coordenadas ya no son las de la def
+    if (pr.def) return pr.def;
+    const g = typeof estado !== "undefined" ? estado.geometria : null;
+    if (g !== _arreglo) {
+      _arreglo = g;
+      _defs = new Map();
+      for (const q of g || []) if (q.def && q.curva) _defs.set(q.id, q.def);
+    }
+    return _defs.get(pr.id) || null;
+  }
+
   /* --- Evaluar ---------------------------------------------------------- */
   function tramo(def, t) {
     const { p, k, c } = def;
@@ -88,6 +109,12 @@ const Curvas = (() => {
 
   const punto = (def, t) => evaluar(def, t)[0];
 
+  /** El trozo con su `def` a la mano (sin tocar el original), o null. */
+  function conDef(pr) {
+    const d = defDe(pr);
+    return d ? (pr.def === d ? pr : { ...pr, def: d }) : null;
+  }
+
   /* --- Raíz de una función en [a, b] con cambio de signo ---------------- */
   /* Bisección con secante: siempre converge (el intervalo nunca se sale de
    * donde está la raíz) y en curvas suaves llega en pocas vueltas. */
@@ -136,6 +163,8 @@ const Curvas = (() => {
    * trozo están sobre la curva, así que si caen de lados opuestos de la recta
    * la raíz está entre ellos, sin adivinar. */
   function conRecta(S, pr) {
+    pr = conDef(pr);
+    if (!pr) return null;
     const ux = S.b[0] - S.a[0], uy = S.b[1] - S.a[1];
     const f = (t) => { const q = punto(pr.def, t); return ux * (q[1] - S.a[1]) - uy * (q[0] - S.a[0]); };
     const t = raizCerca(f, pr);
@@ -148,6 +177,8 @@ const Curvas = (() => {
 
   /** Cruce del círculo de A con el trozo; quien llama comprueba el barrido. */
   function conCirculo(A, pr) {
+    pr = conDef(pr);
+    if (!pr) return null;
     const f = (t) => { const q = punto(pr.def, t); return Math.hypot(q[0] - A.c[0], q[1] - A.c[1]) - A.r; };
     const t = raizCerca(f, pr);
     return t === null ? null : punto(pr.def, t);
@@ -157,6 +188,8 @@ const Curvas = (() => {
    * sus cuerdas. Si no converge dentro de los dos tramos, no se inventa nada:
    * se devuelve null y quien llama se queda con el cruce de las cuerdas. */
   function conCurva(A, B, q0) {
+    A = conDef(A); B = conDef(B);
+    if (!A || !B) return null;
     const proyectar = (pr) => {
       const ax = pr.b[0] - pr.a[0], ay = pr.b[1] - pr.a[1];
       const L2 = ax * ax + ay * ay;
@@ -208,17 +241,21 @@ const Curvas = (() => {
     return mejor;
   }
 
-  const cercano = (pr, p) => punto(pr.def, cercanoT(pr, p));
+  const cercano = (pr, p) => { const c = conDef(pr); return c ? punto(c.def, cercanoT(c, p)) : null; };
 
   /** El pie de la perpendicular desde `base`: el punto donde (C - base)·C' = 0.
    * Null si en este trozo no hay ninguno (el pie cae en otro trozo o fuera). */
   function perpendicular(pr, base) {
+    pr = conDef(pr);
+    if (!pr) return null;
     const f = (t) => { const [q, d] = evaluar(pr.def, t); return (q[0] - base[0]) * d[0] + (q[1] - base[1]) * d[1]; };
     const t = raiz(f, pr.ta, pr.tb);
     return t === null ? null : punto(pr.def, t);
   }
 
-  return { evaluar, punto, conRecta, conCirculo, conCurva, cercano, perpendicular };
+  const tiene = (pr) => !!defDe(pr);
+
+  return { evaluar, punto, defDe, tiene, conRecta, conCirculo, conCurva, cercano, perpendicular };
 })();
 
 if (typeof module !== "undefined") module.exports = Curvas;

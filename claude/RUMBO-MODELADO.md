@@ -33,7 +33,7 @@ documentación:
 | **A1** | NURBS exacta en la spline: nudos y pesos, pintado y osnap sobre la curva, DXF con la curva completa; elipse exacta en el osnap | hecha (t043) |
 | **A2** | Intersección exacta curva-curva (spline, elipse, arco, recta) en el osnap y en recortar/extender; cercano y perpendicular exactos | hecha (t044) |
 | **A3** | Tolerancia absoluta única del documento (0.05 mm por omisión, comando TOLERANCIA), usada por unir, recortar, extender y al coser el boceto de un sólido | hecha (t045) |
-| A4 | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | pendiente |
+| **A4** | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | hecha (t046) |
 | B1 | Recortar y extender sobre splines y elipses (partir la NURBS por inserción de nudos) | pendiente |
 | B2 | Regiones: booleanas 2D de contornos cerrados (unión, resta, intersección) y rayado picando dentro, con islas | pendiente |
 | B3 | Desfase exacto de curvas libres (aproximado a la tolerancia, como Rhino) | pendiente |
@@ -101,3 +101,33 @@ decide Mike.
   valor lo **pide**, no lo recibe pegado al nombre.
 - Las guardas numéricas (`1e-9`, `1e-12`) no son tolerancia de modelado y se
   quedaron como estaban.
+
+## Lo que se aprendió en A4
+
+- **Mike dejó REA y Rhino para después** (30-oct-2026): REA no se instaló ni
+  se usó; las técnicas de estas fases son de libro (Piegl y Tiller) y de la
+  documentación pública de Rhino. Para estudiar Rhino lo útil son archivos
+  que él exporte (.3dm, DXF, STEP); Remote Control sólo conecta Mac o Linux.
+- **Promover las splines casi tumba el rendimiento.** Un plano de 3 000
+  splines: abrir 9.6 s, pintar 9.2 s, primitivas 20 s y 107 MB (en `main`,
+  conservadas: 1.0, 0.2, 1.3 s y 38 MB). Lo que lo arregló:
+  - teselar por **segmentos de Bézier** (descomposición A5.6 de una pasada) y
+    muestrear parejo con numpy, con la **cota exacta** de la flecha
+    p(p-1)/8·max|Δ²P|/m²: los vértices siguen sobre la curva y la flecha se
+    cumple con garantía;
+  - la caja por los **puntos de control** (envolvente convexa), sin teselar;
+  - la `def` **una vez por curva** (en su primer trozo), no en cada trozo;
+  - pintar a 0.1 (la finura de siempre para splines ajenas) y trozos del
+    osnap a 0.25 (el refinado exacto los hace sólo una pista).
+  Quedó: abrir 0.6 s, pintar 0.9 s, primitivas 2.0 s, 54 MB. Abrir más pintar
+  empata con `main`; el total es ~35 % más en un plano hecho sólo de splines,
+  a cambio de que todas sean exactas y editables.
+- **Splines dentro de bloques**: al llevar las primitivas a la inserción se
+  perdían las marcas (`curva`, `aprox`) y el osnap daba extremos falsos y
+  nodos en los puntos de control. Ahora las marcas viajan y los grips de
+  definición no.
+- **Una NURBS con un nudo interior repetido más que el grado no es una curva**
+  que un CAD dibuje: se rechaza, y si viene de un DXF se queda conservada.
+- Una spline importada se jala por sus **puntos de control** (como en Rhino);
+  al mover uno, los puntos de ajuste que traía se vacían porque ya no están
+  sobre la curva.

@@ -83,9 +83,9 @@ const Osnap = (() => {
 
   // Un trozo de curva libre trae su curva exacta (`def`): el cercano se saca
   // de la curva, no de la cuerda del trozo. Ver ui/curvas.js.
-  const exacta = (pr) => pr.curva && pr.def && typeof Curvas !== "undefined";
+  const exacta = (pr) => pr.curva && typeof Curvas !== "undefined" && Curvas.tiene(pr);
 
-  const sobre = (pr, p) => exacta(pr) ? Curvas.cercano(pr, p)
+  const sobre = (pr, p) => exacta(pr) ? (Curvas.cercano(pr, p) || sobreSeg(pr, p))
     : pr.tipo === "seg" ? sobreSeg(pr, p)
     : pr.tipo === "arco" ? sobreArco(pr, p) : pr.p;
 

@@ -179,8 +179,8 @@ const Indice = (() => {
         const plano = pr.plano || "XY";
         if (plano === W) continue;
         // La curva exacta (`def`) está en las coordenadas de su plano: llevada a otro
-        // ya no vale, y el trozo se queda con su cuerda.
-        if (pr.tipo === "seg") meter({ ...pr, def: undefined, a: llevar(plano, pr.a[0], pr.a[1]), b: llevar(plano, pr.b[0], pr.b[1]) });
+        // ya no vale (`llevada`), y el trozo se queda con su cuerda.
+        if (pr.tipo === "seg") meter({ ...pr, def: undefined, llevada: true, a: llevar(plano, pr.a[0], pr.a[1]), b: llevar(plano, pr.b[0], pr.b[1]) });
         else if (pr.tipo === "punto") meter({ ...pr, p: llevar(plano, pr.p[0], pr.p[1]) });
         else if (pr.tipo === "arco") {
           let barrido = ((pr.a1 - pr.a0) % 360 + 360) % 360;

@@ -27,6 +27,9 @@ MIN_SEG = 6
 # tantos segmentos como pida no separarse más de FLECHA_MAX mm de la curva,
 # entre MIN_SEG y SEGMENTOS por vuelta. Los círculos grandes siguen a 72.
 FLECHA_MAX = 0.05
+# Las splines se pintan a 0.1: la finura con que siempre se vieron las de un
+# plano ajeno (`core/dxf_lector.FINURA`). Ver el comentario en _trazos_de.
+FLECHA_SPLINE = 0.1
 # Se probó redondear las coordenadas a milésimas antes de mandarlas (13-sep):
 # el JSON bajaba 40 % (19 → 12 MB en el plano de prueba) pero el redondeo en
 # Python costaba 0.6 s por apertura y el navegador no ganaba nada medible.
@@ -151,9 +154,12 @@ def _trazos_de(doc: Documento, e, base: dict, transformar=None) -> list[dict]:
     elif t == "spline":
         # Se pinta la NURBS exacta (core/nurbs.py), la misma que va al DXF y al
         # osnap. Hasta 0.21.9 se pintaba Catmull-Rom: hasta 63 unidades lejos de
-        # la curva que AutoCAD dibujaba con los mismos puntos.
+        # la curva que AutoCAD dibujaba con los mismos puntos. La finura es la
+        # de siempre para las splines de un plano ajeno (FLECHA_SPLINE): un
+        # plano de arquitectura trae miles, y a la mitad de flecha el pintado
+        # costaba ocho veces más sin que se viera la diferencia.
         try:
-            lineas.append(e.curva().teselar(FLECHA_MAX))
+            lineas.append(e.curva().teselar(FLECHA_SPLINE))
         except (ValueError, ArithmeticError):
             pts = [[p[0], p[1]] for p in (e.puntos_ajuste or e.puntos_control)]
             if len(pts) >= 2:

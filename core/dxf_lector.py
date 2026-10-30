@@ -8,13 +8,15 @@ además un informe de qué entró como qué, y la interfaz lo enseña. Un plano 
 pierde capas al abrirse y no avisa es peor que uno que no abre.
 
 Qué entra nativo hoy: LINE, LWPOLYLINE, POLYLINE (2D), CIRCLE, ARC, ELLIPSE,
-POINT, SOLID, TEXT, MTEXT, INSERT, HATCH.
+POINT, SOLID, TEXT, MTEXT, INSERT, HATCH, y SPLINE cuando trae su NURBS
+completa (puntos de control y nudos) y es plana: se guarda tal cual y no se
+mueve (ver `_spline`).
 
-Qué entra como `Cruda` a propósito: SPLINE, DIMENSION, LEADER, MULTILEADER y
-todo lo demás. No es descuido — reescribir una cota o una spline con nudos
-propios las mueve un pelo, y un plano de taller no se puede mover un pelo. Se
-promueven a nativas en F2 (spline) y F5 (cotas), cuando haya herramientas que
-de verdad las editen.
+Qué entra como `Cruda` a propósito: la SPLINE de sólo puntos de ajuste,
+DIMENSION, LEADER, MULTILEADER y todo lo demás. No es descuido — reescribir una
+cota, o una spline que cada programa interpola a su modo, las mueve un pelo, y
+un plano de taller no se puede mover un pelo. Las cotas se promueven en F5,
+cuando haya herramientas que de verdad las editen.
 """
 
 from __future__ import annotations
@@ -36,7 +38,7 @@ from .entidades import Bloque
 
 NATIVAS = {
     "LINE", "LWPOLYLINE", "POLYLINE", "CIRCLE", "ARC", "ELLIPSE",
-    "POINT", "SOLID", "TEXT", "MTEXT", "INSERT", "HATCH",
+    "POINT", "SOLID", "TEXT", "MTEXT", "INSERT", "HATCH", "SPLINE",
 }
 
 
@@ -185,6 +187,43 @@ def _comunes(e_dxf) -> dict:
 
 # --- Conversión de entidades ----------------------------------------------
 
+def _spline(e_dxf, comunes: dict):
+    """La SPLINE como nativa, **sólo** si trae su NURBS completa y es plana.
+
+    Con puntos de control y nudos, la curva está dicha en el archivo: se guarda
+    tal cual (grado, nudos, pesos, puntos) y shape101 la pinta, la engancha y
+    la vuelve a escribir sin moverla (core/nurbs.py, t046). Una spline sólo de
+    puntos de ajuste no: cada programa la interpola a su modo, y reinterpretarla
+    sí podría moverla un pelo. Ésa se queda conservada, como siempre. Tampoco
+    entra la que no está en el plano XY: el 2D de shape101 no la modela.
+
+    Los puntos de ajuste, si vienen además de los de control, se guardan para
+    devolverlos al DXF: AutoCAD los usa para editarla por ellos.
+    """
+    try:
+        control = list(e_dxf.control_points)
+        nudos = [float(k) for k in e_dxf.knots]
+        grado = int(e_dxf.dxf.degree)
+    except Exception:
+        return None
+    if len(control) < 2 or len(nudos) != len(control) + grado + 1:
+        return None
+    if any(abs(float(p[2])) > 1e-9 for p in control):
+        return None
+    pesos = [float(w) for w in e_dxf.weights] if len(e_dxf.weights) else []
+    sp = ent_mod.Spline(
+        puntos_control=[[float(p[0]), float(p[1])] for p in control],
+        puntos_ajuste=[[float(p[0]), float(p[1])] for p in e_dxf.fit_points],
+        grado=grado, cerrada=bool(e_dxf.closed), nudos=nudos,
+        pesos=pesos if pesos and any(abs(w - 1.0) > 1e-12 for w in pesos) else [],
+        **comunes)
+    try:
+        sp.curva()
+    except (ValueError, ArithmeticError):
+        return None                     # nudos que no cuadran: mejor conservada
+    return sp
+
+
 def _convertir(e_dxf, informe: Informe):
     t = e_dxf.dxftype()
     c = _comunes(e_dxf)
@@ -212,6 +251,8 @@ def _convertir(e_dxf, informe: Informe):
                                   razon=float(e_dxf.dxf.ratio),
                                   param_ini=float(e_dxf.dxf.start_param),
                                   param_fin=float(e_dxf.dxf.end_param), **c)
+        if t == "SPLINE":
+            return _spline(e_dxf, c)
         if t == "POINT":
             return ent_mod.Punto(p=_xy(e_dxf.dxf.location), **c)
         if t == "SOLID":
