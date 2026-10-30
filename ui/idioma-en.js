@@ -63,6 +63,11 @@ const IDIOMA_EN = {
   "Unidades: {0} (lo dibujado se escaló ×{1}; las cotas con {2} decimales).": "Units: {0} (drawing scaled ×{1}; dimensions with {2} decimals).",
   "Unidades: {0} (sin escalar: los números se quedan).": "Units: {0} (not scaled: numbers stay).",
   "Cambia la unidad de trabajo del dibujo: mm, cm o m": "Change the drawing's working unit: mm, cm or m",
+  "Tolerancia del documento en mm: a qué distancia dos puntos se tocan (TOLERANCIA 0.05)": "Document tolerance in mm: how close two points must be to touch (TOLERANCE 0.05)",
+  "Tolerancia del documento en mm <{0}>": "Document tolerance in mm <{0}>",
+  "Escribe la tolerancia en mm, por ejemplo TOLERANCIA 0.05": "Type the tolerance in mm, for example TOLERANCE 0.05",
+  "Tolerancia del documento: {0} mm.": "Document tolerance: {0} mm.",
+  "No se cambió: {0}": "Not changed: {0}",
   // Pregunta con valor por omisión: «Distancia del desfase <60>» → traduce la pregunta y conserva el valor.
   "{0} <{1}>": "{0} <{1}>",
   "Buscar actualizaciones…": "Check for updates…",

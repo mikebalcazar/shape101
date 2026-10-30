@@ -299,7 +299,7 @@ def _en_su_plano(est: "Estado", perfil: dict):
     """
     from build123d import Vector
 
-    ents = perfil["entidades"]
+    ents = boceto.soldadas(perfil["entidades"])
     cara = boceto.cara_de(ents)
     aristas = [a for e in ents for a in boceto.aristas_de(e)]
     spec = perfil.get("plano")
@@ -318,7 +318,7 @@ def _alambre_en_su_plano(est: "Estado", perfil: dict) -> "Wire":
     negaría por no cerrar, y con razón. Un camino que cierra también vale —un
     anillo—, sólo que aquí nunca se le pide que cierre.
     """
-    ents = perfil["entidades"]
+    ents = boceto.soldadas(perfil["entidades"])
     aristas = [a for e in ents for a in boceto.aristas_de(e)]
     if not aristas:
         raise ValueError("el camino de un barrido no trae geometría")
