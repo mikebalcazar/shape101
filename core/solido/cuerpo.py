@@ -39,7 +39,10 @@ _cache: dict[str, tuple[str, historial.Regenerado]] = {}
 
 
 def _huella(operaciones: list[dict]) -> str:
-    return json.dumps(operaciones, sort_keys=True, ensure_ascii=False)
+    # La tolerancia entra a la huella: con otra, el mismo boceto puede cerrar
+    # o no cerrar, y la pieza guardada en caché ya no sería la que toca.
+    from core import tolerancia
+    return json.dumps([tolerancia.kernel_mm(), operaciones], sort_keys=True, ensure_ascii=False)
 
 
 def regenerar(cuerpo) -> historial.Regenerado:

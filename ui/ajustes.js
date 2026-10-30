@@ -306,6 +306,37 @@ Comandos.registrar({
   correr: (args) => Ajustes.unidades(args),
 });
 
+/* La tolerancia del documento (core/tolerancia.py): a qué distancia dos puntos
+ * son el mismo al unir, recortar, extender y coser el contorno de un sólido.
+ * Va en milímetros siempre, sea cual sea la unidad del dibujo. */
+Comandos.registrar({
+  nombre: "TOLERANCIA", alias: ["TOL", "TOLERANCE"],
+  ayuda: "Tolerancia del documento en mm: a qué distancia dos puntos se tocan (TOLERANCIA 0.05)",
+  correr: async (args) => {
+    const actual = (estado.resumen && estado.resumen.tolerancia_mm) || 0.05;
+    // En la línea de comando el espacio es Enter (como en AutoCAD): el valor
+    // no llega pegado al nombre, se pide. Si llega (Comandos.correr desde un
+    // botón o una prueba), se usa tal cual. Va en mm aunque el dibujo esté en
+    // cm o en m: por eso no se pide con pedirNumero, que convierte unidades.
+    let texto = args && args.length ? String(args[0]) : null;
+    if (texto === null) {
+      texto = await Entrada.pedirTexto({ mensaje: `Tolerancia del documento en mm <${actual}>`,
+                                         valor: String(actual), libre: false });
+    }
+    if (texto === "" || texto === String(actual)) {
+      return Comandos.eco(`Tolerancia del documento: ${actual} mm.`);
+    }
+    const mm = parseFloat(String(texto).replace(",", "."));
+    if (!Number.isFinite(mm)) return Comandos.eco("Escribe la tolerancia en mm, por ejemplo TOLERANCIA 0.05", "malo");
+    try {
+      aplicar(await post("/api/tolerancia", { mm }));
+      Comandos.eco(`Tolerancia del documento: ${mm} mm.`);
+    } catch (e) {
+      Comandos.eco(`No se cambió: ${e.message || e}`, "malo");
+    }
+  },
+});
+
 Comandos.registrar({
   nombre: "IDIOMA", alias: ["LANG"],
   ayuda: "Cambia el idioma de la interfaz: IDIOMA EN · IDIOMA ES",

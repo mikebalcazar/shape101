@@ -29,6 +29,7 @@ from pydantic import BaseModel
 from core import capas as mod_capas
 from core import actualizar as mod_actualizar, avisos as mod_avisos, config, unidades as mod_unidades, cotas as mod_cotas, licencias as mod_licencias, dibujo, geometria, papel, pdf_fondo, preferencias, proyecto, t101x
 from core import unir as mod_unir
+from core import tolerancia as mod_tolerancia
 from core import agrupar as mod_agrupar
 from core import oda as mod_oda
 from core import version as mod_version
@@ -99,6 +100,10 @@ class Sesion:
             "espacio": self.espacio,
             "unidades": d.unidades,
             "mm_por_unidad": d.mm_por_unidad(),
+            # La tolerancia del documento: en mm (lo que se ajusta) y en
+            # unidades del dibujo (lo que usa el navegador al recortar).
+            "tolerancia_mm": d.tolerancia_mm,
+            "tolerancia": mod_tolerancia.de(d),
             "puede_deshacer": d.historial.puede_deshacer,
             "puede_rehacer": d.historial.puede_rehacer,
             "nombre_deshacer": d.historial.nombre_deshacer(),
@@ -238,6 +243,7 @@ S = _Activa()
 from core.solido import rutas as rutas_3d  # noqa: E402
 
 rutas_3d.enchufar(lambda: S.doc)
+mod_tolerancia.enchufar(lambda: S.doc)
 app.include_router(rutas_3d.router)
 
 
@@ -372,6 +378,26 @@ def unidades_cambiar(entrada: _Unidades):
     except ValueError as exc:
         _error(exc)
     return {**r, **S.resumen()}
+
+
+class _Tolerancia(BaseModel):
+    mm: float
+
+
+@app.post("/api/tolerancia")
+def tolerancia_cambiar(entrada: _Tolerancia):
+    """La tolerancia del documento, en mm (comando TOLERANCIA). Ver core/tolerancia.py.
+
+    No va en el historial: no cambia nada dibujado, sólo cómo se decide de aquí
+    en adelante si dos puntos se tocan. Sí ensucia el documento, porque se
+    guarda con él."""
+    try:
+        with S.candado:
+            S.doc.tolerancia_mm = mod_tolerancia.valida_mm(entrada.mm)
+            S.doc.sucio = True
+    except ValueError as exc:
+        _error(exc)
+    return S.resumen()
 
 
 @app.get("/api/ayuda/guia")
@@ -1883,7 +1909,7 @@ def unir_entidades(entrada: Unir):
         with S.candado:
             with S.doc.transaccion("Unir"):
                 r = mod_unir.unir(S.doc, entrada.ids,
-                                  entrada.tolerancia or mod_unir.TOLERANCIA)
+                                  entrada.tolerancia or mod_tolerancia.de(S.doc))
             parche = _parche(r["borradas"] + [c["id"] for c in r["creadas"]])
     except (CapaBloqueada, ValueError) as exc:
         _error(exc)

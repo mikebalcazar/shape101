@@ -198,6 +198,9 @@ function avisar(texto, malo = false, ms = 5000) {
  * decimales en mm, 3 en cm, 4 en m. Mike, 7-sep-2026. */
 const U = () => (estado.resumen && estado.resumen.unidades) || "mm";
 const mmPorUnidad = () => (estado.resumen && estado.resumen.mm_por_unidad) || 1;
+/* La tolerancia del documento, en unidades del dibujo: la distancia a la que
+ * dos puntos son el mismo al unir, recortar o extender (core/tolerancia.py). */
+const tolerancia = () => (estado.resumen && estado.resumen.tolerancia) || 0.05 / mmPorUnidad();
 const mm = (v) => {
   const k = mmPorUnidad();
   const dec = k >= 1000 ? 4 : k >= 10 ? 3 : 2;

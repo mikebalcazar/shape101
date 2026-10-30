@@ -13,6 +13,7 @@ from typing import Iterable
 from . import capas as mod_capas
 from . import config
 from . import entidades as ent_mod
+from . import tolerancia as _tolerancia
 from .capas import Capa
 from .entidades import Bloque, Entidad
 from .historial import Historial, _Contexto
@@ -104,6 +105,10 @@ class Documento:
         # que se teclea, se ve y se acota va en esa unidad; el DXF sale con el
         # $INSUNITS que corresponde. Mike, 7-sep-2026. Ver core/unidades.py.
         self.unidades: str = "mm"
+        # La tolerancia del documento, en milímetros: la distancia a la que dos
+        # puntos son el mismo para unir, recortar y coser un contorno. Ver
+        # core/tolerancia.py. Los archivos viejos no la traen y valen 0.05.
+        self.tolerancia_mm: float = _tolerancia.POR_OMISION_MM
         self.historial = Historial()
         # La extensión del dibujo, guardada por espacio. Calcularla recorre
         # todas las entidades (250 ms en un plano de 15 000) y se pedía **dos
@@ -622,6 +627,7 @@ class Documento:
             "factor_unidades": self.factor_unidades,
             "insunits_origen": self.insunits_origen,
             "unidades": self.unidades,
+            "tolerancia_mm": self.tolerancia_mm,
         }
 
     @staticmethod
@@ -658,6 +664,10 @@ class Documento:
             doc.factor_unidades = float(d.get("factor_unidades", 1.0) or 1.0)
             doc.insunits_origen = d.get("insunits_origen")
             doc.unidades = d.get("unidades") if d.get("unidades") in ("mm", "cm", "m") else "mm"
+            try:
+                doc.tolerancia_mm = _tolerancia.valida_mm(d.get("tolerancia_mm", _tolerancia.POR_OMISION_MM))
+            except (TypeError, ValueError):
+                doc.tolerancia_mm = _tolerancia.POR_OMISION_MM
             ent_mod.sembrar_contador(doc.entidades.values())
         finally:
             doc.historial.silencio = False

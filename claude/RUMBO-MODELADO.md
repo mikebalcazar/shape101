@@ -32,7 +32,7 @@ documentación:
 |---|---|---|
 | **A1** | NURBS exacta en la spline: nudos y pesos, pintado y osnap sobre la curva, DXF con la curva completa; elipse exacta en el osnap | hecha (t043) |
 | **A2** | Intersección exacta curva-curva (spline, elipse, arco, recta) en el osnap y en recortar/extender; cercano y perpendicular exactos | hecha (t044) |
-| A3 | Tolerancia absoluta única del documento, usada por unir, recortar e intersecar | pendiente |
+| **A3** | Tolerancia absoluta única del documento (0.05 mm por omisión, comando TOLERANCIA), usada por unir, recortar, extender y al coser el boceto de un sólido | hecha (t045) |
 | A4 | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | pendiente |
 | B1 | Recortar y extender sobre splines y elipses (partir la NURBS por inserción de nudos) | pendiente |
 | B2 | Regiones: booleanas 2D de contornos cerrados (unión, resta, intersección) y rayado picando dentro, con islas | pendiente |
@@ -80,3 +80,24 @@ decide Mike.
   punta 0.009 fuera de la spline. Ahora, menos de una millonésima.
 - Una curva vista desde otro plano (Frontal, Lateral) pierde su `def` al
   llevarse: ahí se usa la cuerda, que ya está dentro de la flecha.
+
+## Lo que se aprendió en A3
+
+- **Mike pidió seguir con A3 antes de publicar** (30-oct-2026): A1, A2 y A3
+  salen juntas en la próxima versión.
+- **El caso que lo justifica**: un rectángulo de cuatro líneas con huecos de
+  0.02 mm (lo normal en un DXF de AutoCAD o de Revit) se unía con UNIR pero
+  **no se podía extruir**: OpenCASCADE cose a unas micras. Ahora el boceto
+  suelda las puntas sueltas a la tolerancia del documento antes de coser.
+- **0.05 mm por omisión**, la que UNIR ya usaba (t015): no cambia nada de lo
+  que el taller ya conoce. Va en mm aunque el dibujo esté en cm o en m.
+- **Coser no es tapar errores**: con huecos de medio milímetro el contorno
+  sigue sin cerrar. Y la tolerancia manda de verdad: con 0.01 mm el mismo
+  boceto de 0.02 ya no cierra (también fuera de caché: la tolerancia entra a
+  la huella del cuerpo).
+- RECORTAR y EXTENDER no cortan en un cruce pegado a la punta (a menos de la
+  tolerancia): antes dejaban un pedacito de centésimas suelto.
+- En la línea de comando el espacio es Enter: un comando que necesita un
+  valor lo **pide**, no lo recibe pegado al nombre.
+- Las guardas numéricas (`1e-9`, `1e-12`) no son tolerancia de modelado y se
+  quedaron como estaban.

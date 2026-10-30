@@ -708,16 +708,20 @@ async function recortarOExtender(extender) {
       const pr = { tipo: "seg", a: ent.p1, b: ent.p2 };
       const ts = cruces.map((q) => paramEnSeg(pr, q)).sort((x, y) => x - y);
       const tp = paramEnSeg(pr, p);
+      // Un cruce a menos de la tolerancia de una punta es la punta misma: la
+      // línea ya llega ahí. Cortar o alargar hasta él dejaría un pedacito de
+      // centésimas que nadie ve y que la CNC sí corta.
+      const eps = tolerancia() / (Math.hypot(pr.b[0] - pr.a[0], pr.b[1] - pr.a[1]) || 1);
       if (extender) {
         // se alarga hasta el cruce más cercano por el lado del clic
-        const candidatos = tp > 0.5 ? ts.filter((t) => t > 1) : ts.filter((t) => t < 0);
+        const candidatos = tp > 0.5 ? ts.filter((t) => t > 1 + eps) : ts.filter((t) => t < -eps);
         if (!candidatos.length) return Comandos.eco("No hay cruce hacia ese lado.", "malo");
         const t = tp > 0.5 ? Math.min(...candidatos) : Math.max(...candidatos);
         const q = [pr.a[0] + t * (pr.b[0] - pr.a[0]), pr.a[1] + t * (pr.b[1] - pr.a[1])];
         await aplicarOperacion({ accion: "Extender",
           cambios: { [id]: tp > 0.5 ? { p2: q } : { p1: q } } });
       } else {
-        const dentro = ts.filter((t) => t > 1e-9 && t < 1 - 1e-9);
+        const dentro = ts.filter((t) => t > eps && t < 1 - eps);
         const antes = dentro.filter((t) => t < tp);
         const despues = dentro.filter((t) => t > tp);
         const t0 = antes.length ? Math.max(...antes) : null;
@@ -744,7 +748,8 @@ async function recortarOExtender(extender) {
       const ang = (q) => (deg(Math.atan2(q[1] - ent.centro[1], q[0] - ent.centro[0])) + 360) % 360;
       const rel = (a) => (a - ent.ang_ini + 360) % 360;
       const barrido = rel(ent.ang_fin) || 360;
-      const dentro = cruces.map(ang).map(rel).filter((t) => t > 1e-6 && t < barrido - 1e-6);
+      const eps = deg(tolerancia() / (ent.radio || 1));     // la tolerancia, como ángulo
+      const dentro = cruces.map(ang).map(rel).filter((t) => t > eps && t < barrido - eps);
       if (!dentro.length) return Comandos.eco("No hay cruce dentro del arco.", "malo");
       const tp = rel(ang(p));
       const antes = dentro.filter((t) => t < tp), despues = dentro.filter((t) => t > tp);
@@ -893,6 +898,16 @@ async function recortarPolilinea(ent, p) {
         const t = _paramEnTramo(tramos[k], q);
         if (t > -1e-9 && t < 1 + 1e-9) posiciones.push({ k, t: Math.max(0, Math.min(1, t)) });
       }
+    }
+  }
+  if (!cerrada) {
+    // Igual que en la línea: un cruce pegado a una punta (a menos de la
+    // tolerancia) es la punta misma, no un lugar donde cortar.
+    const ini = _puntoEnTramo(tramos[0], 0), fin = _puntoEnTramo(tramos[m - 1], 1);
+    const tol = tolerancia();
+    for (let i = posiciones.length - 1; i >= 0; i--) {
+      const q = _puntoEnTramo(tramos[posiciones[i].k], posiciones[i].t);
+      if (Math.hypot(q[0] - ini[0], q[1] - ini[1]) < tol || Math.hypot(q[0] - fin[0], q[1] - fin[1]) < tol) posiciones.splice(i, 1);
     }
   }
   if (!posiciones.length) return Comandos.eco("Esa polilínea no cruza con ninguna otra entidad: no hay dónde recortar.", "malo");
