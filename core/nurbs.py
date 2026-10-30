@@ -50,7 +50,7 @@ class Nurbs:
     vale None para una B-spline (todos 1), que es el caso de casi todas.
     """
 
-    __slots__ = ("grado", "control", "nudos", "pesos", "dim", "_derivadas")
+    __slots__ = ("grado", "control", "nudos", "pesos", "dim", "_derivadas", "_bezier")
 
     def __init__(self, grado: int, control, nudos, pesos=None):
         control = [[float(c) for c in p] for p in control]
@@ -70,6 +70,12 @@ class Nurbs:
             raise ValueError("los nudos deben ir en orden")
         if nudos[grado] >= nudos[n]:
             raise ValueError("el dominio de la curva está vacío")
+        # Un nudo interior repetido más que el grado parte la curva en pedazos
+        # sueltos (o la deja sin definir): no es una curva que un CAD dibuje.
+        # Una spline así de un DXF se queda conservada, sin tocarla.
+        interiores = nudos[grado + 1:n]
+        if any(interiores.count(k) > grado for k in set(interiores)):
+            raise ValueError("un nudo interior se repite más veces que el grado")
         if pesos is not None:
             pesos = [float(w) for w in pesos]
             if len(pesos) != n:
@@ -84,6 +90,7 @@ class Nurbs:
         self.pesos = pesos
         self.dim = dim
         self._derivadas = None
+        self._bezier = None
 
     # -- lo básico ----------------------------------------------------------
     @property
@@ -210,8 +217,93 @@ class Nurbs:
         return [p for _, p in self._teselar_t(flecha)]
 
     def _teselar_t(self, flecha: float) -> list[tuple[float, list[float]]]:
-        """Como `teselar`, pero cada vértice con su parámetro."""
+        """Como `teselar`, pero cada vértice con su parámetro.
+
+        Una curva **polinómica** (sin pesos, que son casi todas) se parte en
+        segmentos de Bézier y cada uno se muestrea parejo, en bloque con numpy.
+        Cuántas muestras no se adivina: para una Bézier de grado p, partida en m
+        trozos iguales, la poligonal se separa de la curva a lo más
+        p(p-1)/8 · max|Δ²P| / m², con Δ²P las segundas diferencias de sus puntos
+        de control. De ahí sale m para la flecha pedida, con garantía. Hacerlo
+        punto por punto en Python costaba nueve segundos en un plano de tres
+        mil splines; así, una fracción.
+
+        Una curva racional (círculos, cónicas) va por la subdivisión adaptativa,
+        que no necesita cota."""
         flecha = max(flecha, 1e-9)
+        if self.pesos is None:
+            return self._teselar_bezier(flecha)
+        return self._teselar_adaptativo(flecha)
+
+    def _segmentos_bezier(self):
+        """La curva partida en segmentos de Bézier: (t0s, t1s, puntos), con los
+        grado+1 puntos de control de cada segmento en un arreglo de numpy
+        (segmentos × (grado+1) × dim). Se calcula una vez por curva."""
+        if self._bezier is not None:
+            return self._bezier
+        import numpy as np
+
+        p = self.grado
+        U = list(self.nudos)
+        n = len(self.control)
+        P = [list(c) + [1.0] for c in self.control] if self.pesos is None else \
+            [[c[j] * w for j in range(self.dim)] + [w] for c, w in zip(self.control, self.pesos)]
+        sujeta = U[0] == U[p] and U[n] == U[-1]
+        # A5.6 supone nudos interiores de multiplicidad hasta p; uno repetido
+        # más veces (una curva partida) va por el camino lento.
+        interiores = U[p + 1:n]
+        if sujeta and all(interiores.count(k) <= p for k in set(interiores)):
+            t0s, t1s, Q = _descomponer(p, U, P)
+        else:
+            # Una cerrada (nudos sin repetir en las puntas): se inserta cada
+            # nudo del dominio hasta multiplicidad p. Son pocas; vale la pena
+            # la cuenta lenta para no complicar la rápida.
+            a, b = self.dominio
+            distintos = sorted({k for k in U if a <= k <= b})
+            for u in distintos:
+                while U.count(u) < p:
+                    U, P = _insertar_nudo(p, U, P, u)
+            t0s, t1s, Q = [], [], []
+            for t0, t1 in zip(distintos, distintos[1:]):
+                s = max(i for i, k in enumerate(U) if k == t0)
+                t0s.append(t0)
+                t1s.append(t1)
+                Q.append(P[s - p:s + 1])
+        H = np.asarray(Q, dtype=float)                  # segmentos × (p+1) × (dim+1)
+        C = H[:, :, :self.dim] / H[:, :, self.dim:]
+        self._bezier = (t0s, t1s, C)
+        return self._bezier
+
+    def _teselar_bezier(self, flecha: float):
+        import numpy as np
+
+        p = self.grado
+        t0s, t1s, C = self._segmentos_bezier()
+        S = len(t0s)
+        if p >= 2:
+            M = np.max(np.linalg.norm(C[:, 2:] - 2 * C[:, 1:-1] + C[:, :-2], axis=2), axis=1)
+            m = np.ceil(np.sqrt(p * (p - 1) / 8.0 * M / flecha)).astype(int)
+        else:
+            m = np.ones(S, dtype=int)
+        m = np.clip(m, 1, 4096)
+        # Los segmentos que piden las mismas muestras se evalúan juntos: una
+        # operación de numpy por grupo, no una por segmento.
+        trozos = [None] * S
+        for mi in np.unique(m).tolist():
+            idx = np.nonzero(m == mi)[0]
+            pts = np.einsum("jk,skd->sjd", _bernstein(p, mi), C[idx]).tolist()
+            for k, i in enumerate(idx.tolist()):
+                trozos[i] = (mi, pts[k])
+        salida = []
+        for i in range(S):
+            mi, pts = trozos[i]
+            t0, t1 = t0s[i], t1s[i]
+            for j in range(0 if i == 0 else 1, mi + 1):
+                salida.append((t0 + (t1 - t0) * j / mi, pts[j]))
+        return salida
+
+    def _teselar_adaptativo(self, flecha: float) -> list[tuple[float, list[float]]]:
+        """Subdivisión donde el arco se separa de la cuerda más que `flecha`."""
         base = self.nudos_distintos()
         semillas = []
         for i in range(len(base) - 1):
@@ -339,13 +431,11 @@ class Nurbs:
         return sum(math.dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
 
     def caja(self) -> tuple[float, float, float, float]:
-        """Caja en XY. Por la propiedad de la envolvente convexa, la de los
-        puntos de control contiene a la curva; se ajusta con la teselación para
-        que encuadrar no deje aire de más."""
-        pts = self.teselar(FLECHA)
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        return min(xs), min(ys), max(xs), max(ys)
+        """Caja en XY de los puntos de control: por la propiedad de la
+        envolvente convexa contiene a la curva. Deja algo de aire en una curva
+        muy jalada, y a cambio no hay que teselar para encuadrar: abrir un plano
+        con tres mil splines pedía tres mil teselados sólo para esto."""
+        return self._caja_control()
 
     # -- transformar ----------------------------------------------------------
     def transformada(self, f) -> "Nurbs":
@@ -519,6 +609,83 @@ def interpolar_cerrada(ajuste, grado: int = 3) -> Nurbs:
 
 
 # --- Utilidades ---------------------------------------------------------------
+
+def _descomponer(p, U, P):
+    """Una NURBS sujeta partida en segmentos de Bézier, en una sola pasada
+    (Piegl y Tiller, «The NURBS Book», algoritmo A5.6). P en homogéneas.
+    Devuelve los t de inicio y fin de cada segmento y sus puntos."""
+    n = len(P) - 1
+    m = n + p + 1
+    dim = len(P[0])
+    a, b = p, p + 1
+    Q = [[list(P[i]) for i in range(p + 1)]]
+    t0s = []
+    t1s = []
+    alfas = [0.0] * (p + 1)
+    while b < m:
+        i = b
+        while b < m and U[b + 1] == U[b]:
+            b += 1
+        mult = b - i + 1
+        actual = Q[-1]
+        siguiente = [[0.0] * dim for _ in range(p + 1)] if b < m else None
+        if mult < p:
+            numer = U[b] - U[a]
+            for j in range(p, mult, -1):
+                alfas[j - mult - 1] = numer / (U[a + j] - U[a])
+            r = p - mult
+            for j in range(1, r + 1):
+                guardar = r - j
+                s = mult + j
+                for k in range(p, s - 1, -1):
+                    al = alfas[k - s]
+                    actual[k] = [al * actual[k][d] + (1 - al) * actual[k - 1][d] for d in range(dim)]
+                if siguiente is not None:
+                    siguiente[guardar] = list(actual[p])
+        t0s.append(U[a])
+        t1s.append(U[b])
+        if siguiente is not None:
+            for k in range(p - mult, p + 1):
+                siguiente[k] = list(P[b - p + k])
+            Q.append(siguiente)
+            a = b
+            b += 1
+    return t0s, t1s, Q
+
+
+def _insertar_nudo(p, U, P, u):
+    """Inserta el nudo u una vez (Boehm): la misma curva, un punto de control
+    más. P va en coordenadas homogéneas."""
+    k = max(i for i in range(len(U) - 1) if U[i] <= u and u < U[i + 1]) \
+        if u < U[-1] else max(i for i in range(len(U)) if U[i] < u)
+    mult = U.count(u)
+    Q = [list(q) for q in P[:k - p + 1]]
+    for i in range(k - p + 1, k - mult + 1):
+        den = U[i + p] - U[i]
+        al = 0.0 if den == 0 else (u - U[i]) / den
+        Q.append([al * P[i][j] + (1 - al) * P[i - 1][j] for j in range(len(P[0]))])
+    Q += [list(q) for q in P[k - mult:]]
+    return U[:k + 1] + [u] + U[k + 1:], Q
+
+
+_BERNSTEIN: dict = {}
+
+
+def _bernstein(p: int, m: int):
+    """La matriz (m+1) × (p+1) de las bases de Bernstein en u = j/m."""
+    clave = (p, m)
+    B = _BERNSTEIN.get(clave)
+    if B is None:
+        import numpy as np
+        u = np.linspace(0.0, 1.0, m + 1)[:, None]
+        i = np.arange(p + 1)[None, :]
+        coef = np.array([math.comb(p, k) for k in range(p + 1)], dtype=float)[None, :]
+        B = coef * u ** i * (1 - u) ** (p - i)
+        if len(_BERNSTEIN) > 512:
+            _BERNSTEIN.clear()
+        _BERNSTEIN[clave] = B
+    return B
+
 
 def _hodografa(p, nudos, control):
     """La derivada de una B-spline (no racional) de grado p: otra de grado p-1

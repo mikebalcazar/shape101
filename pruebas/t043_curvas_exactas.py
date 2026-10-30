@@ -166,8 +166,8 @@ def _pintado(r: comun.Reporte) -> None:
     peor = max(min(nurbs._distancia_a_segmento(c.punto(t), ln[i], ln[i + 1])
                    for ln in lineas for i in range(len(ln) - 1))
                for t in _muestras(c, 300))
-    r.cierto(peor <= dibujo.FLECHA_MAX + 1e-9,
-             f"lo pintado no se separa de la curva más que la flecha ({dibujo.FLECHA_MAX})",
+    r.cierto(peor <= dibujo.FLECHA_SPLINE + 1e-9,
+             f"lo pintado no se separa de la curva más que la flecha ({dibujo.FLECHA_SPLINE})",
              f"{peor:.4f}")
 
 
