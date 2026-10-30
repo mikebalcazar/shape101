@@ -31,6 +31,7 @@ from core import actualizar as mod_actualizar, avisos as mod_avisos, config, uni
 from core import unir as mod_unir
 from core import tolerancia as mod_tolerancia
 from core import recortar as mod_recortar
+from core import regiones as mod_regiones
 from core import agrupar as mod_agrupar
 from core import oda as mod_oda
 from core import version as mod_version
@@ -1921,6 +1922,40 @@ class Operacion(BaseModel):
 class Unir(BaseModel):
     ids: list[str]
     tolerancia: float | None = None
+
+
+class _Combinar(BaseModel):
+    ids: list[str]
+    operacion: str              # union · resta · interseccion
+
+
+@app.post("/api/regiones")
+def regiones_combinar(entrada: _Combinar):
+    """UNION, RESTA e INTERSECCION de contornos cerrados (core/regiones.py).
+
+    En una transacción: se borran los contornos de entrada y quedan los bordes
+    del resultado; los de varias piezas (con splines o elipses de por medio)
+    quedan agrupados. Un Ctrl+Z devuelve los de antes."""
+    try:
+        with S.candado:
+            plan = mod_regiones.combinar(S.doc, entrada.ids, entrada.operacion)
+            nombre = {"union": "Unión", "resta": "Resta", "interseccion": "Intersección"}[entrada.operacion]
+            creadas = []
+            with S.doc.transaccion(nombre):
+                for i in plan["borrar"]:
+                    S.doc.borrar(i)
+                for borde in plan["contornos"]:
+                    ids = [S.doc.agregar(ent_mod.de_dict(d)).id for d in borde]
+                    if len(ids) > 1:
+                        mod_agrupar.agrupar(S.doc, ids)
+                    creadas += ids
+            parche = _parche(plan["borrar"] + creadas)
+    except mod_regiones.NoSeCombina as exc:
+        return {"error": str(exc), **S.resumen()}
+    except (CapaBloqueada, ValueError) as exc:
+        _error(exc)
+    return {"creadas": creadas, "area": plan["area"], "piezas": plan["piezas"],
+            "contornos": len(plan["contornos"]), "parche": parche, **S.resumen()}
 
 
 @app.post("/api/unir")

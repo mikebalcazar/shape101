@@ -471,6 +471,13 @@ class Nurbs:
         pesos = [q[-1] for q in H] if self.pesos is not None else None
         return Nurbs(p, control, nudos, pesos)
 
+    def invertida(self) -> "Nurbs":
+        """La misma curva recorrida al revés: puntos y pesos invertidos, y los
+        nudos reflejados en el dominio (k → a + b - k)."""
+        a, b = self.nudos[0], self.nudos[-1]
+        return Nurbs(self.grado, list(reversed(self.control)), [a + b - k for k in reversed(self.nudos)],
+                     list(reversed(self.pesos)) if self.pesos is not None else None)
+
     def seguida_de(self, otra: "Nurbs") -> "Nurbs":
         """Esta curva y luego `otra`, que empieza donde ésta termina, como una
         sola NURBS. Las dos deben ser sujetas y del mismo grado. En la unión
