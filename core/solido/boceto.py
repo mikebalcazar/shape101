@@ -1,14 +1,18 @@
 """De un boceto del dibujo (entidades 2D) a un sólido de build123d.
 
-Qué se acepta: líneas, arcos, círculos y polilíneas (cerradas o no, con
-bulges). Las cotas, textos y demás se ignoran: no son geometría. Las puntas
-sueltas se sueldan a la tolerancia del documento antes de coser (`soldadas`).
+Qué se acepta: líneas, arcos, círculos, polilíneas (cerradas o no, con
+bulges), splines y elipses. La spline y la elipse entran como curvas exactas
+(B-spline y elipse de OpenCASCADE), no como polilíneas. Las cotas, textos y
+demás se ignoran: no son geometría. Las puntas sueltas se sueldan a la
+tolerancia del documento antes de coser (`soldadas`).
 
 Cómo se arma: cada entidad da uno o varios `Edge`; `Wire.combine` los cose por
-extremos en contornos cerrados; el contorno de mayor área es el exterior y los
-demás son huecos; con eso se hace **una cara** y se extruye. Un boceto con dos
-contornos exteriores separados todavía no se contempla (quedaría para la app,
-no para la medición).
+extremos en contornos cerrados, y los contornos se ordenan por **anidamiento**
+(`caras_de`, fase C1): uno que no está dentro de ningún otro es un borde
+exterior; uno dentro de uno, un hueco; uno dentro de dos, una isla —material
+otra vez—, y así. Como el PlanarSrf de Rhino. Cada borde exterior con sus
+huecos directos es una cara; un boceto con dos piezas separadas da dos caras,
+y se extruyen las dos.
 
 Bulge: convención DXF. `b = tan(θ/4)`; positivo = antihorario del vértice al
 siguiente. El punto medio del arco queda a `s = b·d/2` del punto medio de la
@@ -68,6 +72,13 @@ def aristas_de(entidad: dict) -> list[Edge]:
                 if math.hypot(p2[0] - p1[0], p2[1] - p1[1]) > 1e-12:
                     out.append(Edge.make_line(Vector(p1[0], p1[1], 0), Vector(p2[0], p2[1], 0)))
         return out
+    if t in ("spline", "elipse"):
+        # Exactas: la spline como B-spline y la elipse como elipse del kernel
+        # (core/regiones), no como polilínea. Hasta la fase C1 el boceto las
+        # ignoraba sin decir nada, y un contorno con una spline «no cerraba».
+        from core import entidades as ent_mod
+        from core import regiones
+        return regiones._aristas_de(ent_mod.de_dict(entidad))
     return []        # cotas, textos, bloques…: no son geometría del boceto
 
 
@@ -96,6 +107,24 @@ def soldadas(entidades: list[dict], tol: float | None = None) -> list[dict]:
 
     if tol is None:
         tol = tolerancia.kernel_mm()
+    # Las puntas de una spline o de un arco de elipse abiertos no se mueven
+    # (moverlas cambia la curva), pero sirven de **anclas**: van primero, y
+    # las líneas y arcos vecinos se sueldan a ellas.
+    anclas = []
+    for e in entidades:
+        t = e.get("tipo")
+        try:
+            if t == "spline" and not e.get("cerrada"):
+                from core import entidades as ent_mod
+                c = ent_mod.de_dict(e).curva()
+                anclas += [c.punto(x)[:2] for x in c.dominio]
+            elif t == "elipse" and (e["param_fin"] - e["param_ini"]) % (2 * math.pi) > 1e-9:
+                c, (ax, ay), k = e["centro"], e["eje_mayor"], e["razon"]
+                for u in (e["param_ini"], e["param_fin"]):
+                    anclas.append([c[0] + ax * math.cos(u) - ay * k * math.sin(u),
+                                   c[1] + ay * math.cos(u) + ax * k * math.sin(u)])
+        except (ValueError, KeyError, ArithmeticError):
+            continue
     puntas = []          # (índice de entidad, cuál, punto)
     for i, e in enumerate(entidades):
         t = e.get("tipo")
@@ -108,7 +137,7 @@ def soldadas(entidades: list[dict], tol: float | None = None) -> list[dict]:
             puntas += [(i, "ini", e["puntos"][0]), (i, "fin", e["puntos"][-1])]
     if not puntas:
         return entidades
-    reps = tolerancia.soldar([p for _, _, p in puntas], tol)
+    reps = tolerancia.soldar(anclas + [p for _, _, p in puntas], tol)[len(anclas):]
     salida = [dict(e) for e in entidades]
     for (i, cual, _), rep in zip(puntas, reps):
         e = salida[i]
@@ -127,7 +156,18 @@ def soldadas(entidades: list[dict], tol: float | None = None) -> list[dict]:
     return salida
 
 
-def cara_de(entidades: list[dict], tol: float | None = None) -> Face:
+def caras_de(entidades: list[dict], tol: float | None = None) -> list[Face]:
+    """Las caras del boceto, con sus huecos y sus islas (fase C1).
+
+    Cada contorno cerrado se clasifica por cuántos otros lo rodean: con un
+    número par es borde de material, con uno impar es hueco. Así un marco con
+    una ventana y un botón dentro de la ventana da dos caras: el marco con su
+    hueco, y el botón. Dos contornos que se cruzan no tienen anidamiento claro
+    y se avisa: hay que unirlos antes (UNION) o recortarlos.
+    """
+    from OCP.BRepClass import BRepClass_FaceClassifier
+    from OCP.TopAbs import TopAbs_IN, TopAbs_ON
+
     entidades = soldadas(entidades, tol)
     aristas = [a for e in entidades for a in aristas_de(e)]
     if not aristas:
@@ -136,9 +176,49 @@ def cara_de(entidades: list[dict], tol: float | None = None) -> Face:
     cerrados = [w for w in contornos if w.is_closed]
     if not cerrados:
         raise ValueError("el boceto no forma ningún contorno cerrado")
-    caras = sorted((Face(w) for w in cerrados), key=lambda f: f.area, reverse=True)
-    exterior, huecos = caras[0], caras[1:]
-    return Face(exterior.outer_wire(), [h.outer_wire() for h in huecos])
+    planas = [Face(w) for w in cerrados]
+
+    def dentro(i, j):
+        """¿El contorno i está dentro de la cara j? Se miran varios de sus
+        puntos: si unos caen dentro y otros fuera, los dos se cruzan."""
+        w = cerrados[i]
+        estados = set()
+        for k in range(8):
+            p = w.position_at(k / 8)
+            st = BRepClass_FaceClassifier(planas[j].wrapped, p.to_pnt(), 1e-7).State()
+            if st != TopAbs_ON:
+                estados.add(st == TopAbs_IN)
+        if len(estados) > 1:
+            raise ValueError("dos contornos del boceto se cruzan: únelos (UNION) o recórtalos antes")
+        return estados == {True}
+
+    n = len(cerrados)
+    # El cruce se revisa en todos los pares (dos iguales que se traslapan
+    # también se cruzan); estar dentro, sólo de uno más grande.
+    padres = {i: [] for i in range(n)}
+    for i in range(n):
+        for j in range(n):
+            if j != i and dentro(i, j) and planas[j].area > planas[i].area:
+                padres[i].append(j)
+    profundidad = {i: len(padres[i]) for i in range(n)}
+    caras = []
+    for i in range(n):
+        if profundidad[i] % 2:
+            continue                                   # es hueco
+        # Sus huecos: los que tiene adentro a un nivel más de profundidad.
+        huecos = [cerrados[k] for k in range(n)
+                  if i in padres[k] and profundidad[k] == profundidad[i] + 1]
+        caras.append(Face(planas[i].outer_wire(), [Face(h).outer_wire() for h in huecos]))
+    return sorted(caras, key=lambda f: f.area, reverse=True)
+
+
+def cara_de(entidades: list[dict], tol: float | None = None):
+    """La cara del boceto; si trae varias piezas separadas, un compuesto con
+    todas (que se extruye entero). Ver `caras_de`."""
+    from build123d import Compound
+
+    caras = caras_de(entidades, tol)
+    return caras[0] if len(caras) == 1 else Compound(caras)
 
 
 def solido_de(entidades: list[dict], espesor: float):

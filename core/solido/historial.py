@@ -290,6 +290,15 @@ def _papel(op: dict) -> dict:
     return {"entidades": _entidades(op), "plano": op.get("plano")}
 
 
+def _una_sola_cara(cara, que: str):
+    """Revolver, barrer y hacer un loft piden un solo contorno exterior: con
+    dos piezas separadas no hay una forma clara de seguirlas."""
+    from build123d import Face
+    if not isinstance(cara, Face):
+        raise ValueError(f"para {que} el boceto debe tener una sola pieza (un contorno exterior)")
+    return cara
+
+
 def _en_su_plano(est: "Estado", perfil: dict):
     """La cara y las aristas del boceto, ya puestas donde viven.
 
@@ -380,6 +389,7 @@ def _paso(est: Estado, i: int, op: dict) -> None:
         # cuerpo nuevo, no una modificación del que hubiera.
         perfil = _perfil_de(est, op, i)
         cara, _, _ = _en_su_plano(est, perfil)
+        cara = _una_sola_cara(cara, "revolver")
         eje = _eje_de(est, op, perfil)
         grados = float(op.get("grados", 360.0))
         if not (0 < grados <= 360):
@@ -398,6 +408,7 @@ def _paso(est: Estado, i: int, op: dict) -> None:
         if cam is None:
             raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
         cara, _, _ = _en_su_plano(est, perfil)
+        cara = _una_sola_cara(cara, "barrer")
         camino = _alambre_en_su_plano(est, cam)
         solido = sweep(cara, path=camino)
         arranque = camino.start_point()
@@ -416,7 +427,7 @@ def _paso(est: Estado, i: int, op: dict) -> None:
             perfil = est.bocetos.get(ref)
             if perfil is None:
                 raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
-            caras.append(_en_su_plano(est, perfil)[0])
+            caras.append(_una_sola_cara(_en_su_plano(est, perfil)[0], "hacer un loft"))
         solido = loft(caras, ruled=bool(op.get("reglado", False)))
         a, b = caras[0].center(), caras[-1].center()
         nom.bautizar_cuerpo(solido, eje=(b.X - a.X, b.Y - a.Y, b.Z - a.Z))

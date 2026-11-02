@@ -171,6 +171,12 @@ def es_cerrada(entidad: dict) -> bool:
         return True
     if t == "polilinea":
         return bool(entidad.get("cerrada")) and len(entidad.get("puntos") or []) >= 3
+    if t == "spline":
+        return bool(entidad.get("cerrada"))
+    if t == "elipse":
+        # Completa: sus parámetros dan la vuelta entera.
+        import math
+        return (float(entidad.get("param_fin", 0)) - float(entidad.get("param_ini", 0))) % (2 * math.pi) < 1e-9
     return False
 
 
