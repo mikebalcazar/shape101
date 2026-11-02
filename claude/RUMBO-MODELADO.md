@@ -38,7 +38,7 @@ documentación:
 | B1b | Extender una spline o una elipse más allá de su punta (en recta, en arco o suave, como Rhino) | pendiente |
 | **B2a** | Regiones: booleanas 2D exactas de contornos cerrados (UNION, RESTA, INTERSECCION) con OpenCASCADE | hecha (t048) |
 | **B2b** | Rayado picando dentro, con islas, por el arreglo de todas las curvas a la vista | hecha (t049) |
-| B3 | Desfase exacto de curvas libres (aproximado a la tolerancia, como Rhino) | pendiente |
+| **B3** | Desfase de splines y elipses, aproximado a una décima de la tolerancia del documento (como Rhino) | hecha (t050) |
 | C1 | Boceto 3D con varios contornos e islas (caras con huecos) | pendiente |
 | C2 | Splines y elipses entran al kernel como curvas B-spline, no como polilíneas | pendiente |
 | C3 | Mover puntos de curvas en un sólido; empalme y chaflán robustos | pendiente |
@@ -188,3 +188,17 @@ decide Mike.
   `elementFromPoint` es el lienzo.
 - El LEEME decía «no se pica dentro» y «polilíneas todavía no se recortan»:
   las dos frases se corrigieron.
+
+## Lo que se aprendió en B3
+
+- **Mike pidió seguir con B3 antes de publicar** (2-nov-2026).
+- **El desfase de una spline no es una spline**: el código de DESFASE lo decía
+  y por eso se negaba. Se resolvió como Rhino: OpenCASCADE da la curva
+  desfasada exacta (Geom_OffsetCurve) y se aproxima con una B-spline cúbica C2
+  a **una décima de la tolerancia del documento** (5 micras por omisión).
+  t050 no le cree al kernel su error: lo mide en los dos sentidos (Hausdorff).
+- **Un desfase hacia adentro más allá del radio más cerrado haría un lazo**:
+  se niega y dice el radio (en una elipse 300 × 150, b²/a = 75).
+- **Cerrada no es periódica**: una cerrada de nudos sujetos (la de un desfase
+  o una booleana) se marcaba periódica en el DXF sólo por estar cerrada.
+  Ahora la marca depende de los nudos.

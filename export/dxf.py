@@ -64,10 +64,13 @@ def _escribir_spline(espacio, e, atributos) -> None:
     if e.puntos_ajuste:
         sp.fit_points = [(p[0], p[1], 0.0) for p in e.puntos_ajuste]
     if e.cerrada:
-        # Cerrada y periódica: así la marca AutoCAD cuando el lazo es suave en
-        # la costura, que es como la arma core/nurbs.py.
+        # Cerrada; y periódica sólo si sus nudos no se repiten en las puntas
+        # (como las arma core/nurbs.py). Una cerrada de nudos sujetos —la que
+        # sale de un desfase o de una booleana— cierra, pero no es periódica.
         sp.set_flag_state(sp.CLOSED, True)
-        sp.set_flag_state(sp.PERIODIC, True)
+        p = c.grado
+        sujeta = c.nudos[0] == c.nudos[p] and c.nudos[-1] == c.nudos[-1 - p]
+        sp.set_flag_state(sp.PERIODIC, not sujeta)
     sp.set_flag_state(sp.PLANAR, True)
 
 
