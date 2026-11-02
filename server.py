@@ -1924,6 +1924,23 @@ class Unir(BaseModel):
     tolerancia: float | None = None
 
 
+class _RegionEn(BaseModel):
+    punto: list[float]
+    ventana: list[float]         # [x0, y0, x1, y1] de lo que se ve
+
+
+@app.post("/api/rayado/region")
+def rayado_region(entrada: _RegionEn):
+    """El área cerrada alrededor de un punto, con sus islas, como rutas de
+    rayado (core/regiones.region_en). No cambia nada: el navegador crea el
+    rayado con esas rutas, como cualquier otra entidad."""
+    with S.candado:
+        try:
+            return mod_regiones.region_en(S.doc, entrada.punto, entrada.ventana, S.espacio)
+        except mod_regiones.NoSeCombina as exc:
+            return {"error": str(exc)}
+
+
 class _Combinar(BaseModel):
     ids: list[str]
     operacion: str              # union · resta · interseccion
