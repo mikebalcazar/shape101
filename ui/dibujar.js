@@ -658,22 +658,40 @@ window.Galeria = Galeria;
 
 Comandos.registrar({
   nombre: "RAYADO", alias: ["H", "SOMBREADO"],
-  ayuda: "Raya una polilínea cerrada o un círculo: se elige el patrón en una galería con previa",
+  ayuda: "Raya el área donde piques (con sus islas) o un contorno cerrado (S): se elige el patrón en una galería con previa",
   correr: async (args) => {
-    const id = await Seleccion.pedirUna({
-      mensaje: "Elige el contorno cerrado a rayar",
-      filtro: (e) => (e.tipo === "polilinea" && e.cerrada) || e.tipo === "circulo",
-      queja: "El contorno tiene que ser una polilínea cerrada o un círculo.",
-    });
-    const ent = await api(`/api/entidad/${id}`);
-    let rutas;
-    if (ent.tipo === "circulo") {
-      // el círculo se pasa como dos medios arcos: es como el DXF guarda un
-      // contorno circular en una ruta de polilínea
-      rutas = [[[ent.centro[0] - ent.radio, ent.centro[1], 1],
-                [ent.centro[0] + ent.radio, ent.centro[1], 1]]];
+    // Picar dentro (fase B2b): el área sale del arreglo de todas las curvas a
+    // la vista, abiertas o cerradas, con sus islas (core/regiones.region_en).
+    // Con S, como antes: se elige una polilínea cerrada o un círculo.
+    let rutas, asociado = [], id = null;
+    const p = await Entrada.pedirPunto({ mensaje: "Pica dentro del área a rayar (S elige un contorno)", opciones: ["S"] });
+    if (Array.isArray(p)) {
+      const lienzo = document.querySelector("#lienzo");
+      const a = aMM(0, 0), b = aMM(lienzo.clientWidth, lienzo.clientHeight);
+      Comandos.eco("Buscando el área…");
+      const r = await post("/api/rayado/region", {
+        punto: [p[0], p[1]],
+        ventana: [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])],
+      });
+      if (r.error) return Comandos.eco(r.error, "malo");
+      rutas = r.rutas;
+      if (r.contornos > 1) Comandos.eco(`Área con ${r.contornos - 1} isla(s).`);
     } else {
-      rutas = [ent.puntos.map((p) => [p[0], p[1], p[2] || 0])];
+      id = await Seleccion.pedirUna({
+        mensaje: "Elige el contorno cerrado a rayar",
+        filtro: (e) => (e.tipo === "polilinea" && e.cerrada) || e.tipo === "circulo",
+        queja: "El contorno tiene que ser una polilínea cerrada o un círculo.",
+      });
+      asociado = [id];
+      const ent = await api(`/api/entidad/${id}`);
+      if (ent.tipo === "circulo") {
+        // el círculo se pasa como dos medios arcos: es como el DXF guarda un
+        // contorno circular en una ruta de polilínea
+        rutas = [[[ent.centro[0] - ent.radio, ent.centro[1], 1],
+                  [ent.centro[0] + ent.radio, ent.centro[1], 1]]];
+      } else {
+        rutas = [ent.puntos.map((q) => [q[0], q[1], q[2] || 0])];
+      }
     }
     // El patrón: por argumento (RAYADO ANSI31) o en la galería, con previa.
     let patron = (args[0] || "").toUpperCase();
@@ -682,7 +700,7 @@ Comandos.registrar({
     if (!patron) {
       const { patrones } = await api("/api/rayados");
       Comandos.pedir("Elige el patrón en la galería (Enter confirma)");
-      estado.sel.clear(); estado.sel.add(id); Seleccion.refrescar();
+      estado.sel.clear(); if (id) estado.sel.add(id); Seleccion.refrescar();
       let vez = 0;
       const previa = async (nombre) => {
         const mia = ++vez;
@@ -704,7 +722,7 @@ Comandos.registrar({
     try { localStorage.setItem("ultimo_rayado", patron); } catch (_) {}
     await crearEntidad({
       tipo: "rayado", rutas, patron,
-      solido: patron === "SOLID", escala: 1, angulo: 0, asociado: [id],
+      solido: patron === "SOLID", escala: 1, angulo: 0, asociado,
       capa: estado.resumen.capas.some((c) => c.nombre === "T101-RAYADO")
         ? "T101-RAYADO" : estado.resumen.capa_activa,
     }, "Rayado");

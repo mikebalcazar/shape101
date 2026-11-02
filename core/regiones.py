@@ -153,7 +153,7 @@ def _piezas_de_wire(wire) -> list[dict]:
             # Si el eje de OpenCASCADE apunta abajo, su t corre al revés.
             # (El sentido de recorrido no cambia los puntos de un arco de elipse.)
             t0, t1 = (u0, u1) if sentido > 0 else (-u1, -u0)
-            piezas.append({"t": "elipse", "centro": [c.X(), c.Y()], "eje_mayor": mayor,
+            piezas.append({"t": "elipse", "p0": p0, "p1": p1, "centro": [c.X(), c.Y()], "eje_mayor": mayor,
                            "razon": el.MinorRadius() / el.MajorRadius(),
                            "param_ini": t0, "param_fin": t1,
                            "completa": (u1 - u0) >= 2 * math.pi - 1e-9})
@@ -173,7 +173,7 @@ def _piezas_de_wire(wire) -> list[dict]:
                 c = c.tramo(u0, u1)
             if rev:
                 c = c.invertida()
-            piezas.append({"t": "spline", "curva": c})
+            piezas.append({"t": "spline", "p0": p0, "p1": p1, "curva": c})
         else:
             raise NoSeCombina("El resultado trae una curva de un tipo que todavía no sé convertir.")
         ex.Next()
@@ -396,3 +396,140 @@ def combinar(doc, ids: list[str], operacion: str) -> dict:
         contornos += bordes
     return {"borrar": [e.id for e in ents], "contornos": contornos, "area": area,
             "piezas": len(caras_res)}
+
+
+# --- Rayar picando dentro (fase B2b) ----------------------------------------
+
+#: Tipos que pueden formar el borde de un área a rayar, abiertos o cerrados.
+BORDES = ("linea", "arco", "polilinea", "circulo", "elipse", "spline")
+
+#: Más que esto en la vista y se pide acercarse: el arreglo de miles de curvas
+#: tarda, y un área a rayar casi nunca necesita todo el plano.
+TOPE_CURVAS = 4000
+
+
+def _aristas_de(e) -> list:
+    """Las aristas de OpenCASCADE de una entidad, abierta o cerrada."""
+    from build123d import Edge, Plane
+
+    from .solido import boceto
+
+    t = e.tipo
+    if t in ("linea", "arco", "polilinea", "circulo"):
+        return boceto.aristas_de(e.a_dict())
+    if t == "spline":
+        return [_edge_bspline(e.curva())]
+    if t == "elipse":
+        a = math.hypot(*e.eje_mayor)
+        plano = Plane(origin=(e.centro[0], e.centro[1], 0),
+                      x_dir=(e.eje_mayor[0] / a, e.eje_mayor[1] / a, 0), z_dir=(0, 0, 1))
+        if (e.param_fin - e.param_ini) % (2 * math.pi) < 1e-9:
+            return [Edge.make_ellipse(a, a * e.razon, plano)]
+        return [Edge.make_ellipse(a, a * e.razon, plano, math.degrees(e.param_ini), math.degrees(e.param_fin))]
+    return []
+
+
+def _ruta_de(piezas: list[dict], flecha: float) -> list:
+    """Las piezas de un borde como ruta de rayado: [[x, y, bulge], …], cerrada.
+    Rectas y arcos van exactos (el arco, como bulge); una spline o una elipse
+    se aproximan con la flecha, porque la ruta de un HATCH es una polilínea."""
+    if len(piezas) == 1 and piezas[0]["t"] == "circulo":
+        c, r = piezas[0]["centro"], piezas[0]["radio"]
+        return [[c[0] - r, c[1], 1.0], [c[0] + r, c[1], 1.0]]
+    ruta = []
+    for p in piezas:
+        if p["t"] in ("recta", "arco"):
+            ruta.append([p["p0"][0], p["p0"][1], p["bulge"]])
+            continue
+        if p["t"] == "spline":
+            pts = p["curva"].teselar(flecha)
+        else:                                   # elipse
+            c, (ax, ay), k = p["centro"], p["eje_mayor"], p["razon"]
+            t0, t1 = p["param_ini"], p["param_fin"]
+            n = max(16, int(abs(t1 - t0) / (2 * math.pi) * 256))
+            pts = [[c[0] + ax * math.cos(t) - ay * k * math.sin(t), c[1] + ay * math.cos(t) + ax * k * math.sin(t)]
+                   for t in (t0 + (t1 - t0) * i / n for i in range(n + 1))]
+        if math.dist(pts[0], p["p0"]) > math.dist(pts[-1], p["p0"]):
+            pts = pts[::-1]
+        ruta += [[q[0], q[1], 0.0] for q in pts[:-1]]
+    return ruta
+
+
+def region_en(doc, punto, ventana, espacio: str = "") -> dict:
+    """El área cerrada que rodea a `punto`, con sus islas, como rutas de rayado.
+
+    Es el «picar dentro» del HATCH de AutoCAD y del Hatch de Rhino. Se toman
+    las curvas que se ven (`ventana` = [x0, y0, x1, y1]), abiertas o cerradas,
+    y con OpenCASCADE se parte una hoja grande con todas ellas (cosiendo a la
+    tolerancia del documento): queda el arreglo de regiones del dibujo. La que
+    contiene al punto es el área; sus bordes interiores, las islas. No hace
+    falta que el contorno sea una polilínea: cuatro líneas que se cruzan, o una
+    spline que corta un rectángulo, cierran igual.
+
+    Devuelve {"rutas": [exterior, isla, …], "area": …, "contornos": n}.
+    """
+    from build123d import Edge, Face, Shape, Vector, Wire
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Splitter
+    from OCP.BRepClass import BRepClass_FaceClassifier
+    from OCP.gp import gp_Pnt
+    from OCP.TopAbs import TopAbs_IN
+    try:
+        from OCP.TopTools import TopTools_ListOfShape as Lista
+    except ImportError:     # OCP 7.8+
+        from OCP.collections import List_TopoDS_Shape as Lista
+
+    from . import tolerancia as mod_tolerancia
+
+    x0, y0, x1, y1 = ventana
+    cand = []
+    for e in doc.lista():
+        if e.tipo not in BORDES or getattr(e, "espacio", "") != espacio or getattr(e, "plano", "XY") != "XY":
+            continue
+        c = e.caja()
+        if c and c[2] >= x0 and c[0] <= x1 and c[3] >= y0 and c[1] <= y1:
+            cand.append(e)
+    if not cand:
+        raise NoSeCombina("No hay curvas a la vista alrededor de ese punto.")
+    if len(cand) > TOPE_CURVAS:
+        raise NoSeCombina(f"Hay {len(cand)} curvas a la vista: acércate al área que quieres rayar.")
+    aristas = []
+    for e in cand:
+        try:
+            aristas += _aristas_de(e)
+        except Exception:      # noqa: BLE001 — una curva degenerada no tumba el rayado
+            continue
+    # La hoja: la ventana y las cajas de las curvas, con aire. Si el área del
+    # punto llega a su borde, es que no está cerrada.
+    cajas = [e.caja() for e in cand]
+    X0 = min([x0] + [c[0] for c in cajas]); Y0 = min([y0] + [c[1] for c in cajas])
+    X1 = max([x1] + [c[2] for c in cajas]); Y1 = max([y1] + [c[3] for c in cajas])
+    aire = max(X1 - X0, Y1 - Y0) * 0.1 + 1.0
+    X0, Y0, X1, Y1 = X0 - aire, Y0 - aire, X1 + aire, Y1 + aire
+    esq = [(X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)]
+    hoja = Face(Wire([Edge.make_line(Vector(*esq[i], 0), Vector(*esq[(i + 1) % 4], 0)) for i in range(4)]))
+    sp = BRepAlgoAPI_Splitter()
+    args, tools = Lista(), Lista()
+    args.Append(hoja.wrapped)
+    for a in aristas:
+        tools.Append(a.wrapped)
+    sp.SetArguments(args)
+    sp.SetTools(tools)
+    sp.SetFuzzyValue(mod_tolerancia.de(doc))
+    sp.Build()
+    if not sp.IsDone():
+        raise NoSeCombina("No se pudo armar el área con esas curvas.")
+    p = gp_Pnt(float(punto[0]), float(punto[1]), 0.0)
+    cara = next((f for f in Shape(sp.Shape()).faces()
+                 if BRepClass_FaceClassifier(f.wrapped, p, 1e-7).State() == TopAbs_IN), None)
+    if cara is None:
+        raise NoSeCombina("Ese punto cae sobre una línea: pica dentro del área.")
+    exterior = cara.outer_wire()
+    bb = exterior.bounding_box()
+    if (bb.min.X <= X0 + 1e-6 or bb.min.Y <= Y0 + 1e-6 or bb.max.X >= X1 - 1e-6 or bb.max.Y >= Y1 - 1e-6):
+        raise NoSeCombina("El área no está cerrada: el contorno tiene una abertura.")
+    flecha = 0.05 / (doc.mm_por_unidad() or 1.0)
+    bordes = [exterior] + [w for w in cara.inner_wires() if w.is_closed]
+    rutas = [_ruta_de(_piezas_de_wire(w), flecha) for w in bordes]
+    area = (area_de_contorno([{"tipo": "polilinea", "puntos": rutas[0], "cerrada": True}])
+            - sum(area_de_contorno([{"tipo": "polilinea", "puntos": r, "cerrada": True}]) for r in rutas[1:]))
+    return {"rutas": rutas, "area": area, "contornos": len(rutas)}

@@ -37,7 +37,7 @@ documentación:
 | **B1** | Recortar splines y elipses (partir la NURBS por inserción de nudos) | hecha (t047) |
 | B1b | Extender una spline o una elipse más allá de su punta (en recta, en arco o suave, como Rhino) | pendiente |
 | **B2a** | Regiones: booleanas 2D exactas de contornos cerrados (UNION, RESTA, INTERSECCION) con OpenCASCADE | hecha (t048) |
-| B2b | Rayado picando dentro, con islas | pendiente |
+| **B2b** | Rayado picando dentro, con islas, por el arreglo de todas las curvas a la vista | hecha (t049) |
 | B3 | Desfase exacto de curvas libres (aproximado a la tolerancia, como Rhino) | pendiente |
 | C1 | Boceto 3D con varios contornos e islas (caras con huecos) | pendiente |
 | C2 | Splines y elipses entran al kernel como curvas B-spline, no como polilíneas | pendiente |
@@ -169,3 +169,22 @@ decide Mike.
   arregló `pruebas/navegador.comando`; no es un defecto del programa.
 - Pendiente aparte, encontrado al elegir alias: `UN` está a la vez en UNIDADES
   y en UNIR (de antes). Se le pregunta a Mike cuál se queda.
+
+## Lo que se aprendió en B2b
+
+- **Mike pidió seguir con B2b antes de publicar** (2-nov-2026).
+- **El arreglo lo hace el kernel**: una hoja grande partida con todas las
+  curvas a la vista (BRepAlgoAPI_Splitter, cosiendo a la tolerancia del
+  documento) da todas las regiones del dibujo; la que contiene el punto es el
+  área, y sus bordes interiores, las islas. Ya no hace falta un contorno
+  cerrado: cuatro líneas sueltas que se cruzan cierran igual.
+- **Si la región llega al borde de la hoja, el área está abierta**: se avisa
+  en vez de rayar el plano entero.
+- **Rectas y arcos van exactos en la ruta** (el arco, como bulge); una spline
+  o una elipse se aproximan a la flecha, porque la ruta de un HATCH es una
+  polilínea. El polígono inscrito pierde como mucho flecha × perímetro.
+- **Otra trampa del arnés**: la barra flotante tapa parte del lienzo y un
+  clic ahí aprieta un botón (GRUPO). La prueba elige un punto donde
+  `elementFromPoint` es el lienzo.
+- El LEEME decía «no se pica dentro» y «polilíneas todavía no se recortan»:
+  las dos frases se corrigieron.

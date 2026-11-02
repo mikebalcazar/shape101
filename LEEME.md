@@ -165,8 +165,8 @@ toparse con ellas.
 |---|---|---|
 | `1` | Abre DWG de R2000 a R2018 sin instalar nada | El DWG es formato cerrado: estos motores lo leen por ingeniería inversa. **No se ha probado con un plano real de los que te mandan** |
 | `3` | Guarda DWG sin instalar nada | Lo escribe acad-ts, no AutoCAD. **Para entregar, el DXF es lo seguro** |
-| `26` | Se raya eligiendo el contorno cerrado | No se pica dentro para que adivine el contorno. Detectar islas en un plano medio dibujado falla más de lo que acierta |
-| `38` | Recorta y extiende líneas y arcos | Polilíneas todavía no: hay que explotarlas |
+| `26` | Se raya picando dentro: el área sale de todas las curvas a la vista, abiertas o cerradas, con sus islas (o con `S`, eligiendo un contorno) | Las curvas que no se ven no cuentan: si el área se sale de la pantalla, hay que alejarse. Con más de 4 000 curvas a la vista pide acercarse |
+| `38` | Recorta líneas, arcos, polilíneas, splines y elipses; extiende líneas y arcos | Extender una spline o una elipse todavía no |
 | `65` | Sale el PDF y se abre para imprimir | No hay diálogo de impresora propio. El del visor de PDF hace lo mismo y lo conoce todo el mundo |
 | `73` | Una hoja por mueble, acotada | El despiece pieza por pieza lo calcula **Taller 101** y lo exporta en DXF. Dos motores de despiece que se contradicen sería peor que uno |
 | `74` | Deja PDF, DXF y `manifiesto.json` en una carpeta | No llama a SUPERVISOR: SUPERVISOR todavía no tiene puerta de entrada. El día que la tenga, cambia quién lee la carpeta, no lo que hay dentro |
