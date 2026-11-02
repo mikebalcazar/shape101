@@ -82,6 +82,19 @@ def _edge_bspline(c):
     return Edge(BRepBuilderAPI_MakeEdge(curva).Edge())
 
 
+def nurbs_de_bspline(bs):
+    """Una Geom_BSplineCurve de OpenCASCADE como NURBS nuestra (plana)."""
+    if bs.IsPeriodic():
+        raise NoSeCombina("El resultado trae una curva periódica que todavía no sé convertir.")
+    n = bs.NbPoles()
+    control = [[bs.Pole(i).X(), bs.Pole(i).Y()] for i in range(1, n + 1)]
+    nudos = []
+    for i in range(1, bs.NbKnots() + 1):
+        nudos += [bs.Knot(i)] * bs.Multiplicity(i)
+    pesos = [bs.Weight(i) for i in range(1, n + 1)] if bs.IsRational() else None
+    return mod_nurbs.Nurbs(bs.Degree(), control, nudos, pesos)
+
+
 def cara_de(e):
     """La cara plana que encierra una entidad cerrada, o ValueError."""
     from build123d import Edge, Face, Plane, Wire
@@ -158,16 +171,7 @@ def _piezas_de_wire(wire) -> list[dict]:
                            "param_ini": t0, "param_fin": t1,
                            "completa": (u1 - u0) >= 2 * math.pi - 1e-9})
         elif tipo == GeomAbs_BSplineCurve:
-            bs = ad.BSpline()
-            n = bs.NbPoles()
-            control = [[bs.Pole(i).X(), bs.Pole(i).Y()] for i in range(1, n + 1)]
-            nudos = []
-            for i in range(1, bs.NbKnots() + 1):
-                nudos += [bs.Knot(i)] * bs.Multiplicity(i)
-            pesos = [bs.Weight(i) for i in range(1, n + 1)] if bs.IsRational() else None
-            if bs.IsPeriodic():
-                raise NoSeCombina("El resultado trae una curva periódica que todavía no sé convertir.")
-            c = mod_nurbs.Nurbs(bs.Degree(), control, nudos, pesos)
+            c = nurbs_de_bspline(ad.BSpline())
             da, db = c.dominio
             if u0 > da + 1e-12 or u1 < db - 1e-12:
                 c = c.tramo(u0, u1)

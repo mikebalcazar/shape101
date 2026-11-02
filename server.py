@@ -32,6 +32,7 @@ from core import unir as mod_unir
 from core import tolerancia as mod_tolerancia
 from core import recortar as mod_recortar
 from core import regiones as mod_regiones
+from core import desfase as mod_desfase
 from core import agrupar as mod_agrupar
 from core import oda as mod_oda
 from core import version as mod_version
@@ -1922,6 +1923,26 @@ class Operacion(BaseModel):
 class Unir(BaseModel):
     ids: list[str]
     tolerancia: float | None = None
+
+
+class _DesfaseCurva(BaseModel):
+    id: str
+    distancia: float
+    punto: list[float]
+
+
+@app.post("/api/desfase/curva")
+def desfase_curva(entrada: _DesfaseCurva):
+    """DESFASE de una spline o una elipse (core/desfase.py). No cambia nada:
+    devuelve la entidad nueva y el navegador la agrega con /api/operacion."""
+    with S.candado:
+        e = S.doc.entidades.get(entrada.id)
+        if e is None:
+            raise HTTPException(404, f"no existe la entidad {entrada.id}")
+        try:
+            return mod_desfase.desfasar(S.doc, e, entrada.distancia, entrada.punto)
+        except mod_desfase.NoSeDesfasa as exc:
+            return {"error": str(exc)}
 
 
 class _RegionEn(BaseModel):

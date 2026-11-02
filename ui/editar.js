@@ -561,9 +561,11 @@ Comandos.registrar({
 /* ===================================================================== */
 /* 37 · Desfase (offset)                                                 */
 /* ===================================================================== */
-/* Sólo línea, polilínea, círculo y arco. Una spline desfasada de verdad no es
- * una spline —es otra curva sin forma cerrada— y las aproximaciones que hacen
- * otros programas se notan en el corte. Mejor decir que no se puede. */
+/* Línea, polilínea, círculo y arco se desfasan aquí, exactos. La spline y la
+ * elipse van al servidor (core/desfase.py): su desfase de verdad no es una
+ * spline ni una elipse, y se aproxima como en Rhino, a una tolerancia
+ * garantizada (una décima de la del documento), que es lo que hace que no se
+ * note en el corte. Hasta la fase B3 se negaba con ellas por eso mismo. */
 function desfasar(ent, d, lado) {
   if (ent.tipo === "linea") {
     const dx = ent.p2[0] - ent.p1[0], dy = ent.p2[1] - ent.p1[1];
@@ -622,17 +624,25 @@ function desfasar(ent, d, lado) {
 
 Comandos.registrar({
   nombre: "DESFASE", alias: ["DF", "O", "OFFSET"],
-  ayuda: "Copia una línea, polilínea, círculo o arco a una distancia dada",
+  ayuda: "Copia una línea, polilínea, círculo, arco, spline o elipse a una distancia dada",
   correr: async () => {
     const d = await Entrada.pedirNumero({ mensaje: "Distancia del desfase", minimo: 1e-6 });
     await repetir(async () => {
       const id = await Seleccion.pedirUna({
         mensaje: "Elige la entidad a desfasar",
-        filtro: (e) => ["linea", "polilinea", "circulo", "arco"].includes(e.tipo),
-        queja: "El desfase funciona con líneas, polilíneas, círculos y arcos.",
+        filtro: (e) => ["linea", "polilinea", "circulo", "arco", "spline", "elipse"].includes(e.tipo),
+        queja: "El desfase funciona con líneas, polilíneas, círculos, arcos, splines y elipses.",
       });
       const ent = await api(`/api/entidad/${id}`);
       const p = await Entrada.pedirPunto({ mensaje: "¿De qué lado?" });
+
+      if (ent.tipo === "spline" || ent.tipo === "elipse") {
+        const r = await post("/api/desfase/curva", { id, distancia: d, punto: [p[0], p[1]] });
+        if (r.error) return Comandos.eco(r.error, "malo");
+        await aplicarOperacion({ accion: "Desfase", agregar: [r.entidad] });
+        Seleccion.limpiar();
+        return;
+      }
 
       // De qué lado quedó el clic respecto de la entidad
       let lado = 1;
