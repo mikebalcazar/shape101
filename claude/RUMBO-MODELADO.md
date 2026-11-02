@@ -39,8 +39,8 @@ documentación:
 | **B2a** | Regiones: booleanas 2D exactas de contornos cerrados (UNION, RESTA, INTERSECCION) con OpenCASCADE | hecha (t048) |
 | **B2b** | Rayado picando dentro, con islas, por el arreglo de todas las curvas a la vista | hecha (t049) |
 | **B3** | Desfase de splines y elipses, aproximado a una décima de la tolerancia del documento (como Rhino) | hecha (t050) |
-| C1 | Boceto 3D con varios contornos e islas (caras con huecos) | pendiente |
-| C2 | Splines y elipses entran al kernel como curvas B-spline, no como polilíneas | pendiente |
+| **C1** | Boceto 3D con varios contornos, huecos e islas (anidamiento par/impar, como PlanarSrf) | hecha (t051) |
+| **C2** | Splines y elipses entran al kernel como curvas B-spline y elipse exactas, no como polilíneas | hecha (t051) |
 | C3 | Mover puntos de curvas en un sólido; empalme y chaflán robustos | pendiente |
 | D | Superficies libres: loft, barrido por dos rieles, red de curvas, edición por puntos de control, análisis de curvatura | pendiente |
 
@@ -202,3 +202,21 @@ decide Mike.
 - **Cerrada no es periódica**: una cerrada de nudos sujetos (la de un desfase
   o una booleana) se marcaba periódica en el DXF sólo por estar cerrada.
   Ahora la marca depende de los nudos.
+
+## Lo que se aprendió en C1 (y C2)
+
+- **Mike pidió ir a los sólidos** (2-nov-2026), con el 2D sin publicar.
+- **Anidamiento par/impar**: un contorno rodeado por un número par de otros es
+  material; por uno impar, hueco. Antes todo lo que no era el más grande era
+  hueco, así que un botón dentro de una ventana salía como otro hueco y dos
+  piezas separadas no se podían extruir juntas. Ahora salen varias caras y se
+  extruyen juntas (un compuesto). REVOLVER, BARRER y LOFT siguen pidiendo una
+  sola pieza, y lo dicen.
+- **Dos contornos que se cruzan no tienen anidamiento claro**: se avisa (unir
+  antes). Ojo: la revisión de cruce tiene que hacerse en todos los pares; con
+  sólo «el más grande contiene al chico», dos iguales traslapados pasaban.
+- **El boceto ignoraba splines y elipses sin decir nada** (C2). Ahora entran
+  exactas, y las puntas de una spline o un arco de elipse abiertos sirven de
+  ancla para soldar a ellas las líneas vecinas.
+- `es_cerrada` no reconocía la spline cerrada ni la elipse completa: REVOLVER
+  y compañía las tomaban por caminos.
