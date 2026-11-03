@@ -75,9 +75,15 @@ def mover(solido, movimientos: list, nombres_de_cara: list | None = None,
                 # voz alta en vez de sacar una pieza retorcida.
                 if any(_iguales(corrido(q), q, tol) is False
                        for q in (e.start_point(), e.end_point())):
+                    # Rehacer un cilindro o un redondeo deformándolo sería
+                    # una superficie aproximada: la pieza retorcida que esto
+                    # evita. Lo exacto es cambiar la curva en el boceto y que
+                    # la pieza se regenere (fase C3).
                     raise ValueError(
-                        "ese punto es de una arista curva (un redondeo o un "
-                        "barreno). Mover puntos de curvas todavía no está.")
+                        "ese punto es de una arista curva (un redondeo, un "
+                        "barreno o una curva del boceto). Muévelo en el boceto "
+                        "de la pieza, o cambia el radio en su historial: así la "
+                        "pieza se rehace exacta.")
                 aristas.append(e)
                 continue
             a, b = corrido(e.start_point()), corrido(e.end_point())

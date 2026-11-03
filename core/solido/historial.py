@@ -35,7 +35,7 @@ import json
 import pathlib
 import time
 
-from build123d import Axis, Face, Wire, extrude, fillet, loft, revolve, sweep
+from build123d import Axis, Face, Wire, chamfer, extrude, fillet, loft, revolve, sweep
 
 from core.solido import boceto, nombres, planos, remallar
 
@@ -60,7 +60,7 @@ def _entidades(op: dict) -> list[dict]:
 
 OPERACIONES = {"boceto", "extruir", "revolver", "barrer", "loft", "extruir_cara",
                "primitiva",
-               "restar", "redondear", "empujar_cara",
+               "restar", "redondear", "chaflan", "empujar_cara",
                "mover_vertice", "mover_arista"}
 
 
@@ -476,9 +476,36 @@ def _paso(est: Estado, i: int, op: dict) -> None:
         nom.rebautizar(solido, nuevas=nom_h.caras)
     elif clase == "redondear":
         aristas = [nom.arista(solido, a) for a in op["aristas"]]
-        nuevo = fillet(aristas, radius=op["r"])
+        try:
+            nuevo = fillet(aristas, radius=op["r"])
+        except Exception as exc:
+            # El kernel sólo dice «falló, prueba uno menor», en inglés. Se le
+            # pregunta cuál es el más grande que cabe y se dice ése.
+            try:
+                maximo = solido.max_fillet(aristas, tolerance=0.01, max_iterations=40)
+            except Exception:
+                maximo = None
+            if maximo:
+                raise ValueError(f"un redondeo de {op['r']} no cabe en esas aristas: "
+                                 f"el más grande que cabe es {maximo:.2f}") from exc
+            raise ValueError(f"un redondeo de {op['r']} no cabe en esas aristas") from exc
         candidatas = [f for f in nuevo.faces() if nom.nombre_de(f) is None]
         nuevas = {f"redondeo[{op['id']}]/{na}": f for na, f in zip(op["aristas"], _ordenar_redondeos(candidatas, aristas))}
+        solido = nuevo
+        nom.rebautizar(solido, nuevas=nuevas)
+    elif clase == "chaflan":
+        # El chaflán (fase C3): la arista se corta en plano a la distancia `d`
+        # de cada cara, como el ChamferEdge de Rhino. Se nombra igual que un
+        # redondeo, para que jalar o borrar después encuentre su cara.
+        aristas = [nom.arista(solido, a) for a in op["aristas"]]
+        d = float(op["d"])
+        try:
+            nuevo = chamfer(aristas, length=d)
+        except Exception as exc:
+            raise ValueError(f"un chaflán de {d} no cabe en esas aristas: el más grande que cabe "
+                             f"es {_max_chaflan(aristas, d):.2f}") from exc
+        candidatas = [f for f in nuevo.faces() if nom.nombre_de(f) is None]
+        nuevas = {f"chaflan[{op['id']}]/{na}": f for na, f in zip(op["aristas"], _ordenar_redondeos(candidatas, aristas))}
         solido = nuevo
         nom.rebautizar(solido, nuevas=nuevas)
     elif clase == "empujar_cara":
@@ -545,6 +572,21 @@ def extender(reg: "Regenerado", op: dict) -> Regenerado:
     _paso(est, len(est.ops), op)
     reg.solido, reg.nombrador, reg.tiempos = est.solido, est.nom, est.tiempos
     return reg
+
+
+def _max_chaflan(aristas, d: float) -> float:
+    """El chaflán más grande que cabe, por bisección: build123d no trae un
+    max_chamfer como trae max_fillet. Doce intentos dan la centésima en una
+    pieza de un metro."""
+    bajo, alto = 0.0, d
+    for _ in range(12):
+        medio = (bajo + alto) / 2
+        try:
+            chamfer(aristas, length=medio)
+            bajo = medio
+        except Exception:
+            alto = medio
+    return bajo
 
 
 def _ordenar_redondeos(caras_nuevas, aristas):
