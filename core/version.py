@@ -21,13 +21,38 @@ Numeración: `mayor.menor.parche`.
 
 from __future__ import annotations
 
-VERSION = "0.21.9"
-FECHA = "2026-10-09"
+VERSION = "0.22.0"
+FECHA = "2026-11-03"
 
 # Qué trae cada entrega, en el idioma del taller y no en el del código.
 # La más nueva arriba. Lo que se lista aquí es lo que el comando VERSION
 # enseña en la consola.
 BITACORA: list[dict] = [
+    {
+        "version": "0.22.0",
+        "fecha": "2026-11-03",
+        "cambios": [
+            "Curvas exactas: la spline que ves es la que va al DXF y a la CNC, y el "
+            "osnap se engancha a la curva de verdad (extremos, medio, cruces, cercano, "
+            "perpendicular), también en elipses.",
+            "Las splines de un DXF o DWG que traen su curva completa ya se pueden "
+            "editar; las demás se conservan como antes.",
+            "TOLERANCIA del documento (0.05 mm): la usan UNIR, RECORTAR, EXTENDER y "
+            "el contorno de un sólido. Un contorno con huecos de centésimas ya se extruye.",
+            "RECORTAR y EXTENDER funcionan con splines y elipses; la spline se alarga "
+            "suave, siguiendo su curva.",
+            "UNION, RESTA e INTERSECCION de contornos cerrados, exactas.",
+            "RAYADO picando dentro del área, con sus islas (con S, como antes).",
+            "DESFASE de splines y elipses.",
+            "Sólidos: bocetos con varios contornos, huecos e islas; splines y elipses "
+            "en el boceto; CHAFLAN; un redondeo que no cabe dice el más grande que cabe.",
+            "Superficies: LOFT, REVOLVER y BARRER con curvas abiertas, PARCHE (una "
+            "superficie que cierra un borde), BARRER2 (dos rieles) y edición por "
+            "puntos de control.",
+            "CURVATURA y CEBRA para revisar qué tan lisas son las superficies.",
+            "Alias como AutoCAD: UN unidades, J/JOIN unir, CP copiar, BLOQUE bloque.",
+        ],
+    },
     {
         "version": "0.21.9",
         "fecha": "2026-10-09",
