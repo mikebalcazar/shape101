@@ -402,7 +402,7 @@ def red(entrada: Seleccion):
     doc = _doc()
     todo = _entidades_de(doc, entrada.ids, "las curvas del borde del parche")
     if len(todo) < 2:
-        raise HTTPException(400, "RED quiere al menos dos curvas que cierren un borde.")
+        raise HTTPException(400, "PARCHE quiere al menos dos curvas que cierren un borde.")
     try:
         ops = mod.ops_de_red(todo)
     except ValueError as e:

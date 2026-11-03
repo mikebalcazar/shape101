@@ -80,7 +80,7 @@
   }
 
   Comandos.registrar({
-    nombre: "PRISMA", alias: ["CAJA", "BLOQUE", "BOX"],
+    nombre: "PRISMA", alias: ["CAJA", "BOX"],          // BLOQUE es el comando BLOQUE (le ganaba)
     ayuda: "PRISMA · una caja: dos esquinas de la base en la ventana donde estás y el alto",
     correr: async () => {
       const b = await baseRectangular("del prisma");
