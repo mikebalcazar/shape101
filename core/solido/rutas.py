@@ -374,6 +374,25 @@ def loft(entrada: Seleccion):
     return _nace(doc, ops, cerradas, "loft")
 
 
+@router.post("/barrer2")
+def barrer2(entrada: Seleccion):
+    """Barrido por dos rieles (fase D1b): un perfil abierto que toca con sus
+    puntas el arranque de dos rieles, en cualquier orden de selección."""
+    from core.solido import cuerpo as mod
+
+    doc = _doc()
+    todo = _entidades_de(doc, entrada.ids, "el perfil y los dos rieles")
+    cerradas, abiertas = mod.repartir(todo)
+    if cerradas or len(abiertas) != 3:
+        raise HTTPException(400, "BARRER2 quiere tres curvas abiertas: un perfil y dos rieles; "
+                                 f"señalaste {len(abiertas)} abiertas y {len(cerradas)} cerradas.")
+    try:
+        ops = mod.ops_de_barrer2(abiertas)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return _nace(doc, ops, abiertas, "barrer2")
+
+
 @router.post("/red")
 def red(entrada: Seleccion):
     """Superficie por su borde (fase D1): las curvas señaladas, que se tocan

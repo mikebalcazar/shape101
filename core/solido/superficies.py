@@ -10,6 +10,8 @@ parche que cierra un borde. Aquí están esas cuatro, con OpenCASCADE:
 - `barrido`     un perfil abierto que recorre un camino (BRepOffsetAPI_MakePipe).
 - `red`         un parche que pasa por un borde de varias curvas que cierran
                 un lazo (BRepFill_Filling): el NetworkSrf / EdgeSrf de Rhino.
+- `barrido_dos_rieles`  el Sweep2 de Rhino: un perfil que recorre dos rieles
+                tocando los dos (fase D1b).
 
 Lo que sale es una superficie (o un conjunto de caras), no un sólido: no tiene
 volumen. Vive en la misma entidad `cuerpo`, con su historial, y se ve, se
@@ -97,3 +99,120 @@ def red(alambres: list):
     if not relleno.IsDone():
         raise ValueError("esas curvas no cierran un borde: tienen que tocarse punta con punta")
     return Face(relleno.Face())
+
+
+# --- Barrido por dos rieles (fase D1b) -------------------------------------
+
+def _seccion(perfil, p0, v0, r1, r2):
+    """El perfil llevado a que su punta p0 caiga en r1 y la otra en r2: se gira
+    lo mínimo (de v0 a r2 - r1), se escala por la razón de largos y se mueve.
+    Es una semejanza: el perfil conserva su forma, sólo cambia de tamaño."""
+    import math
+
+    from build123d import Shape
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Transform
+    from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+
+    w = r2 - r1
+    k = w.length / v0.length
+    t = gp_Trsf()
+    t.SetTranslation(gp_Vec(-p0.X, -p0.Y, -p0.Z))
+    esc = gp_Trsf()
+    esc.SetScale(gp_Pnt(0, 0, 0), k)
+    t = esc.Multiplied(t)
+    eje = v0.cross(w)
+    angulo = v0.get_angle(w)
+    if eje.length > 1e-12 and abs(angulo) > 1e-12:
+        rot = gp_Trsf()
+        rot.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(eje.X, eje.Y, eje.Z)), math.radians(angulo))
+        t = rot.Multiplied(t)
+    elif angulo > 179.999:
+        # Opuestos: media vuelta sobre cualquier eje perpendicular.
+        perp = v0.cross((1, 0, 0)) if abs(v0.normalized().X) < 0.9 else v0.cross((0, 1, 0))
+        rot = gp_Trsf()
+        rot.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(perp.X, perp.Y, perp.Z)), math.pi)
+        t = rot.Multiplied(t)
+    mov = gp_Trsf()
+    mov.SetTranslation(gp_Vec(r1.X, r1.Y, r1.Z))
+    t = mov.Multiplied(t)
+    return Shape.cast(BRepBuilderAPI_Transform(perfil.wrapped, t, True).Shape())
+
+
+def _distancia(a, b) -> float:
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+    return BRepExtrema_DistShapeShape(a.wrapped, b.wrapped).Value()
+
+
+def _en(riel, s: float):
+    """El punto del riel a la fracción s de su largo; un riel (alambre, al
+    revés) se recorre desde su final."""
+    alambre, al_reves = riel if isinstance(riel, tuple) else (riel, False)
+    return alambre.position_at(1 - s if al_reves else s)
+
+
+def barrido_dos_rieles(perfil, riel1, riel2, tol: float):
+    """Sweep2: el perfil recorre dos rieles tocando los dos a la vez.
+
+    `perfil` arranca en el inicio de `riel1` y termina en el de `riel2`. Un riel
+    puede venir como (alambre, al_revés): se recorre desde su final. En cada fracción s del largo de los rieles el perfil
+    se copia por semejanza para que sus puntas caigan en riel1(s) y riel2(s), y
+    se tiende una piel por todas las copias. Cuántas: se empieza con 16 y se
+    duplican mientras la piel se separe de la copia de en medio de cada tramo
+    más que `tol` (hasta 128). Devuelve (superficie, separación medida)."""
+    from build123d import Wire
+
+    p0, p1 = perfil.start_point(), perfil.end_point()
+    v0 = p1 - p0
+    if v0.length < 1e-9:
+        raise ValueError("el perfil de un barrido por dos rieles no puede ser cerrado")
+    n = 16
+    while True:
+        secciones = [_seccion(perfil, p0, v0, _en(riel1, i / n), _en(riel2, i / n))
+                     for i in range(n + 1)]
+        piel = loft([Wire(s.edges()) if not isinstance(s, Wire) else s for s in secciones])
+        peor = 0.0
+        for i in range(n):
+            s = (i + 0.5) / n
+            medio = _seccion(perfil, p0, v0, _en(riel1, s), _en(riel2, s))
+            peor = max(peor, max(_distancia(v, piel) for v in _muestras_de(medio)))
+        if peor <= tol or n >= 128:
+            return piel, peor
+        n *= 2
+
+
+def _muestras_de(alambre, k: int = 5):
+    """Unos puntos (como vértices) a lo largo de un alambre, para medir."""
+    from build123d import Vertex
+    return [Vertex(*tuple(alambre.position_at(j / (k - 1)))) for j in range(k)]
+
+
+def papeles_dos_rieles(alambres: list, tol: float):
+    """De tres curvas abiertas, (perfil, riel1, riel2): el perfil es la que
+    toca con una punta a una y con la otra a la otra. Cada riel sale como
+    (alambre, al_revés), para que se recorra desde donde toca al perfil; el
+    riel1 es el que toca el inicio del perfil."""
+    def cerca(a, b):
+        return (a - b).length <= tol
+
+    for k in range(3):
+        perfil = alambres[k]
+        rieles = [alambres[j] for j in range(3) if j != k]
+        p0, p1 = perfil.start_point(), perfil.end_point()
+        orient = []
+        for r in rieles:
+            if cerca(r.start_point(), p0) or cerca(r.start_point(), p1):
+                orient.append((r, False))
+            elif cerca(r.end_point(), p0) or cerca(r.end_point(), p1):
+                orient.append((r, True))
+            else:
+                break
+        else:
+            arranque = lambda rr: rr[0].end_point() if rr[1] else rr[0].start_point()
+            ra, rb = orient
+            # El riel1 es el que arranca en el inicio del perfil.
+            if cerca(arranque(ra), p0) and cerca(arranque(rb), p1):
+                return perfil, ra, rb
+            if cerca(arranque(rb), p0) and cerca(arranque(ra), p1):
+                return perfil, rb, ra
+    raise ValueError("para un barrido por dos rieles, el perfil tiene que tocar con sus dos "
+                     "puntas el arranque de los dos rieles")

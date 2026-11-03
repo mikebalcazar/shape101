@@ -106,6 +106,21 @@
     },
   });
 
+  /* Barrido por dos rieles (fase D1b): el perfil toca con sus puntas el
+   * arranque de los dos rieles; se señalan las tres en cualquier orden. */
+  Comandos.registrar({
+    nombre: "BARRER2", alias: ["SWEEP2", "DOSRIELES"],
+    ayuda: "BARRER2 · una superficie: el perfil recorre dos rieles tocando los dos (señala las tres curvas)",
+    correr: async () => {
+      const ids = seleccion();
+      if (ids.length !== 3) {
+        Comandos.eco("Señala el perfil y los dos rieles (tres curvas abiertas) y vuelve a dar BARRER2.", "malo");
+        return;
+      }
+      await pedir("barrer2", { ids }, "BARRER2");
+    },
+  });
+
   /* Superficie por su borde (fase D1): las curvas señaladas cierran un lazo
    * punta con punta y el parche pasa por todas. El NetworkSrf de Rhino. */
   Comandos.registrar({

@@ -351,6 +351,8 @@ const IDIOMA_EN = {
   "Raya el área donde piques (con sus islas) o un contorno cerrado (S): se elige el patrón en una galería con previa": "Hatches the area you click inside (with its islands) or a closed outline (S): pick the pattern in a gallery with preview",
   "Pica dentro del área a rayar (S elige un contorno)": "Click inside the area to hatch (S picks an outline)",
   "Buscando el área…": "Finding the area…",
+  "BARRER2 · una superficie: el perfil recorre dos rieles tocando los dos (señala las tres curvas)": "SWEEP2 · a surface: the profile runs along two rails touching both (pick the three curves)",
+  "Señala el perfil y los dos rieles (tres curvas abiertas) y vuelve a dar BARRER2.": "Pick the profile and the two rails (three open curves) and run SWEEP2 again.",
   "REVOLVER [grados] · gira el contorno señalado alrededor de la línea de eje; con una curva abierta deja una superficie": "REVOLVE [degrees] · spins the picked outline around the axis line; an open curve leaves a surface",
   "BARRER · lleva el contorno cerrado por el camino abierto; con un perfil abierto (el primero que señales) deja una superficie": "SWEEP · carries the closed outline along the open path; an open profile (the first you pick) leaves a surface",
   "LOFT [separación] · una piel que pasa por las secciones que señalaste, en ese orden: con contornos cerrados un sólido, con curvas abiertas una superficie": "LOFT [spacing] · a skin through the picked sections, in that order: closed outlines give a solid, open curves a surface",

@@ -241,6 +241,16 @@ def ops_de_loft(secciones: list[list[dict]], alturas: list[float] | None = None,
     return historial.asegurar_ids(ops)
 
 
+def ops_de_barrer2(curvas: list[dict]) -> list[dict]:
+    """Barrido por dos rieles (fase D1b): tres curvas abiertas en cualquier
+    orden; el historial decide cuál es el perfil al regenerar."""
+    if len(curvas) != 3:
+        raise ValueError("un barrido por dos rieles quiere tres curvas: un perfil y dos rieles")
+    ops = historial.asegurar_ids([_boceto_de([c]) for c in curvas])
+    ops.append({"op": "barrer2", "curvas": [o["id"] for o in ops]})
+    return historial.asegurar_ids(ops)
+
+
 def ops_de_red(bordes: list[dict]) -> list[dict]:
     """Un parche que cierra el borde de varias curvas (fase D1). Cada curva es
     su propio boceto: así pueden venir de ventanas distintas."""
