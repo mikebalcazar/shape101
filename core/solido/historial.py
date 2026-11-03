@@ -60,7 +60,7 @@ def _entidades(op: dict) -> list[dict]:
 
 OPERACIONES = {"boceto", "extruir", "revolver", "barrer", "loft", "extruir_cara",
                "primitiva",
-               "restar", "redondear", "chaflan", "empujar_cara", "red",
+               "restar", "redondear", "chaflan", "empujar_cara", "red", "barrer2",
                "mover_vertice", "mover_arista"}
 
 
@@ -142,7 +142,7 @@ def _primitiva(op: dict):
 # `op.values()` a lo bruto: un texto que *parece* un id —el nombre de una cara,
 # por ejemplo— no debe contar como referencia.
 REFERENCIA_UNA = ("perfil", "camino", "sobre")
-REFERENCIA_VARIAS = ("perfiles", "bordes")
+REFERENCIA_VARIAS = ("perfiles", "bordes", "curvas")
 
 
 def _ids_usados(operaciones) -> set:
@@ -460,6 +460,25 @@ def _paso(est: Estado, i: int, op: dict) -> None:
                 raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
             alambres.append(_alambre_en_su_plano(est, perfil))
         solido = superficies.red(alambres)
+        nom.bautizar_cuerpo(solido, eje=(0, 0, 1))
+        est.boceto_pendiente = None
+    elif clase == "barrer2":
+        # Barrido por dos rieles (fase D1b): tres curvas abiertas, en cualquier
+        # orden. El perfil es la que toca a las otras dos con sus puntas; cada
+        # riel se orienta para arrancar donde toca al perfil.
+        refs = [str(k) for k in (op.get("curvas") or [])]
+        if len(refs) != 3:
+            raise ValueError(f"op {i}: un barrido por dos rieles quiere tres curvas: un perfil y dos rieles")
+        alambres = []
+        for ref in refs:
+            perfil = est.bocetos.get(ref)
+            if perfil is None:
+                raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
+            alambres.append(_alambre_en_su_plano(est, perfil))
+        from core import tolerancia
+        tol = tolerancia.kernel_mm()
+        perfil_w, riel1, riel2 = superficies.papeles_dos_rieles(alambres, tol)
+        solido, _ = superficies.barrido_dos_rieles(perfil_w, riel1, riel2, tol / 10)
         nom.bautizar_cuerpo(solido, eje=(0, 0, 1))
         est.boceto_pendiente = None
     elif clase == "primitiva":

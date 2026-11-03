@@ -44,7 +44,7 @@ documentación:
 | **C3** | CHAFLAN; redondeo y chaflán que no caben dicen el máximo; mover puntos de splines y elipses del boceto (la pieza se rehace exacta) | hecha (t052) |
 | C3b | Mover un vértice del sólido que toca una arista curva (hoy avisa y manda al boceto) | pendiente, a propósito |
 | **D1** | Superficies libres: LOFT, REVOLVER y BARRER con curvas abiertas, y RED (parche por el borde) | hecha (t053) |
-| D1b | Barrido por dos rieles (Sweep2) | pendiente |
+| **D1b** | Barrido por dos rieles (BARRER2, el Sweep2 de Rhino) | hecha (t054) |
 | D2 | Editar una superficie por sus puntos de control | pendiente |
 | D3 | Análisis de curvatura (cebra, mapa de curvatura) | pendiente |
 
@@ -258,3 +258,20 @@ decide Mike.
 - Al leer el eje antes que la cara, una prueba vieja (t051) que pasaba el eje
   en un formato inválido dejó de pasar por la razón equivocada: se corrigió el
   dato de la prueba, no el código.
+
+## Lo que se aprendió en D1b
+
+- **Mike pidió seguir con D1b antes de publicar** (3-nov-2026).
+- **Sweep2 por secciones**: en cada fracción del largo de los rieles, el
+  perfil se copia por semejanza (giro mínimo, escala y traslado) para que sus
+  puntas caigan en los dos rieles, y se tiende una piel por las copias. Se
+  empieza con 16 y se duplican mientras la piel se separe de la copia de en
+  medio de cada tramo más que una décima de la tolerancia (hasta 128).
+- **Garantía honesta**: con rieles rectos la piel es exacta (medio cilindro
+  πrL al décimo); con rieles curvos, exacta en cada sección y a la tolerancia
+  entre secciones (0.0002 medido, contra 0.005). La primera versión de t054
+  pedía 1e-6 en rieles curvos, que no es lo que se promete.
+- **Los papeles se deciden al regenerar**: el perfil es la curva que toca a
+  las otras dos con sus puntas, y un riel que llega al revés se recorre desde
+  su final. No importa el orden en que se señalen. (build123d no trae
+  `Wire.reversed()`: el riel se muestrea en 1 - s.)
