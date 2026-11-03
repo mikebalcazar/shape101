@@ -691,14 +691,18 @@ async function recortarOExtender(extender) {
     const id = await Seleccion.pedirUna({
       mensaje: extender ? "Elige la línea a extender" : "Elige el trozo a quitar",
       icono: extender ? "extender" : "tijera",
-      filtro: (e) => ["linea", "arco"].includes(e.tipo) || (!extender && ["polilinea", "spline", "elipse"].includes(e.tipo)),
-      queja: extender ? "Por ahora se extienden líneas y arcos." : "Por ahora se recortan líneas, arcos, polilíneas, splines y elipses.",
+      filtro: (e) => ["linea", "arco", "spline", "elipse"].includes(e.tipo) || (!extender && e.tipo === "polilinea"),
+      queja: extender ? "Por ahora se extienden líneas, arcos, splines y arcos de elipse." : "Por ahora se recortan líneas, arcos, polilíneas, splines y elipses.",
     });
     const ent = await api(`/api/entidad/${id}`);
     const p = [estado.cursor.x, estado.cursor.y];
 
     if (ent.tipo === "polilinea") { await recortarPolilinea(ent, p); Seleccion.limpiar(); return; }
-    if (ent.tipo === "spline" || ent.tipo === "elipse") { await recortarCurva(ent, p); Seleccion.limpiar(); return; }
+    if (ent.tipo === "spline" || ent.tipo === "elipse") {
+      await (extender ? extenderCurva(ent, p) : recortarCurva(ent, p));
+      Seleccion.limpiar();
+      return;
+    }
 
     // cruces con todo lo demás
     const mias = estado.geometria.filter((pr) => pr.id === id);
@@ -975,6 +979,21 @@ async function recortarCurva(ent, p) {
                            cambios: plan.cambios, agregar: plan.agregar });
 }
 
+/* Extender una spline o un arco de elipse (fase B1b): suave, como Rhino. La
+ * spline sigue el polinomio de su último tramo; la elipse, su elipse. Hasta lo
+ * primero que cruce entre lo que está a la vista (core/extender.py). */
+async function extenderCurva(ent, p) {
+  const lienzo = document.querySelector("#lienzo");
+  const a = aMM(0, 0), b = aMM(lienzo.clientWidth, lienzo.clientHeight);
+  const plan = await post("/api/extender/curva", {
+    id: ent.id, punto: p,
+    ventana: [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])],
+  });
+  if (plan.error) return Comandos.eco(plan.error, "malo");
+  await aplicarOperacion({ accion: ent.tipo === "spline" ? "Extender spline" : "Extender elipse",
+                           cambios: plan.cambios });
+}
+
 function alargada(pr) {
   if (pr.tipo !== "seg") return pr;
   const dx = pr.b[0] - pr.a[0], dy = pr.b[1] - pr.a[1];
@@ -987,7 +1006,7 @@ function alargada(pr) {
 Comandos.registrar({ nombre: "RECORTAR", alias: ["RC", "TR"],
   ayuda: "Quita el trozo de línea, arco, polilínea, spline o elipse que señales", correr: () => recortarOExtender(false) });
 Comandos.registrar({ nombre: "EXTENDER", alias: ["EXT", "EX"],
-  ayuda: "Alarga una línea hasta lo primero que encuentre", correr: () => recortarOExtender(true) });
+  ayuda: "Alarga una línea, un arco, una spline o un arco de elipse hasta lo primero que encuentre", correr: () => recortarOExtender(true) });
 
 /* ===================================================================== */
 /* 39 · Empalme y chaflán                                                */

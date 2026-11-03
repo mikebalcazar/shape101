@@ -35,7 +35,7 @@ documentación:
 | **A3** | Tolerancia absoluta única del documento (0.05 mm por omisión, comando TOLERANCIA), usada por unir, recortar, extender y al coser el boceto de un sólido | hecha (t045) |
 | **A4** | Importar SPLINE de un DXF como nativa cuando trae nudos (exacta, sin moverla un pelo); la de sólo ajuste se queda conservada | hecha (t046) |
 | **B1** | Recortar splines y elipses (partir la NURBS por inserción de nudos) | hecha (t047) |
-| B1b | Extender una spline o una elipse más allá de su punta (en recta, en arco o suave, como Rhino) | pendiente |
+| **B1b** | Extender splines (suave: sigue el polinomio de su último tramo) y arcos de elipse (siguen su elipse) | hecha (t057) |
 | **B2a** | Regiones: booleanas 2D exactas de contornos cerrados (UNION, RESTA, INTERSECCION) con OpenCASCADE | hecha (t048) |
 | **B2b** | Rayado picando dentro, con islas, por el arreglo de todas las curvas a la vista | hecha (t049) |
 | **B3** | Desfase de splines y elipses, aproximado a una décima de la tolerancia del documento (como Rhino) | hecha (t050) |
@@ -310,3 +310,20 @@ decide Mike.
 - La cebra va por triángulo con la normal exacta promediada: en canvas 2D no
   hay sombreado por píxel. Se lee bien en una malla fina; un visor WebGL lo
   haría más fino.
+
+## Lo que se aprendió en B1b
+
+- **Mike decidió que la spline se prolongue suave** (3-nov-2026), como Rhino
+  por omisión, entre las tres opciones (suave, en recta, en arco).
+- **Suave de verdad**: el último tramo de una spline es un polinomio; los
+  puntos de control de la prolongación salen de la forma polar (blossom) de
+  ese segmento de Bézier, así que es la misma curva continuada. Tangente y
+  segunda derivada son las mismas en la unión, y la parte que ya existía no se
+  mueve ni un 1e-13.
+- **Una racional prolongada de más da pesos negativos** (el peso también es
+  un polinomio): `prolongada` lo dice y el extender se queda con la mayor
+  prolongación válida.
+- Se busca hasta dónde llegar prolongando hasta cubrir la vista (duplicando)
+  y cortando en el primer cruce con las curvas a la vista, como el rayado.
+- Medir la curvatura «a ±1e-7 del nudo» mezclaba la tercera derivada: se mide
+  en la unión misma, de los dos lados.
