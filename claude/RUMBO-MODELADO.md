@@ -46,7 +46,7 @@ documentación:
 | **D1** | Superficies libres: LOFT, REVOLVER y BARRER con curvas abiertas, y RED (parche por el borde) | hecha (t053) |
 | **D1b** | Barrido por dos rieles (BARRER2, el Sweep2 de Rhino) | hecha (t054) |
 | **D2** | Editar una superficie por sus puntos de control (tiradores rombo con su red; operación `mover_polo` en el historial) | hecha (t055) |
-| D3 | Análisis de curvatura (cebra, mapa de curvatura) | pendiente |
+| **D3** | Análisis de curvatura: comandos CURVATURA (mapa de K) y CEBRA, con normal y curvaturas exactas por vértice | hecha (t056) |
 
 Cada fase va en su propia rama y su propio PR, con su prueba (`t0NN`) y la
 suite completa en verde antes de fusionar. Publicar una versión es aparte y lo
@@ -289,3 +289,24 @@ decide Mike.
   a NURBS para editarla: es la misma superficie dicha de otra manera.
 - En pantalla, los polos son rombos morados con su **red de control**
   punteada, como en Rhino: sin la red, un rombo suelto no dice qué jala.
+
+## Lo que se aprendió en D3
+
+- **Mike pidió seguir con D3 antes de publicar** (3-nov-2026).
+- **La curvatura no sale de los triángulos** (son planos): el motor tesela más
+  fino y en el (u, v) de cada nodo le pregunta a la superficie su normal y sus
+  curvaturas (BRepLProp_SLProps). Esfera K = 1/R², |H| = 1/R; cilindro K = 0,
+  |H| = 1/(2R); caras planas, cero (t056).
+- **Los polos de una esfera**: ahí la parametrización es singular y el kernel
+  dice «no definida»; la primera versión ponía cero y pintaba una mancha de
+  «plano» en la punta del domo. Se pregunta a una diezmillonésima del dominio
+  (con una diezmilésima, la normal se desviaba 3e-4 rad).
+- **Análisis no es estilo de vista**: CURVATURA y CEBRA se encienden y se
+  apagan con su comando (vuelve el estilo de antes) y no entran al ciclo de
+  ESTILO, como en Rhino. Lo pidió t042 al romperse: el ciclo de siempre no
+  debía cambiar.
+- **Las pruebas comparten la carpeta del usuario**: un estilo que deja una
+  prueba lo hereda la siguiente. t056 lee el estilo previo en vez de suponerlo.
+- La cebra va por triángulo con la normal exacta promediada: en canvas 2D no
+  hay sombreado por píxel. Se lee bien en una malla fina; un visor WebGL lo
+  haría más fino.

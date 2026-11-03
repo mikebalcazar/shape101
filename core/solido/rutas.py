@@ -513,6 +513,29 @@ def mover_punto(id_: str, entrada: MoverPunto):
         raise
 
 
+@router.get("/{id_}/analisis")
+def analisis(id_: str):
+    """El análisis de curvatura de la pieza (fase D3), ya en el mundo: las
+    normales se giran igual que los puntos, porque el paso al mundo es una
+    rotación pura."""
+    from core.solido import cuerpo as mod
+    c = _cuerpo(id_)
+    try:
+        d = mod.analisis(c)
+    except Exception as e:
+        raise HTTPException(400, f"no se pudo analizar la pieza: {e}") from e
+    plano = getattr(c, "plano", "XY")
+    if plano not in (None, "", "XY"):
+        for cara in d["caras"]:
+            for clave in ("v", "n"):
+                vals = cara[clave]
+                nuevo = []
+                for k in range(0, len(vals), 3):
+                    nuevo.extend(_a_mundo(plano, (vals[k], vals[k + 1], vals[k + 2])))
+                cara[clave] = nuevo
+    return d
+
+
 @router.get("/{id_}/tiradores")
 def tiradores(id_: str):
     """De qué se puede jalar la pieza: sus vértices y sus aristas de verdad,

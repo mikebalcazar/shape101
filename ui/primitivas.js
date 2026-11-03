@@ -148,10 +148,11 @@
   });
 
   /* --- ESTILO  ·  el estilo de vista de las piezas (0.21.8) ---------------- */
-  const NOMBRES = { basico: "básico", alambrico: "alámbrico fantasma", renderizado: "renderizado" };
+  const NOMBRES = { basico: "básico", alambrico: "alámbrico fantasma", renderizado: "renderizado",
+                    curvatura: "curvatura (azul silla · verde plano · rojo domo)", cebra: "cebra" };
   Comandos.registrar({
     nombre: "ESTILO", alias: ["VISTA3D", "SHADE", "RENDER"],
-    ayuda: "ESTILO [basico|alambrico|renderizado] · cómo se ven las piezas; sin nada, pasa al siguiente",
+    ayuda: "ESTILO [basico|alambrico|renderizado|curvatura|cebra] · cómo se ven las piezas; sin nada, pasa al siguiente",
     correr: async (args) => {
       const lista = Cuerpos.ESTILOS;
       const actual = Cuerpos.estilo();
@@ -160,12 +161,47 @@
       if (pedido === "b" || pedido === "basica") pedido = "basico";
       if (pedido === "a" || pedido === "wireframe" || pedido === "fantasma") pedido = "alambrico";
       if (pedido === "r" || pedido === "render" || pedido === "renderizada") pedido = "renderizado";
-      const nuevo = lista.includes(pedido) ? pedido : lista[(lista.indexOf(actual) + 1) % lista.length];
-      if (typeof guardarPrefs === "function") await guardarPrefs({ estilo_3d: nuevo });
-      else estado.prefs.estilo_3d = nuevo;
-      if (window.invalidarPlano) window.invalidarPlano();
-      if (window.pintar) window.pintar();
-      Comandos.eco(`Estilo de vista: ${NOMBRES[nuevo]}.`);
+      if (pedido === "c" || pedido === "curvature" || pedido === "curvaturas") pedido = "curvatura";
+      if (pedido === "z" || pedido === "zebra") pedido = "cebra";
+      // Sin nada, se pasa al siguiente de los tres estilos de vista. Los de
+      // análisis (curvatura, cebra) no entran al ciclo: son herramientas, como
+      // en Rhino, y tienen sus comandos (CURVATURA, CEBRA).
+      const ciclo = VISTA.includes(actual) ? actual : "basico";
+      const nuevo = lista.includes(pedido) ? pedido : VISTA[(VISTA.indexOf(ciclo) + 1) % VISTA.length];
+      await ponerEstilo(nuevo);
     },
+  });
+
+  const VISTA = ["basico", "alambrico", "renderizado"];
+  let antesDelAnalisis = "basico";
+
+  async function ponerEstilo(nuevo) {
+    if (typeof guardarPrefs === "function") await guardarPrefs({ estilo_3d: nuevo });
+    else estado.prefs.estilo_3d = nuevo;
+    if (window.invalidarPlano) window.invalidarPlano();
+    if (window.pintar) window.pintar();
+    Comandos.eco(`Estilo de vista: ${NOMBRES[nuevo]}.`);
+  }
+
+  /* --- CURVATURA y CEBRA  ·  análisis de superficies (fase D3) ------------ */
+  /* Se encienden con su comando y se apagan con el mismo: vuelve el estilo que
+   * había. Sin argumentos, porque en la línea de comando el espacio es Enter. */
+  async function alternarAnalisis(cual) {
+    const actual = Cuerpos.estilo();
+    if (actual === cual) return ponerEstilo(antesDelAnalisis);
+    if (VISTA.includes(actual)) antesDelAnalisis = actual;
+    return ponerEstilo(cual);
+  }
+
+  Comandos.registrar({
+    nombre: "CURVATURA", alias: ["CURVATURE", "CURVATUREANALYSIS"],
+    ayuda: "CURVATURA · pinta las piezas por su curvatura (azul silla · verde plano · rojo domo); otra vez, la apaga",
+    correr: () => alternarAnalisis("curvatura"),
+  });
+
+  Comandos.registrar({
+    nombre: "CEBRA", alias: ["ZEBRA"],
+    ayuda: "CEBRA · franjas para ver si las superficies se juntan sin quiebre; otra vez, la apaga",
+    correr: () => alternarAnalisis("cebra"),
   });
 })();
