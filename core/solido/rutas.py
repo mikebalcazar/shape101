@@ -267,6 +267,19 @@ def revolver(entrada: Seleccion):
     doc = _doc()
     todo = _entidades_de(doc, entrada.ids, "el contorno que va a girar y la línea del eje")
     cerradas, abiertas = mod.repartir(todo)
+    if not cerradas and len(abiertas) == 2:
+        # Perfil abierto (fase D1): sale una superficie de revolución. El eje es
+        # la línea; si las dos son líneas, la segunda que se señaló.
+        lineas = [e for e in abiertas if e.get("tipo") == "linea"]
+        if not lineas:
+            raise HTTPException(400, "REVOLVER con un perfil abierto quiere también una línea de eje.")
+        eje = lineas[-1]
+        perfil = [e for e in abiertas if e is not eje]
+        try:
+            ops = mod.ops_de_revolver(perfil, eje, entrada.grados, superficie=True)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return _nace(doc, ops, perfil, "revolver")
     if len(cerradas) != 1:
         raise HTTPException(400, f"REVOLVER quiere un contorno cerrado y una línea de eje; "
                                  f"señalaste {len(cerradas)} contornos cerrados. {JUNTAR}")
@@ -291,6 +304,14 @@ def barrer(entrada: Seleccion):
     doc = _doc()
     todo = _entidades_de(doc, entrada.ids, "el contorno que va a barrer y el camino")
     cerradas, abiertas = mod.repartir(todo)
+    if not cerradas and len(abiertas) == 2:
+        # Perfil abierto (fase D1): sale una superficie. El perfil es lo
+        # primero que se señaló y el camino lo segundo.
+        try:
+            ops = mod.ops_de_barrer([abiertas[0]], [abiertas[1]], superficie=True)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return _nace(doc, ops, [abiertas[0]], "barrer")
     if len(cerradas) != 1:
         raise HTTPException(400, f"BARRER quiere un contorno cerrado y un camino abierto; "
                                  f"señalaste {len(cerradas)} contornos cerrados. {JUNTAR}")
@@ -317,6 +338,19 @@ def loft(entrada: Seleccion):
     doc = _doc()
     todo = _entidades_de(doc, entrada.ids, "las secciones por donde pasa la piel")
     cerradas, abiertas = mod.repartir(todo)
+    if not cerradas and len(abiertas) >= 2:
+        # Secciones abiertas (fase D1): sale una piel, una superficie. Se
+        # separan igual que los contornos si se dibujaron en la misma ventana.
+        d = float(entrada.separacion or 0.0)
+        if len({c.get("plano", "XY") for c in abiertas}) == 1 and abs(d) < 1e-9:
+            raise HTTPException(400, "Esas secciones están todas en la misma ventana y a la misma "
+                                     "altura: dales una separación, o dibújalas en ventanas distintas.")
+        try:
+            ops = mod.ops_de_loft([[a] for a in abiertas], [d * k for k in range(len(abiertas))],
+                                  entrada.reglado, superficie=True)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return _nace(doc, ops, abiertas, "loft")
     if len(cerradas) < 2:
         raise HTTPException(400, f"LOFT quiere al menos dos contornos cerrados; "
                                  f"señalaste {len(cerradas)}. {JUNTAR}")
@@ -338,6 +372,23 @@ def loft(entrada: Seleccion):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return _nace(doc, ops, cerradas, "loft")
+
+
+@router.post("/red")
+def red(entrada: Seleccion):
+    """Superficie por su borde (fase D1): las curvas señaladas, que se tocan
+    punta con punta, cierran un lazo y el parche pasa por todas."""
+    from core.solido import cuerpo as mod
+
+    doc = _doc()
+    todo = _entidades_de(doc, entrada.ids, "las curvas del borde del parche")
+    if len(todo) < 2:
+        raise HTTPException(400, "RED quiere al menos dos curvas que cierren un borde.")
+    try:
+        ops = mod.ops_de_red(todo)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return _nace(doc, ops, todo, "red")
 
 
 class Crecer(BaseModel):

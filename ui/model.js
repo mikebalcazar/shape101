@@ -37,9 +37,10 @@
       // Igual que EXTRUIR: si se estaba mirando desde arriba se gira, porque en
       // planta una pieza recién nacida se ve idéntica al contorno del que salió.
       if (typeof Camara !== "undefined" && Camara.enPlanta()) Camara.ver("ISO");
-      Comandos.eco(`pieza de ${m.caja[0]} × ${m.caja[1]} × ${m.caja[2]} mm · `
-        + `${(m.volumen_mm3 / 1000).toFixed(1)} cm³`
-        + (m.ms !== undefined ? ` · el motor tardó ${m.ms} ms` : ""));
+      const cuanto = m.es_superficie
+        ? `superficie de ${m.caja[0]} × ${m.caja[1]} × ${m.caja[2]} mm · ${(m.area_mm2 / 100).toFixed(1)} cm²`
+        : `pieza de ${m.caja[0]} × ${m.caja[1]} × ${m.caja[2]} mm · ${(m.volumen_mm3 / 1000).toFixed(1)} cm³`;
+      Comandos.eco(cuanto + (m.ms !== undefined ? ` · el motor tardó ${m.ms} ms` : ""));
       return true;
     } catch (e) {
       Comandos.eco(`No se pudo ${comando.toLowerCase()}: ` + e.message, "malo");
@@ -49,7 +50,7 @@
 
   Comandos.registrar({
     nombre: "REVOLVER", alias: ["REVOLUCIONAR", "TORNEAR", "REVOLVE"],
-    ayuda: "REVOLVER [grados] · gira el contorno señalado alrededor de la línea que señalaste de eje",
+    ayuda: "REVOLVER [grados] · gira el contorno señalado alrededor de la línea de eje; con una curva abierta deja una superficie",
     correr: async (args) => {
       const ids = seleccion();
       if (ids.length < 2) {
@@ -71,7 +72,7 @@
 
   Comandos.registrar({
     nombre: "BARRER", alias: ["BARRIDO", "SWEEP"],
-    ayuda: "BARRER · lleva el contorno cerrado señalado por el camino abierto que también señalaste",
+    ayuda: "BARRER · lleva el contorno cerrado por el camino abierto; con un perfil abierto (el primero que señales) deja una superficie",
     correr: async () => {
       const ids = seleccion();
       if (ids.length < 2) {
@@ -85,11 +86,11 @@
 
   Comandos.registrar({
     nombre: "LOFT", alias: ["PIEL", "TRANSICION"],
-    ayuda: "LOFT [separación] · una piel que pasa por los contornos cerrados que señalaste, en ese orden",
+    ayuda: "LOFT [separación] · una piel que pasa por las secciones que señalaste, en ese orden: con contornos cerrados un sólido, con curvas abiertas una superficie",
     correr: async (args) => {
       const ids = seleccion();
       if (ids.length < 2) {
-        Comandos.eco("Señala al menos dos contornos cerrados y vuelve a dar LOFT.", "malo");
+        Comandos.eco("Señala al menos dos secciones y vuelve a dar LOFT.", "malo");
         return;
       }
       let sep = parseFloat(args[0]);
@@ -102,6 +103,21 @@
       }
       if (!isFinite(sep)) sep = 0;
       await pedir("loft", { ids, separacion: sep }, "LOFT");
+    },
+  });
+
+  /* Superficie por su borde (fase D1): las curvas señaladas cierran un lazo
+   * punta con punta y el parche pasa por todas. El NetworkSrf de Rhino. */
+  Comandos.registrar({
+    nombre: "RED", alias: ["PARCHE", "NETWORKSRF", "EDGESRF"],
+    ayuda: "RED · una superficie que cierra el borde de las curvas señaladas (se tocan punta con punta)",
+    correr: async () => {
+      const ids = seleccion();
+      if (ids.length < 2) {
+        Comandos.eco("Señala las curvas que cierran el borde (al menos dos) y vuelve a dar RED.", "malo");
+        return;
+      }
+      await pedir("red", { ids }, "RED");
     },
   });
 

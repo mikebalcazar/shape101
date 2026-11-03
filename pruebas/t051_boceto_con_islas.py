@@ -138,7 +138,7 @@ def _avisos(r: comun.Reporte) -> None:
     from core.solido import historial
     ops = historial.asegurar_ids([
         {"op": "boceto", "entidades": [_rect(100, 0, 200, 100).a_dict(), _rect(300, 0, 400, 100).a_dict()]},
-        {"op": "revolver", "perfil": "0", "eje": [[0, 0], [0, 100]], "grados": 360.0}])
+        {"op": "revolver", "perfil": "0", "eje": {"a": [0, 0], "b": [0, 100]}, "grados": 360.0}])
     doc = _doc()
     try:
         historial.regenerar(ops)
