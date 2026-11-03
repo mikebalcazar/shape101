@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import json
 
-from core.solido import historial, malla as malla_mod, planos
+from core.solido import historial, malla as malla_mod, planos, superficies
 
 # Cuántos cuerpos regenerados se guardan en memoria. Un documento con más de
 # esto es raro; lo que se cae del borde se vuelve a calcular y ya.
@@ -345,6 +345,21 @@ def tiradores(cuerpo) -> dict:
         return salida
     for nombre, v in reg.nombrador.vertices(reg.solido).items():
         salida["vertices"].append({"nombre": nombre, "p": [v.X, v.Y, v.Z]})
+    # Los puntos de control, sólo en superficies (fase D2): en un sólido,
+    # mover uno abriría la pieza. Con varias caras, sólo los de adentro.
+    salida["polos"] = []
+    if not reg.solido.solids():
+        varias = len(reg.solido.faces()) > 1
+        for nombre_cara, f in reg.nombrador.caras.items():
+            try:
+                polos = superficies.polos_de(f)
+            except Exception:
+                continue
+            for i, j, p, borde in polos:
+                if borde and varias:
+                    continue
+                salida["polos"].append({"nombre": f"{nombre_cara}#{i},{j}", "cara": nombre_cara,
+                                        "i": i, "j": j, "p": list(p)})
     for nombre, e in reg.nombrador.aristas(reg.solido).items():
         m = e.position_at(0.5)
         a, b = e.start_point(), e.end_point()
@@ -366,6 +381,18 @@ def mover_vertice(operaciones: list, nombre: str, d) -> list:
     """Una operación más al final: esa esquina, corrida. No se toca nada de lo
     anterior, así que deshacer es quitar la última y ya."""
     return agregar(operaciones, {"op": "mover_vertice", "vertice": nombre,
+                                 "d": [float(k) for k in d]})
+
+
+def mover_polo(operaciones: list, nombre: str, d) -> list:
+    """Un punto de control de una superficie, corrido (fase D2). `nombre` es
+    «cara#i,j», como lo da `tiradores`."""
+    cara, _, ij = nombre.rpartition("#")
+    try:
+        i, j = (int(k) for k in ij.split(","))
+    except ValueError:
+        raise ValueError(f"«{nombre}» no es un punto de control (se esperaba «cara#i,j»)")
+    return agregar(operaciones, {"op": "mover_polo", "cara": cara, "i": i, "j": j,
                                  "d": [float(k) for k in d]})
 
 
@@ -606,6 +633,11 @@ def describir(operaciones: list) -> list:
         elif clase == "empujar_cara":
             titulo = f"Cara «{op.get('cara')}» jalada {op.get('mm')}"
             campos = [_campo("mm", "Cuánto", op.get("mm", 0))]
+        elif clase == "mover_polo":
+            d = op.get("d") or [0, 0, 0]
+            titulo = f"Punto de control ({op.get('i')}, {op.get('j')}) de «{op.get('cara')}» movido"
+            campos = [_campo("d/0", "En X", d[0]), _campo("d/1", "En Y", d[1]),
+                      _campo("d/2", "En Z", d[2])]
         elif clase in ("mover_vertice", "mover_arista"):
             que = "Punto" if clase == "mover_vertice" else "Arista"
             nombre = op.get("vertice") or op.get("arista") or ""

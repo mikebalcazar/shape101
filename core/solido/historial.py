@@ -60,7 +60,7 @@ def _entidades(op: dict) -> list[dict]:
 
 OPERACIONES = {"boceto", "extruir", "revolver", "barrer", "loft", "extruir_cara",
                "primitiva",
-               "restar", "redondear", "chaflan", "empujar_cara", "red", "barrer2",
+               "restar", "redondear", "chaflan", "empujar_cara", "red", "barrer2", "mover_polo",
                "mover_vertice", "mover_arista"}
 
 
@@ -570,6 +570,20 @@ def _paso(est: Estado, i: int, op: dict) -> None:
                 solido = solido - pieza
                 movida = Face(pieza.faces().sort_by(lambda f: f.normal_at().dot(cara.normal_at()))[0].wrapped)
             nom.rebautizar(solido, nuevas={"__movida__": movida}, heredan={op["cara"]: "__movida__"})
+    elif clase == "mover_polo":
+        # Un punto de control de una superficie, corrido (fase D2). Como
+        # mover_vertice, apunta a la cara por su nombre: si se cambia algo de
+        # antes en el historial, el polo sigue siendo el de esa cara.
+        if solido is None:
+            raise ValueError(f"op {i}: mover_polo sin una superficie antes")
+        if solido.solids():
+            raise ValueError("los puntos de control se mueven en superficies, no en sólidos: "
+                             "en un sólido abrirían la pieza")
+        cara = nom.cara(op["cara"])
+        d = [float(k) for k in (op.get("d") or [0, 0, 0])]
+        if not all(abs(k) < 1e-12 for k in d):
+            solido, nueva = superficies.mover_polo(solido, cara, int(op["i"]), int(op["j"]), d)
+            nom.rebautizar(solido, nuevas={op["cara"]: nueva})
     elif clase in ("mover_vertice", "mover_arista"):
         # Mover un punto o una arista del **sólido**, no del boceto.
         #

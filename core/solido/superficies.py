@@ -216,3 +216,77 @@ def papeles_dos_rieles(alambres: list, tol: float):
                 return perfil, rb, ra
     raise ValueError("para un barrido por dos rieles, el perfil tiene que tocar con sus dos "
                      "puntas el arranque de los dos rieles")
+
+
+# --- Editar por puntos de control (fase D2) ---------------------------------
+
+def bspline_de(cara):
+    """(superficie B-spline, recortada?) de una cara. Una cara que no es
+    B-spline (un cilindro de un revolucionado, un plano) se convierte a NURBS,
+    que es la misma superficie dicha de otra manera. «Recortada» quiere decir
+    que la cara no cubre el dominio entero de su superficie: un parche de RED,
+    por ejemplo, va recortado por su borde."""
+    from build123d import Face
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_NurbsConvert
+    from OCP.GeomAbs import GeomAbs_BSplineSurface
+
+    ad = BRepAdaptor_Surface(cara.wrapped)
+    if ad.GetType() != GeomAbs_BSplineSurface:
+        conv = BRepBuilderAPI_NurbsConvert(cara.wrapped, True)
+        cara = Face(conv.Shape())
+        ad = BRepAdaptor_Surface(cara.wrapped)
+    sup = ad.BSpline()
+    entera = Face(BRepBuilderAPI_MakeFace(sup, 1e-7).Face())
+    recortada = abs(entera.area - cara.area) > 1e-6 * max(1.0, entera.area)
+    return sup, recortada
+
+
+def polos_de(cara) -> list:
+    """Los puntos de control de la cara, como [(i, j, (x, y, z), en_borde)],
+    con i y j desde 1 (como los cuenta OpenCASCADE). Vacío si la cara está
+    recortada: ahí mover un polo dejaría el borde fuera de la superficie."""
+    sup, recortada = bspline_de(cara)
+    if recortada:
+        return []
+    nu, nv = sup.NbUPoles(), sup.NbVPoles()
+    salida = []
+    for i in range(1, nu + 1):
+        for j in range(1, nv + 1):
+            p = sup.Pole(i, j)
+            salida.append((i, j, (p.X(), p.Y(), p.Z()), i in (1, nu) or j in (1, nv)))
+    return salida
+
+
+def mover_polo(forma, cara, i: int, j: int, d):
+    """La forma con el polo (i, j) de `cara` corrido `d`. Devuelve (forma
+    nueva, cara nueva).
+
+    Reglas, para que la superficie no se rompa: la cara no puede estar
+    recortada; y si la superficie tiene más de una cara, sólo se mueven polos
+    interiores (uno del borde despegaría la cara de su vecina)."""
+    from build123d import Face, Shape
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+    from OCP.BRepTools import BRepTools_ReShape
+    from OCP.gp import gp_Pnt
+
+    sup, recortada = bspline_de(cara)
+    if recortada:
+        raise ValueError("esa cara está recortada por su borde (como un parche de RED): "
+                         "mover sus puntos de control la despegaría del borde")
+    nu, nv = sup.NbUPoles(), sup.NbVPoles()
+    if not (1 <= i <= nu and 1 <= j <= nv):
+        raise ValueError(f"esa cara no tiene el punto de control ({i}, {j}); tiene {nu} × {nv}")
+    en_borde = i in (1, nu) or j in (1, nv)
+    if en_borde and len(forma.faces()) > 1:
+        raise ValueError("ese punto de control está en el borde de una cara que toca a otra: "
+                         "moverlo las despegaría. Mueve uno de adentro.")
+    nueva_sup = sup.Copy()
+    p = sup.Pole(i, j)
+    nueva_sup.SetPole(i, j, gp_Pnt(p.X() + d[0], p.Y() + d[1], p.Z() + d[2]))
+    nueva = Face(BRepBuilderAPI_MakeFace(nueva_sup, 1e-7).Face())
+    if len(forma.faces()) == 1:
+        return nueva, nueva
+    cambio = BRepTools_ReShape()
+    cambio.Replace(cara.wrapped, nueva.wrapped)
+    return _forma(cambio.Apply(forma.wrapped)), nueva
