@@ -322,6 +322,18 @@ def mover_punto(operaciones: list[dict], entidad: int, punto: int, x: float, y: 
     raise ValueError("este cuerpo no tiene boceto que mover")
 
 
+def analisis(cuerpo) -> dict:
+    """Normales y curvaturas exactas por vértice, en una malla más fina (fase
+    D3): lo que piden el mapa de curvatura y la cebra. Ver core/solido/analisis."""
+    from core.solido import analisis as mod_analisis
+    reg = regenerar(cuerpo)
+    if reg.solido is None:
+        return {"id": cuerpo.id, "caras": [], "kg_max": 0.0}
+    d = mod_analisis.analisis(reg)
+    d["id"] = cuerpo.id
+    return d
+
+
 def tiradores(cuerpo) -> dict:
     """De qué se puede jalar esta pieza: **sus vértices y sus aristas de
     verdad**, no los puntos del boceto.

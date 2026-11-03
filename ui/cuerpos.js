@@ -17,6 +17,11 @@
 
 const Cuerpos = (() => {
   const mallas = new Map();        // id → lo que devolvió el motor
+  // id → el análisis de curvatura (fase D3): una malla más fina con normal y
+  // curvaturas exactas por vértice. Se pide sólo en los estilos de análisis y
+  // se olvida cuando cambia la pieza.
+  const analisis = new Map();
+  const pidiendoAnalisis = new Set();
   let pidiendo = false;
   let otraVez = false;           // llegó otra petición mientras ésta iba en camino
 
@@ -47,7 +52,7 @@ const Cuerpos = (() => {
       for (const id of ids) {
         if (!mallas.has(id)) mallas.set(id, await pedir(`/api/cuerpo/${id}/malla`));
       }
-      for (const id of [...mallas.keys()]) if (!ids.includes(id)) mallas.delete(id);
+      for (const id of [...mallas.keys()]) if (!ids.includes(id)) { mallas.delete(id); analisis.delete(id); }
     } catch (e) {
       // Que no haya piezas, o que el motor todavía no conteste, no es un error
       // que deba tapar el dibujo: se sigue pintando el 2D como siempre.
@@ -64,12 +69,29 @@ const Cuerpos = (() => {
   async function refrescarUna(id) {
     try {
       mallas.set(id, await pedir(`/api/cuerpo/${id}/malla`));
+      analisis.delete(id);
     } catch (e) { /* se queda la anterior, que es mejor que nada */ }
     if (window.invalidarPlano) window.invalidarPlano();
     if (window.pintar) window.pintar();
   }
 
-  function olvidar() { mallas.clear(); }
+  function olvidar() { mallas.clear(); analisis.clear(); }
+
+  /** Trae el análisis de las piezas que no lo tienen; al llegar, repinta. */
+  function pedirAnalisis() {
+    for (const id of mallas.keys()) {
+      if (analisis.has(id) || pidiendoAnalisis.has(id)) continue;
+      pidiendoAnalisis.add(id);
+      pedir(`/api/cuerpo/${id}/analisis`)
+        .then((d) => { analisis.set(id, d); })
+        .catch(() => {})
+        .finally(() => {
+          pidiendoAnalisis.delete(id);
+          if (window.invalidarPlano) window.invalidarPlano();
+          if (window.pintar) window.pintar();
+        });
+    }
+  }
 
   // --- pintar --------------------------------------------------------------
   const LUZ = [0.4, -0.5, 0.75];
@@ -106,12 +128,12 @@ const Cuerpos = (() => {
    *  lejos a cerca. La profundidad sale de la cámara: con la vista en planta
    *  todos valen lo mismo, y entonces manda la altura, que es lo que se
    *  espera mirando desde arriba. */
-  function triangulos() {
+  function triangulos(fuente = mallas) {
     const v = estado.vista;
     const cx = Math.cos(v.rx), sx = Math.sin(v.rx);
     const cz = Math.cos(v.rz), sz = Math.sin(v.rz);
     const tris = [];
-    for (const [id, m] of mallas) {
+    for (const [id, m] of fuente) {
       for (const cara of m.caras || []) {
         const vs = cara.v, ix = cara.i;
         const borde = bordesDe(cara);
@@ -122,7 +144,12 @@ const Cuerpos = (() => {
                      [vs[d], vs[d + 1], vs[d + 2]]];
           let prof = 0;
           for (const p of P) prof += (p[0] * sz + p[1] * cz) * sx + p[2] * cx;
-          tris.push({ id, cara: cara.nombre, P, q: P.map((p) => window.aPX(p[0], p[1], p[2])), prof: prof / 3,
+          // En el análisis, los datos de cada vértice viajan con el triángulo.
+          const extra = cara.kg ? {
+            kg: (cara.kg[ix[k]] + cara.kg[ix[k + 1]] + cara.kg[ix[k + 2]]) / 3,
+            n: [0, 1, 2].map((q) => (cara.n[a + q] + cara.n[b + q] + cara.n[d + q]) / 3),
+          } : null;
+          tris.push({ id, cara: cara.nombre, P, q: P.map((p) => window.aPX(p[0], p[1], p[2])), prof: prof / 3, extra,
                       borde: [borde.has(clave(ix[k], ix[k + 1])), borde.has(clave(ix[k + 1], ix[k + 2])), borde.has(clave(ix[k + 2], ix[k]))] });
         }
       }
@@ -148,7 +175,13 @@ const Cuerpos = (() => {
   //   alambrico   · fantasma: caras translúcidas, se ven las aristas de atrás.
   //   renderizado · luz principal + luz de relleno + brillo, con el color de
   //                 la capa como material (blanco/negro = madera).
-  const ESTILOS = ["basico", "alambrico", "renderizado"];
+  //   curvatura   · fase D3: la curvatura gaussiana en color. Azul, silla
+  //                 (K < 0); verde, plano o desarrollable (K = 0); rojo, domo
+  //                 (K > 0). La escala es la de la pieza más curva a la vista.
+  //   cebra       · fase D3: franjas de la normal exacta. Donde dos caras se
+  //                 juntan sin quiebre las franjas siguen; donde se rompen o
+  //                 hacen esquina, hay un quiebre en la superficie.
+  const ESTILOS = ["basico", "alambrico", "renderizado", "curvatura", "cebra"];
   function estilo() {
     const e = (typeof estado !== "undefined" && estado.prefs && estado.prefs.estilo_3d) || "basico";
     return ESTILOS.includes(e) ? e : "basico";
@@ -189,9 +222,50 @@ const Cuerpos = (() => {
     return `rgb(${c[0]},${c[1]},${c[2]})`;
   }
 
+  /** El color de la curvatura gaussiana: azul (−) · verde (0) · rojo (+).
+   *  Raíz del valor relativo, para que lo poco curvo no se pierda en el verde. */
+  function colorCurvatura(kg, escala) {
+    const x = escala > 0 ? Math.max(-1, Math.min(1, kg / escala)) : 0;
+    const t = Math.sqrt(Math.abs(x));
+    const verde = [70, 190, 90], rojo = [225, 60, 50], azul = [50, 110, 230];
+    const otro = x >= 0 ? rojo : azul;
+    const c = verde.map((g, k) => Math.round(g + (otro[k] - g) * t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  /** Cebra: franjas por el ángulo de la normal con una dirección fija. */
+  const FRANJAS = 18;
+  const DIR_CEBRA = _norm([0.3, 0.45, 0.84]);
+  function colorCebra(n) {
+    const l = Math.hypot(n[0], n[1], n[2]) || 1;
+    const cosA = Math.max(-1, Math.min(1, (n[0] * DIR_CEBRA[0] + n[1] * DIR_CEBRA[1] + n[2] * DIR_CEBRA[2]) / l));
+    const franja = Math.floor(Math.acos(cosA) / Math.PI * FRANJAS);
+    return franja % 2 ? "rgb(25,25,28)" : "rgb(240,240,240)";
+  }
+
+  function pintarAnalisis(c, E, oscuro) {
+    pedirAnalisis();
+    const listos = new Map([...analisis].filter(([id]) => mallas.has(id)));
+    if (!listos.size) return false;           // mientras llega, se pinta lo de siempre
+    const escala = Math.max(...[...listos.values()].map((d) => d.kg_max || 0));
+    const tris = triangulos(listos);
+    c.save();
+    for (const t of tris) {
+      const col = E === "curvatura" ? colorCurvatura(t.extra.kg, escala) : colorCebra(t.extra.n);
+      c.fillStyle = col; c.strokeStyle = col; c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(t.q[0][0], t.q[0][1]); c.lineTo(t.q[1][0], t.q[1][1]); c.lineTo(t.q[2][0], t.q[2][1]);
+      c.closePath(); c.fill(); c.stroke();
+    }
+    c.restore();
+    pintarAristas(c, oscuro ? "rgba(235,235,238,0.5)" : "rgba(20,20,24,0.6)", 1);
+    return true;
+  }
+
   function pintar(c, oscuro) {
     if (!mallas.size || !window.aPX) return;
     const E = estilo();
+    if ((E === "curvatura" || E === "cebra") && pintarAnalisis(c, E, oscuro)) return;
     const tinta = oscuro ? "235,235,238" : "20,20,24";
     const tris = triangulos();
     if (E === "alambrico") {
@@ -326,7 +400,8 @@ const Cuerpos = (() => {
   function medidas(id) { return mallas.get(id || primero()) || null; }
 
   return { refrescar, refrescarUna, olvidar, pintar, caraEn, senalar, hay, primero, medidas, esquinas,
-           estilo, ESTILOS,
+           estilo, ESTILOS, colorCurvatura, colorCebra,
+           get analisis() { return analisis; },
            get senalada() { return senalada; } };
 })();
 
