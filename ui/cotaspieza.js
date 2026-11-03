@@ -253,7 +253,7 @@ if (typeof module !== "undefined") module.exports = CotasPieza;
 
 if (typeof Comandos !== "undefined") {
   Comandos.registrar({
-    nombre: "COTAPIEZA", alias: ["CP", "PIECEDIM"],
+    nombre: "COTAPIEZA", alias: ["PIECEDIM"],        // CP es COPIAR, como en AutoCAD
     ayuda: "COTAPIEZA — enciende o apaga las cotas de la pieza señalada",
     correr: async () => {
       const v = CotasPieza.alternar();

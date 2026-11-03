@@ -333,7 +333,7 @@ Comandos.registrar({
 });
 
 Comandos.registrar({
-  nombre: "ENCUADRAR", alias: ["ZE", "EX"],
+  nombre: "ENCUADRAR", alias: ["ZE"],              // EX es EXTENDER, como en AutoCAD
   ayuda: "Encuadra todo el dibujo",
   correr: async () => encuadrar(),
 });
@@ -370,7 +370,7 @@ Comandos.registrar({
  * máquina donde duele y escribe un informe en la consola, para pegarlo tal
  * cual en el reporte. Sin adivinar. */
 Comandos.registrar({
-  nombre: "RENDIMIENTO", alias: ["PERF", "MEDIR"],
+  nombre: "RENDIMIENTO", alias: ["PERF"],          // MEDIR es el comando MEDIR
   ayuda: "Mide cuánto cuesta pintar y navegar en esta máquina, para diagnosticar",
   correr: async () => {
     const r = [];
@@ -544,7 +544,7 @@ Comandos.registrar({
 });
 
 Comandos.registrar({
-  nombre: "AYUDA", alias: ["?", "H"],
+  nombre: "AYUDA", alias: ["?"],                   // H es RAYADO (HATCH), como en AutoCAD
   ayuda: "Lista los comandos",
   correr: async () => {
     for (const c of Comandos.lista) {

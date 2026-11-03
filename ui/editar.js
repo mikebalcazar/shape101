@@ -1005,7 +1005,7 @@ function alargada(pr) {
 
 Comandos.registrar({ nombre: "RECORTAR", alias: ["RC", "TR"],
   ayuda: "Quita el trozo de línea, arco, polilínea, spline o elipse que señales", correr: () => recortarOExtender(false) });
-Comandos.registrar({ nombre: "EXTENDER", alias: ["EXT", "EX"],
+Comandos.registrar({ nombre: "EXTENDER", alias: ["EX"],   // EXT es EXTRUIR, como en AutoCAD
   ayuda: "Alarga una línea, un arco, una spline o un arco de elipse hasta lo primero que encuentre", correr: () => recortarOExtender(true) });
 
 /* ===================================================================== */
@@ -1309,7 +1309,9 @@ Comandos.registrar({
 });
 
 Comandos.registrar({
-  nombre: "UNIR", alias: ["J", "UN", "JOIN"],
+  // Sin «UN»: ése es de UNIDADES (Mike, 3-nov-2026; también en AutoCAD, UN =
+  // UNITS). Lo tenían los dos y ganaba el último en registrarse, sin avisar.
+  nombre: "UNIR", alias: ["J", "JOIN"],
   ayuda: "Une líneas, arcos y polilíneas que se tocan en una sola polilínea",
   correr: async () => {
     const ids = await Seleccion.pedir({

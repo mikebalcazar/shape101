@@ -124,15 +124,16 @@
   /* Superficie por su borde (fase D1): las curvas señaladas cierran un lazo
    * punta con punta y el parche pasa por todas. El NetworkSrf de Rhino. */
   Comandos.registrar({
-    nombre: "RED", alias: ["PARCHE", "NETWORKSRF", "EDGESRF"],
-    ayuda: "RED · una superficie que cierra el borde de las curvas señaladas (se tocan punta con punta)",
+    // «RED» no: ése es el alias de REDONDEAR desde antes, y ganaba él (t058).
+    nombre: "PARCHE", alias: ["NETWORKSRF", "EDGESRF"],
+    ayuda: "PARCHE · una superficie que cierra el borde de las curvas señaladas (se tocan punta con punta)",
     correr: async () => {
       const ids = seleccion();
       if (ids.length < 2) {
-        Comandos.eco("Señala las curvas que cierran el borde (al menos dos) y vuelve a dar RED.", "malo");
+        Comandos.eco("Señala las curvas que cierran el borde (al menos dos) y vuelve a dar PARCHE.", "malo");
         return;
       }
-      await pedir("red", { ids }, "RED");
+      await pedir("red", { ids }, "PARCHE");
     },
   });
 

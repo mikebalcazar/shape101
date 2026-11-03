@@ -327,3 +327,17 @@ decide Mike.
   y cortando en el primer cruce con las curvas a la vista, como el rayado.
 - Medir la curvatura «a ±1e-7 del nudo» mezclaba la tercera derivada: se mide
   en la unión misma, de los dos lados.
+
+## Alias de comandos (3-nov-2026)
+
+- **Mike decidió**: `UN` es de UNIDADES; UNIR se queda con `J` y `JOIN`. Y los
+  demás alias que tenían dos dueños, como AutoCAD: `EX` extender, `H` rayado,
+  `EXT` extruir, `MEDIR` medir, `CP` copiar, `BLOQUE` el comando BLOQUE.
+- **Con un alias repetido gana el último que se registra, sin avisar.** Dos
+  estaban rotos de verdad: `CP` abría COTAPIEZA y `BLOQUE` abría PRISMA (el
+  comando BLOQUE no se podía teclear por su nombre).
+- **Uno era mío**: el parche de la fase D1 se llamaba RED, que ya era alias de
+  REDONDEAR, y REDONDEAR le ganaba: el comando nuevo no corría. Ahora es
+  PARCHE (NETWORKSRF, EDGESRF).
+- t058 revisa en el programa que ningún nombre ni alias tenga dos dueños y
+  qué corre cada uno: el próximo choque truena en la prueba, no en el taller.

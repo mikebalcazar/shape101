@@ -9,7 +9,7 @@ parche que cierra un borde. Aquí están esas cuatro, con OpenCASCADE:
 - `revolucion`  un perfil abierto que gira alrededor de un eje.
 - `barrido`     un perfil abierto que recorre un camino (BRepOffsetAPI_MakePipe).
 - `red`         un parche que pasa por un borde de varias curvas que cierran
-                un lazo (BRepFill_Filling): el NetworkSrf / EdgeSrf de Rhino.
+                un lazo (BRepFill_Filling): el NetworkSrf / EdgeSrf de Rhino (comando PARCHE).
 - `barrido_dos_rieles`  el Sweep2 de Rhino: un perfil que recorre dos rieles
                 tocando los dos (fase D1b).
 
