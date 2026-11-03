@@ -622,6 +622,24 @@ def redondear(id_: str, entrada: Redondear):
     return _rehacer(id_, mod.agregar(list(c.operaciones), op), "redondear")
 
 
+class Chaflan(BaseModel):
+    aristas: list[str]
+    d: float
+
+
+@router.post("/{id_}/chaflan")
+def chaflan(id_: str, entrada: Chaflan):
+    """Achaflana aristas de la pieza, por su nombre (fase C3). La distancia
+    queda en el historial y se puede cambiar después."""
+    from core.solido import cuerpo as mod
+    c = _cuerpo(id_)
+    try:
+        op = mod.ops_de_chaflan(entrada.aristas, entrada.d)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return _rehacer(id_, mod.agregar(list(c.operaciones), op), "chaflán")
+
+
 class Exportar(BaseModel):
     formato: str
     ruta: str

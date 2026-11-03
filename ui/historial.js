@@ -271,4 +271,47 @@ if (typeof Comandos !== "undefined") {
       } catch (e) { Comandos.eco("No se pudo redondear: " + e.message, "malo"); }
     },
   });
+
+  /* El chaflán (fase C3): como REDONDEAR, pero el canto se corta en plano a
+   * la distancia dada. Las aristas, igual: las elegidas con Ctrl+clic o, si no
+   * hay, las verticales. */
+  Comandos.registrar({
+    nombre: "CHAFLAN", alias: ["CHA", "CHAMFER"],
+    ayuda: "CHAFLAN [d] — achaflana las aristas elegidas con Ctrl+clic; si no elegiste ninguna, las verticales",
+    correr: async (args) => {
+      const id = (typeof Cuerpos !== "undefined" && Cuerpos.senalada) ? Cuerpos.senalada.id : null;
+      if (!id) {
+        Comandos.eco("Pica primero una cara de la pieza que quieres achaflanar.", "malo");
+        return;
+      }
+      let d = parseFloat(args[0]);
+      if (!isFinite(d)) {
+        d = await Entrada.pedirNumero({
+          mensaje: "Distancia del chaflán", valor: 3, minimo: 0.02, clave: "chaflan-distancia" });
+      }
+      if (!isFinite(d) || d <= 0) return;
+      try {
+        let aristas = (typeof Tiradores !== "undefined") ? Tiradores.aristasElegidas(id) : [];
+        const aMano = aristas.length > 0;
+        if (!aMano) {
+          const refs = await fetch(`/api/cuerpo/${id}/referencias`).then((x) => x.json());
+          aristas = (refs.aristas || []).filter((a) => (a.match(/lado\[/g) || []).length === 2);
+        }
+        if (!aristas.length) {
+          Comandos.eco("Esta pieza no tiene aristas verticales que achaflanar. "
+            + "Elige las que quieras con Ctrl+clic sobre el círculo de en medio.", "malo");
+          return;
+        }
+        const resp = await fetch(`/api/cuerpo/${id}/chaflan`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aristas, d }),
+        });
+        const j = await resp.json();
+        if (!resp.ok) throw new Error(j.detail || resp.status);
+        if (aMano && typeof Tiradores !== "undefined") Tiradores.soltarElegidas(id);
+        await Historial.trasCambiar(j, `${aristas.length} arista(s) achaflanada(s) ${d}`
+          + (aMano ? " (las elegidas)" : " (las verticales)"));
+      } catch (e) { Comandos.eco("No se pudo achaflanar: " + e.message, "malo"); }
+    },
+  });
 }

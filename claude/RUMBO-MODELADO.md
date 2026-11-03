@@ -41,7 +41,8 @@ documentación:
 | **B3** | Desfase de splines y elipses, aproximado a una décima de la tolerancia del documento (como Rhino) | hecha (t050) |
 | **C1** | Boceto 3D con varios contornos, huecos e islas (anidamiento par/impar, como PlanarSrf) | hecha (t051) |
 | **C2** | Splines y elipses entran al kernel como curvas B-spline y elipse exactas, no como polilíneas | hecha (t051) |
-| C3 | Mover puntos de curvas en un sólido; empalme y chaflán robustos | pendiente |
+| **C3** | CHAFLAN; redondeo y chaflán que no caben dicen el máximo; mover puntos de splines y elipses del boceto (la pieza se rehace exacta) | hecha (t052) |
+| C3b | Mover un vértice del sólido que toca una arista curva (hoy avisa y manda al boceto) | pendiente, a propósito |
 | D | Superficies libres: loft, barrido por dos rieles, red de curvas, edición por puntos de control, análisis de curvatura | pendiente |
 
 Cada fase va en su propia rama y su propio PR, con su prueba (`t0NN`) y la
@@ -220,3 +221,19 @@ decide Mike.
   ancla para soldar a ellas las líneas vecinas.
 - `es_cerrada` no reconocía la spline cerrada ni la elipse completa: REVOLVER
   y compañía las tomaban por caminos.
+
+## Lo que se aprendió en C3
+
+- **Mike pidió seguir con C3 antes de publicar** (3-nov-2026).
+- **Lo robusto es mover en el boceto, no en el sólido.** Mover un punto de una
+  spline del boceto y regenerar da la pieza exacta (la spline entra al kernel
+  como B-spline). Mover directamente un vértice del sólido que toca un
+  cilindro o un redondeo obligaría a rehacer esa cara deformada, con una
+  superficie aproximada: la «pieza retorcida» que `remallar` evita. Ahí se
+  sigue negando, pero ahora dice qué hacer (moverlo en el boceto o cambiar el
+  radio en el historial). Queda como C3b, a propósito.
+- **El kernel sólo dice «falló, prueba uno menor»** (en inglés). build123d
+  trae `max_fillet`; para el chaflán no hay, y se busca por bisección (doce
+  intentos). El mensaje da el máximo, y ése sí se puede hacer.
+- El chaflán se nombra como el redondeo (`chaflan[id]/arista`), así jalar o
+  borrar después encuentra su cara.

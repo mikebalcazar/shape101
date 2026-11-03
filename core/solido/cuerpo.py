@@ -271,6 +271,22 @@ def mover_punto(operaciones: list[dict], entidad: int, punto: int, x: float, y: 
             e["centro"] = [float(x), float(y)]
         elif e.get("tipo") == "linea":
             e["p1" if punto == 0 else "p2"] = [float(x), float(y)]
+        elif e.get("tipo") == "spline":
+            # Fase C3: el punto es uno de los que la definen —de ajuste si los
+            # trae y no tiene nudos propios, de control si no—, igual que sus
+            # grips en el 2D (core/geometria.py). La pieza se regenera exacta
+            # desde el historial: la spline entra al kernel como B-spline.
+            explicita = bool(e.get("nudos"))
+            campo = "puntos_ajuste" if (e.get("puntos_ajuste") and not explicita) else "puntos_control"
+            pts = e.get(campo) or []
+            if not (0 <= punto < len(pts)):
+                raise ValueError(f"esa spline no tiene el punto {punto}")
+            pts[punto] = [float(x), float(y)]
+            if explicita and e.get("puntos_ajuste"):
+                e["puntos_ajuste"] = []        # ya no pasan por la curva
+        elif e.get("tipo") == "elipse":
+            # Se mueve por su centro, como el círculo.
+            e["centro"] = [float(x), float(y)]
         else:
             raise ValueError(f"todavía no sé mover puntos de un «{e.get('tipo')}»")
         return ops
@@ -307,6 +323,14 @@ def tiradores(cuerpo) -> dict:
                                   "a": [a.X, a.Y, a.Z], "b": [b.X, b.Y, b.Z],
                                   "recta": e.geom_type.name == "LINE"})
     return salida
+
+
+def ops_de_chaflan(aristas: list[str], d: float) -> dict:
+    if not d > 0:
+        raise ValueError("un chaflán necesita una distancia mayor que cero")
+    if not aristas:
+        raise ValueError("elige primero qué aristas achaflanar")
+    return {"op": "chaflan", "aristas": list(aristas), "d": float(d)}
 
 
 def mover_vertice(operaciones: list, nombre: str, d) -> list:
@@ -546,6 +570,10 @@ def describir(operaciones: list) -> list:
             aristas = op.get("aristas") or []
             titulo = f"Redondeo r{op.get('r')} · {len(aristas)} arista(s)"
             campos = [_campo("r", "Radio", op.get("r", 0), minimo=0.01)]
+        elif clase == "chaflan":
+            aristas = op.get("aristas") or []
+            titulo = f"Chaflán {op.get('d')} · {len(aristas)} arista(s)"
+            campos = [_campo("d", "Distancia", op.get("d", 0), minimo=0.01)]
         elif clase == "empujar_cara":
             titulo = f"Cara «{op.get('cara')}» jalada {op.get('mm')}"
             campos = [_campo("mm", "Cuánto", op.get("mm", 0))]
