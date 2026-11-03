@@ -33,6 +33,7 @@ from core import tolerancia as mod_tolerancia
 from core import recortar as mod_recortar
 from core import regiones as mod_regiones
 from core import desfase as mod_desfase
+from core import extender as mod_extender
 from core import agrupar as mod_agrupar
 from core import oda as mod_oda
 from core import version as mod_version
@@ -1942,6 +1943,26 @@ def desfase_curva(entrada: _DesfaseCurva):
         try:
             return mod_desfase.desfasar(S.doc, e, entrada.distancia, entrada.punto)
         except mod_desfase.NoSeDesfasa as exc:
+            return {"error": str(exc)}
+
+
+class _ExtenderCurva(BaseModel):
+    id: str
+    punto: list[float]
+    ventana: list[float]
+
+
+@app.post("/api/extender/curva")
+def extender_curva(entrada: _ExtenderCurva):
+    """EXTENDER una spline o un arco de elipse (core/extender.py). No cambia
+    nada: devuelve el plan, y el navegador lo aplica con /api/operacion."""
+    with S.candado:
+        e = S.doc.entidades.get(entrada.id)
+        if e is None:
+            raise HTTPException(404, f"no existe la entidad {entrada.id}")
+        try:
+            return mod_extender.extender(S.doc, e, entrada.punto, entrada.ventana, S.espacio)
+        except mod_extender.NoSeExtiende as exc:
             return {"error": str(exc)}
 
 

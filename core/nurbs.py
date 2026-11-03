@@ -471,6 +471,49 @@ class Nurbs:
         pesos = [q[-1] for q in H] if self.pesos is not None else None
         return Nurbs(p, control, nudos, pesos)
 
+    def prolongada(self, cuanto: float) -> "Nurbs":
+        """La curva con su final prolongado **suave** (fase B1b): el último tramo
+        es un polinomio, y se sigue el mismo polinomio más allá de la punta.
+        `cuanto` es en fracciones del largo de parámetro de ese último tramo
+        (1.0 = otro tanto como el tramo).
+
+        Los puntos de control del tramo nuevo salen de la forma polar (el
+        «blossom») del último segmento de Bézier: Q_k = B(1,…,1, u,…,u), con
+        p-k unos y k veces u = 1 + cuanto. Así la extensión no es una curva
+        parecida: es la misma curva continuada, sin quiebre de tangente ni de
+        curvatura. Para el principio, `invertida().prolongada().invertida()`."""
+        p = self.grado
+        a, b = self.dominio
+        c = self.tramo(a, b) if not (self.nudos[0] == self.nudos[p] and self.nudos[-1] == self.nudos[-1 - p]) else self
+        U = list(c.nudos)
+        H = [list(q) + [1.0] for q in c.control] if c.pesos is None else \
+            [[q[j] * w for j in range(c.dim)] + [w] for q, w in zip(c.control, c.pesos)]
+        # El último segmento de Bézier, en homogéneas.
+        t1 = U[-1]
+        t0 = max(k for k in U if k < t1)
+        ultimo = c.tramo(t0, t1)
+        B = [list(q) + [1.0] for q in ultimo.control] if ultimo.pesos is None else \
+            [[q[j] * w for j in range(c.dim)] + [w] for q, w in zip(ultimo.control, ultimo.pesos)]
+        u = 1.0 + float(cuanto)
+
+        def blossom(args):
+            pts = [list(q) for q in B]
+            for x in args:
+                pts = [[(1 - x) * pts[k][d] + x * pts[k + 1][d] for d in range(len(pts[0]))]
+                       for k in range(len(pts) - 1)]
+            return pts[0]
+
+        Q = [blossom([1.0] * (p - k) + [u] * k) for k in range(p + 1)]
+        if any(q[-1] <= 0 for q in Q):
+            # En una racional, el peso también es un polinomio: prolongado de
+            # más cruza el cero y la curva se iría al infinito.
+            raise ValueError("esa curva no se puede prolongar tanto: acorta la extensión")
+        control = [[q[d] / q[-1] for d in range(c.dim)] for q in Q]
+        pesos = [q[-1] for q in Q] if c.pesos is not None else None
+        largo = (t1 - t0) * float(cuanto)
+        extension = Nurbs(p, control, [t1] * (p + 1) + [t1 + largo] * (p + 1), pesos)
+        return c.seguida_de(extension)
+
     def invertida(self) -> "Nurbs":
         """La misma curva recorrida al revés: puntos y pesos invertidos, y los
         nudos reflejados en el dominio (k → a + b - k)."""
