@@ -531,6 +531,8 @@ def tiradores(id_: str):
     for a in d["aristas"]:
         for k in ("p", "a", "b"):
             a[k] = _a_mundo(plano, a[k])
+    for p in d.get("polos", []):
+        p["p"] = _a_mundo(plano, p["p"])
     return d
 
 
@@ -556,7 +558,7 @@ def _mover(id_: str, entrada: MoverEnElMundo, cual: str):
     if all(abs(k) < 1e-9 for k in entrada.d):
         return _malla(c)
     d = _del_mundo(getattr(c, "plano", "XY"), list(entrada.d) + [0.0, 0.0, 0.0])
-    hacer = mod.mover_vertice if cual == "vertice" else mod.mover_arista
+    hacer = {"vertice": mod.mover_vertice, "arista": mod.mover_arista, "polo": mod.mover_polo}[cual]
     nuevas = hacer(antes, entrada.nombre, d)
     doc = _doc()
     with doc.transaccion(f"mover {cual}"):
@@ -573,6 +575,15 @@ def _mover(id_: str, entrada: MoverEnElMundo, cual: str):
 def mover_vertice(id_: str, entrada: MoverEnElMundo):
     """Una esquina de la pieza, corrida. Sólo esa."""
     return _mover(id_, entrada, "vertice")
+
+
+@router.post("/{id_}/mover-polo")
+def mover_polo(id_: str, entrada: MoverEnElMundo):
+    """Un punto de control de una superficie, corrido (fase D2)."""
+    try:
+        return _mover(id_, entrada, "polo")
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @router.post("/{id_}/mover-arista")

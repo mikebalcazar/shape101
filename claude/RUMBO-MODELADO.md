@@ -45,7 +45,7 @@ documentación:
 | C3b | Mover un vértice del sólido que toca una arista curva (hoy avisa y manda al boceto) | pendiente, a propósito |
 | **D1** | Superficies libres: LOFT, REVOLVER y BARRER con curvas abiertas, y RED (parche por el borde) | hecha (t053) |
 | **D1b** | Barrido por dos rieles (BARRER2, el Sweep2 de Rhino) | hecha (t054) |
-| D2 | Editar una superficie por sus puntos de control | pendiente |
+| **D2** | Editar una superficie por sus puntos de control (tiradores rombo con su red; operación `mover_polo` en el historial) | hecha (t055) |
 | D3 | Análisis de curvatura (cebra, mapa de curvatura) | pendiente |
 
 Cada fase va en su propia rama y su propio PR, con su prueba (`t0NN`) y la
@@ -275,3 +275,17 @@ decide Mike.
   las otras dos con sus puntas, y un riel que llega al revés se recorre desde
   su final. No importa el orden en que se señalen. (build123d no trae
   `Wire.reversed()`: el riel se muestrea en 1 - s.)
+
+## Lo que se aprendió en D2
+
+- **Mike pidió seguir con D2 antes de publicar** (3-nov-2026).
+- **Un polo movido es un paso del historial** (`mover_polo`, con la cara por
+  su nombre e (i, j)), igual que mover un vértice: se cambia o se quita
+  después. El polo queda exacto donde se pidió y ningún otro cambia (t055).
+- **Dónde no se ofrece, a propósito**: en un sólido (lo abriría), en una cara
+  recortada como el parche de RED (se despegaría de su borde) y en el borde de
+  una cara que toca a otra (las despegaría). Se avisa en vez de romper.
+- Una cara que no es B-spline (el cilindro de un revolucionado) se convierte
+  a NURBS para editarla: es la misma superficie dicha de otra manera.
+- En pantalla, los polos son rombos morados con su **red de control**
+  punteada, como en Rhino: sin la red, un rombo suelto no dice qué jala.

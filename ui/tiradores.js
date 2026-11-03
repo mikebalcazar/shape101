@@ -92,6 +92,11 @@ const Tiradores = (() => {
       if (a.recta === false) continue;
       salida.push({ tipo: "arista", id, nombre: a.nombre, p: a.p, a: a.a, b: a.b });
     }
+    // Los puntos de control de una superficie (fase D2). El motor sólo los
+    // manda para superficies, y en una de varias caras sólo los de adentro.
+    for (const q of d.polos || []) {
+      salida.push({ tipo: "polo", id, nombre: q.nombre, p: q.p, cara: q.cara, i: q.i, j: q.j });
+    }
     return salida;
   }
 
@@ -104,10 +109,22 @@ const Tiradores = (() => {
     const arr = delMundo(id);
     if (!arr.length) return;
     c.save();
+    pintarRed(c, arr);
     for (const t of arr) {
       const q = window.aPX(t.p[0], t.p[1], t.p[2]);
       const agarrado = arrastre && arrastre.nombre === t.nombre && arrastre.tipo === t.tipo;
-      if (t.tipo === "vertice") {
+      if (t.tipo === "polo") {
+        // Rombo: se distingue de la esquina (cuadro) y de la arista (círculo).
+        c.fillStyle = agarrado ? "#ffd35a" : "#c46bff";
+        c.strokeStyle = "rgba(255,255,255,0.9)";
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(q[0], q[1] - 4.5); c.lineTo(q[0] + 4.5, q[1]);
+        c.lineTo(q[0], q[1] + 4.5); c.lineTo(q[0] - 4.5, q[1]);
+        c.closePath();
+        c.fill();
+        c.stroke();
+      } else if (t.tipo === "vertice") {
         c.fillStyle = agarrado ? "#ffd35a" : "#4aa3ff";
         c.strokeStyle = "rgba(255,255,255,0.9)";
         c.lineWidth = 1;
@@ -126,6 +143,30 @@ const Tiradores = (() => {
     }
     if (arrastre) pintarFantasma(c);
     c.restore();
+  }
+
+  /** La red de control de una superficie: cada polo unido con sus vecinos de
+   *  la misma cara, como la muestra Rhino. Sin ella, los rombos sueltos no
+   *  dicen qué parte de la superficie jala cada uno. */
+  function pintarRed(c, arr) {
+    const polos = arr.filter((t) => t.tipo === "polo");
+    if (!polos.length) return;
+    const porClave = new Map(polos.map((t) => [`${t.cara}#${t.i},${t.j}`, t]));
+    c.strokeStyle = "rgba(196,107,255,0.55)";
+    c.lineWidth = 1;
+    c.setLineDash([3, 3]);
+    c.beginPath();
+    for (const t of polos) {
+      const q = window.aPX(t.p[0], t.p[1], t.p[2]);
+      for (const v of [porClave.get(`${t.cara}#${t.i + 1},${t.j}`), porClave.get(`${t.cara}#${t.i},${t.j + 1}`)]) {
+        if (!v) continue;
+        const w = window.aPX(v.p[0], v.p[1], v.p[2]);
+        c.moveTo(q[0], q[1]);
+        c.lineTo(w[0], w[1]);
+      }
+    }
+    c.stroke();
+    c.setLineDash([]);
   }
 
   /** Mientras se arrastra: a dónde va, y cuánto lleva. No se le pide la pieza
@@ -286,7 +327,7 @@ const Tiradores = (() => {
       olvidar(a.id);
       await Cuerpos.refrescarUna(a.id);
       cargar(a.id);
-      const que = a.tipo === "vertice" ? "punto" : "arista";
+      const que = a.tipo === "vertice" ? "punto" : a.tipo === "polo" ? "punto de control" : "arista";
       Comandos.eco(`${que} «${a.nombre}» movido (${a.d.join(", ")})`
         + ` · ahora ${j.caja[0]} × ${j.caja[1]} × ${j.caja[2]}`);
     } catch (e) {
