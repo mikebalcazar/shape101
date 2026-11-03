@@ -85,6 +85,10 @@ def malla(cuerpo) -> dict:
     m["id"] = cuerpo.id
     m["caja"] = [round(caja.size.X, 2), round(caja.size.Y, 2), round(caja.size.Z, 2)]
     m["volumen_mm3"] = round(reg.solido.volume, 1)
+    # Una superficie (fase D1) no tiene volumen: se dice que es superficie y
+    # cuánta área tiene, para que el aviso no hable de «0.0 cm³».
+    m["es_superficie"] = len(reg.solido.solids()) == 0
+    m["area_mm2"] = round(reg.solido.area, 1)
     m["operaciones"] = len(cuerpo.operaciones)
     return m
 
@@ -188,17 +192,19 @@ def repartir(entidades: list[dict]) -> tuple[list[dict], list[dict]]:
     return cerradas, abiertas
 
 
-def ops_de_revolver(perfil: list[dict], eje: dict, grados: float = 360.0) -> list[dict]:
-    """Torneado: el contorno gira alrededor de una línea del mismo dibujo."""
+def ops_de_revolver(perfil: list[dict], eje: dict, grados: float = 360.0,
+                    superficie: bool = False) -> list[dict]:
+    """Torneado: el contorno gira alrededor de una línea del mismo dibujo. Con
+    un perfil abierto (`superficie`), deja una superficie de revolución."""
     if not (0 < float(grados) <= 360):
         raise ValueError("un revolucionado gira entre 0 y 360 grados")
-    return historial.asegurar_ids([
-        _boceto_de(perfil),
-        {"op": "revolver", "perfil": "0", "eje": _dos_puntos(eje), "grados": float(grados)},
-    ])
+    op = {"op": "revolver", "perfil": "0", "eje": _dos_puntos(eje), "grados": float(grados)}
+    if superficie:
+        op["superficie"] = True
+    return historial.asegurar_ids([_boceto_de(perfil), op])
 
 
-def ops_de_barrer(perfil: list[dict], camino: list[dict]) -> list[dict]:
+def ops_de_barrer(perfil: list[dict], camino: list[dict], superficie: bool = False) -> list[dict]:
     """El contorno recorre un camino. Los dos pueden venir de ventanas
     distintas —perfil en la Frontal, camino en la Superior— y cada uno se
     coloca en la suya."""
@@ -207,12 +213,12 @@ def ops_de_barrer(perfil: list[dict], camino: list[dict]) -> list[dict]:
     return historial.asegurar_ids([
         _boceto_de(perfil),
         _boceto_de(camino),
-        {"op": "barrer", "perfil": "0", "camino": "1"},
+        dict({"op": "barrer", "perfil": "0", "camino": "1"}, **({"superficie": True} if superficie else {})),
     ])
 
 
 def ops_de_loft(secciones: list[list[dict]], alturas: list[float] | None = None,
-                reglado: bool = False) -> list[dict]:
+                reglado: bool = False, superficie: bool = False) -> list[dict]:
     """Una piel que pasa por varias secciones.
 
     `alturas` separa las secciones a lo largo de la normal de su ventana. Hace
@@ -228,7 +234,20 @@ def ops_de_loft(secciones: list[list[dict]], alturas: list[float] | None = None,
         alturas.append(0.0)
     ops = [_boceto_de(s, float(h)) for s, h in zip(secciones, alturas)]
     ops = historial.asegurar_ids(ops)
-    ops.append({"op": "loft", "perfiles": [o["id"] for o in ops], "reglado": bool(reglado)})
+    op = {"op": "loft", "perfiles": [o["id"] for o in ops], "reglado": bool(reglado)}
+    if superficie:
+        op["superficie"] = True          # secciones abiertas: sale una piel, no un sólido
+    ops.append(op)
+    return historial.asegurar_ids(ops)
+
+
+def ops_de_red(bordes: list[dict]) -> list[dict]:
+    """Un parche que cierra el borde de varias curvas (fase D1). Cada curva es
+    su propio boceto: así pueden venir de ventanas distintas."""
+    if len(bordes) < 2:
+        raise ValueError("un parche necesita al menos dos curvas de borde")
+    ops = historial.asegurar_ids([_boceto_de([b]) for b in bordes])
+    ops.append({"op": "red", "bordes": [o["id"] for o in ops]})
     return historial.asegurar_ids(ops)
 
 

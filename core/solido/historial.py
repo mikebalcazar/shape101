@@ -37,7 +37,7 @@ import time
 
 from build123d import Axis, Face, Wire, chamfer, extrude, fillet, loft, revolve, sweep
 
-from core.solido import boceto, nombres, planos, remallar
+from core.solido import boceto, nombres, planos, remallar, superficies
 
 
 class Regenerado:
@@ -60,7 +60,7 @@ def _entidades(op: dict) -> list[dict]:
 
 OPERACIONES = {"boceto", "extruir", "revolver", "barrer", "loft", "extruir_cara",
                "primitiva",
-               "restar", "redondear", "chaflan", "empujar_cara",
+               "restar", "redondear", "chaflan", "empujar_cara", "red",
                "mover_vertice", "mover_arista"}
 
 
@@ -142,7 +142,7 @@ def _primitiva(op: dict):
 # `op.values()` a lo bruto: un texto que *parece* un id —el nombre de una cara,
 # por ejemplo— no debe contar como referencia.
 REFERENCIA_UNA = ("perfil", "camino", "sobre")
-REFERENCIA_VARIAS = ("perfiles",)
+REFERENCIA_VARIAS = ("perfiles", "bordes")
 
 
 def _ids_usados(operaciones) -> set:
@@ -388,13 +388,18 @@ def _paso(est: Estado, i: int, op: dict) -> None:
         # Torneado: el perfil gira alrededor de un eje. Lo que sale es un
         # cuerpo nuevo, no una modificación del que hubiera.
         perfil = _perfil_de(est, op, i)
-        cara, _, _ = _en_su_plano(est, perfil)
-        cara = _una_sola_cara(cara, "revolver")
         eje = _eje_de(est, op, perfil)
         grados = float(op.get("grados", 360.0))
         if not (0 < grados <= 360):
             raise ValueError("un revolucionado gira entre 0 y 360 grados")
-        solido = revolve(cara, eje, revolution_arc=grados)
+        if op.get("superficie"):
+            # Un perfil abierto gira y deja una superficie de revolución, no un
+            # sólido (como el Revolve de Rhino con una curva abierta).
+            solido = superficies.revolucion(_alambre_en_su_plano(est, perfil), eje, grados)
+        else:
+            cara, _, _ = _en_su_plano(est, perfil)
+            cara = _una_sola_cara(cara, "revolver")
+            solido = revolve(cara, eje, revolution_arc=grados)
         nom.bautizar_cuerpo(solido, eje=(eje.direction.X, eje.direction.Y, eje.direction.Z))
         est.boceto_pendiente = None
     elif clase == "barrer":
@@ -407,10 +412,13 @@ def _paso(est: Estado, i: int, op: dict) -> None:
         cam = est.bocetos.get(str(ref))
         if cam is None:
             raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
-        cara, _, _ = _en_su_plano(est, perfil)
-        cara = _una_sola_cara(cara, "barrer")
         camino = _alambre_en_su_plano(est, cam)
-        solido = sweep(cara, path=camino)
+        if op.get("superficie"):
+            solido = superficies.barrido(_alambre_en_su_plano(est, perfil), camino)
+        else:
+            cara, _, _ = _en_su_plano(est, perfil)
+            cara = _una_sola_cara(cara, "barrer")
+            solido = sweep(cara, path=camino)
         arranque = camino.start_point()
         remate = camino.end_point()
         nom.bautizar_cuerpo(solido, eje=(remate.X - arranque.X, remate.Y - arranque.Y,
@@ -427,10 +435,32 @@ def _paso(est: Estado, i: int, op: dict) -> None:
             perfil = est.bocetos.get(ref)
             if perfil is None:
                 raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
-            caras.append(_una_sola_cara(_en_su_plano(est, perfil)[0], "hacer un loft"))
-        solido = loft(caras, ruled=bool(op.get("reglado", False)))
+            if op.get("superficie"):
+                caras.append(_alambre_en_su_plano(est, perfil))
+            else:
+                caras.append(_una_sola_cara(_en_su_plano(est, perfil)[0], "hacer un loft"))
+        if op.get("superficie"):
+            # Secciones abiertas: la piel es una superficie (fase D1).
+            solido = superficies.loft(caras, reglado=bool(op.get("reglado", False)))
+        else:
+            solido = loft(caras, ruled=bool(op.get("reglado", False)))
         a, b = caras[0].center(), caras[-1].center()
         nom.bautizar_cuerpo(solido, eje=(b.X - a.X, b.Y - a.Y, b.Z - a.Z))
+        est.boceto_pendiente = None
+    elif clase == "red":
+        # Superficie por su borde: varias curvas que cierran un lazo, y un
+        # parche que pasa por todas (el NetworkSrf / EdgeSrf de Rhino, fase D1).
+        refs = [str(k) for k in (op.get("bordes") or [])]
+        if len(refs) < 2:
+            raise ValueError(f"op {i}: una red necesita al menos dos curvas de borde")
+        alambres = []
+        for ref in refs:
+            perfil = est.bocetos.get(ref)
+            if perfil is None:
+                raise ValueError(f"op {i}: no hay un boceto «{ref}» antes de esta operación")
+            alambres.append(_alambre_en_su_plano(est, perfil))
+        solido = superficies.red(alambres)
+        nom.bautizar_cuerpo(solido, eje=(0, 0, 1))
         est.boceto_pendiente = None
     elif clase == "primitiva":
         # Un sólido de la nada, en el plano de la ventana donde se pidió.

@@ -43,7 +43,10 @@ documentación:
 | **C2** | Splines y elipses entran al kernel como curvas B-spline y elipse exactas, no como polilíneas | hecha (t051) |
 | **C3** | CHAFLAN; redondeo y chaflán que no caben dicen el máximo; mover puntos de splines y elipses del boceto (la pieza se rehace exacta) | hecha (t052) |
 | C3b | Mover un vértice del sólido que toca una arista curva (hoy avisa y manda al boceto) | pendiente, a propósito |
-| D | Superficies libres: loft, barrido por dos rieles, red de curvas, edición por puntos de control, análisis de curvatura | pendiente |
+| **D1** | Superficies libres: LOFT, REVOLVER y BARRER con curvas abiertas, y RED (parche por el borde) | hecha (t053) |
+| D1b | Barrido por dos rieles (Sweep2) | pendiente |
+| D2 | Editar una superficie por sus puntos de control | pendiente |
+| D3 | Análisis de curvatura (cebra, mapa de curvatura) | pendiente |
 
 Cada fase va en su propia rama y su propio PR, con su prueba (`t0NN`) y la
 suite completa en verde antes de fusionar. Publicar una versión es aparte y lo
@@ -237,3 +240,21 @@ decide Mike.
   intentos). El mensaje da el máximo, y ése sí se puede hacer.
 - El chaflán se nombra como el redondeo (`chaflan[id]/arista`), así jalar o
   borrar después encuentra su cara.
+
+## Lo que se aprendió en D1
+
+- **Mike pidió ir a superficies** (3-nov-2026). D se partió en D1 (las cuatro
+  superficies básicas), D1b (dos rieles), D2 (puntos de control) y D3
+  (curvatura).
+- **Lo natural es lo de Rhino**: LOFT, REVOLVER y BARRER ya existían para
+  contornos cerrados; con curvas abiertas ahora dan superficie en vez de
+  negarse. RED es nuevo. Las superficies viven en la entidad `cuerpo`, con su
+  historial, y el aviso dice «superficie … cm²» en vez de «0.0 cm³».
+- **build123d no hace loft de alambres abiertos** («More than one wire is
+  required»); OpenCASCADE sí, con BRepOffsetAPI_ThruSections(sólido=False).
+- **Un parche sobre un borde que no cierra no truena donde debe**: el kernel
+  arma un parche degenerado y truena después, al mallarlo. Se revisa antes que
+  las curvas formen un lazo cerrado.
+- Al leer el eje antes que la cara, una prueba vieja (t051) que pasaba el eje
+  en un formato inválido dejó de pasar por la razón equivocada: se corrigió el
+  dato de la prueba, no el código.
